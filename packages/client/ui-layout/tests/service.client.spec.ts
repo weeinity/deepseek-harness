@@ -10,6 +10,9 @@ function fakePanels(): PanelActions {
     setNarrow: vi.fn(),
     openDetails: vi.fn(),
     closeDetails: vi.fn(),
+    openMainSurface: vi.fn(),
+    closeMainSurface: vi.fn(),
+    toggleMainSurface: vi.fn(),
   }
 }
 
@@ -35,6 +38,30 @@ describe('LayoutController', () => {
     expect(() => { service.toggleSidebar() }).toThrow(/panel actions not wired/)
     expect(() => { service.openDetails() }).toThrow(/panel actions not wired/)
     expect(() => { service.closeDetails() }).toThrow(/panel actions not wired/)
+  })
+
+  it('registers, validates, toggles, and expected-id closes main surfaces', () => {
+    const service = new LayoutController()
+    const panels = fakePanels()
+    service.attachPanels(panels)
+    expect(() => { service.openMainSurface('taskboard') }).toThrow(/not registered/)
+    expect(() => { service.registerMainSurface('') }).toThrow(/empty or already registered/)
+    const dispose = service.registerMainSurface('taskboard')
+    expect(() => { service.registerMainSurface('taskboard') }).toThrow(/empty or already registered/)
+    service.openMainSurface('taskboard')
+    service.toggleMainSurface('taskboard')
+    service.closeMainSurface()
+    expect(panels.openMainSurface).toHaveBeenCalledWith('taskboard')
+    expect(panels.toggleMainSurface).toHaveBeenCalledWith('taskboard')
+    expect(panels.closeMainSurface).toHaveBeenCalledWith()
+    dispose()
+    expect(panels.closeMainSurface).toHaveBeenCalledWith('taskboard')
+  })
+
+  it('surface disposal before root wiring is a safe no-op', () => {
+    const service = new LayoutController()
+    const dispose = service.registerMainSurface('taskboard')
+    expect(dispose).not.toThrow()
   })
 
   it('re-attach overwrites the stale action set (entry re-register)', () => {

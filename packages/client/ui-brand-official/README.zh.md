@@ -1,5 +1,5 @@
 ---
-description: "面向侧栏与会话首屏的官方 DeepSeek Harness 品牌填充，仅在官方构建中生效；供选择或替换品牌呈现的用户与维护者阅读。"
+description: "面向侧栏与会话首屏的 MIP Autolabeling 品牌填充，仅在官方构建中生效；供选择或替换品牌呈现的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包向浏览器品牌槽位——`sidebar.brand.mark`、`sidebar.brand.name` 与 `conversation.hero.brand.mark`——填充官方 DeepSeek Harness 标志与名称。它只在客户端以 `official` profile 构建时注册这些填充；其余构建同样加载插件但不注册任何内容，因此外壳回退保持可见。当部署身份就是 DeepSeek 自身时选择它；自有品牌的部署改为在相同槽位中组合另一个包。它不保留任何运行时状态，也不向模型请求贡献任何内容。
+本包向浏览器品牌槽位——`sidebar.brand.mark`、`sidebar.brand.name` 与 `conversation.hero.brand.mark`——填充 MIP Autolabeling 标志与侧栏字标。它只在客户端以 `official` profile 构建时注册这些填充；其余构建同样加载插件但不注册任何内容，因此外壳回退保持可见。MIP 部署选择本包；采用其他身份的部署改为在相同槽位中组合另一个包。它不保留任何运行时状态，也不向模型请求贡献任何内容。
 
 ## 目录
 
@@ -25,11 +25,11 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在身份为 DeepSeek 自身的部署的浏览器名单中挂载本插件，然后以 `official` profile 构建客户端，让填充得以注册。
+在 MIP 部署的浏览器名单中挂载本插件，然后以 `official` profile 构建客户端，让填充得以注册。
 
 ### 选择 profile
 
-`DSH_CLIENT_BUILD_PROFILE` 决定渲染哪个品牌。`official` 构建在侧栏显示官方标志与名称、在会话首屏显示标志；任何其他取值都让外壳回退——鱼形标志与本地构建标签——保持原样。两种情况下插件都会照常加载并通过校验；只有注册受 profile 门控。
+`DSH_CLIENT_BUILD_PROFILE` 决定是否注册这些填充。`official` 构建在侧栏与会话 Hero 中显示 MIP Autolabeling 蓝色已应用标签、透明勾选符号和金色星芒，并在侧栏显示紧凑字标。这些标志与本地侧栏及 Hero 回退一致（见[决策](../../../.agents/notes/implemented/feature/2026-09-08-mip-autolabeling-portal-identity.zh.md)）；其他 profile 保留这些回退与本地构建元数据。两种情况下插件都会照常加载并通过校验；只有注册受 profile 门控。
 
 ### 替换品牌
 

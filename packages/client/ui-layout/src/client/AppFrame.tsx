@@ -23,18 +23,22 @@ import css from './AppFrame.module.css'
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay'>
+  & PropsRenderSlots<'sidebar' | 'conversation' | 'main.surface' | 'details' | 'shell.overlay'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
 
-/** Center column grid item (session-body building block). */
-function CenterColumn(props: { children?: ReactNode }) {
-  return <div className={css.centerCol}>{props.children}</div>
-}
-
-/** Details column grid item; width 0 keeps the subtree mounted (never unmount on close). */
-function DetailsColumn(props: { children?: ReactNode }) {
-  return <div className={css.detailsCol}>{props.children}</div>
+/** Keep one underlying grid column mounted and measured while a main surface obscures it. */
+function ObscurableColumn(props: { className: string | undefined; obscured: boolean; children?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => { ref.current?.toggleAttribute('inert', props.obscured) }, [props.obscured])
+  return (
+    <div
+      ref={ref}
+      className={props.className}
+      aria-hidden={props.obscured || undefined}
+      data-obscured={props.obscured || undefined}
+    >{props.children}</div>
+  )
 }
 
 /**
@@ -97,6 +101,7 @@ export function AppFrame({
   t,
 }: AppFrameProps) {
   const panels = useStore(s => s)
+  const mainSurface = panels.mainSurface
   const detailsSession = useSessions((s) => {
     const current = s.current
     return current !== undefined && s.byId[current]?.blank === false ? current : undefined
@@ -137,6 +142,25 @@ export function AppFrame({
     }
   }, [])
 
+  // The Conversation file-drop owner withdraws while another main surface is
+  // active. Prevent an unclaimed file drop from navigating the browser away;
+  // a future surface upload owner can consume first and set defaultPrevented.
+  useEffect(() => {
+    if (mainSurface === undefined) return
+    const suppress = (event: globalThis.DragEvent): void => {
+      const transfer = event.dataTransfer
+      if (event.defaultPrevented || transfer === null || !transfer.types.includes('Files')) return
+      event.preventDefault()
+      if (event.type === 'dragover') transfer.dropEffect = 'none'
+    }
+    document.addEventListener('dragover', suppress)
+    document.addEventListener('drop', suppress)
+    return () => {
+      document.removeEventListener('dragover', suppress)
+      document.removeEventListener('drop', suppress)
+    }
+  }, [mainSurface])
+
   // Narrow viewports auto-collapse the sidebar; the store mirror keeps
   // toggleSidebar's semantics right (narrow toggles flip the manual
   // re-expand override, stores.ts). Collapsed is decided here, so the
@@ -149,7 +173,11 @@ export function AppFrame({
   const sidebarPreference = sidebarCollapsed
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
-  const cols = computeColumns(viewport, sidebarPreference, detailsSession === undefined ? 0 : panels.details)
+  const cols = computeColumns(
+    viewport,
+    sidebarPreference,
+    detailsSession === undefined ? 0 : panels.details,
+  )
   const colsRef = useRef(cols)
   colsRef.current = cols
 
@@ -194,6 +222,7 @@ export function AppFrame({
         {renderSlot('sidebar', {
           collapsed: sidebarCollapsed,
           width: cols.sidebar,
+          ...(mainSurface === undefined ? {} : { mainSurface }),
         })}
       </div>
       <>
@@ -202,17 +231,24 @@ export function AppFrame({
             the shell's own pending rendering. The conversation
             is session-maybe; SessionProvider withholds the strict details
             entry while no session is current. */}
-        <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
-        <DetailsColumn>
+        <ObscurableColumn className={css.centerCol} obscured={mainSurface !== undefined}>
+          {renderSlot('conversation', { active: mainSurface === undefined })}
+        </ObscurableColumn>
+        <ObscurableColumn className={css.detailsCol} obscured={mainSurface !== undefined}>
           <SessionProvider>{renderSlot('details', {})}</SessionProvider>
-        </DetailsColumn>
+        </ObscurableColumn>
+        {mainSurface !== undefined && (
+          <div className={css.mainSurface}>
+            {renderSlot('main.surface', {}, { entryKey: mainSurface })}
+          </div>
+        )}
       </>
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}
       </div>
       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
       {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
-      {cols.details > 0 && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
+      {mainSurface === undefined && cols.details > 0 && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
     </div>
   )
 }

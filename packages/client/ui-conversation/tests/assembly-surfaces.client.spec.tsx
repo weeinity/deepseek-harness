@@ -40,7 +40,7 @@ beforeEach(() => {
 
 type AppRootProps = PropsRenderSlots<'conversation'>
 function AppRoot({ renderSlot }: AppRootProps) {
-  return <>{renderSlot('conversation', {})}</>
+  return <>{renderSlot('conversation', { active: true })}</>
 }
 
 const LAYOUT_CHILDREN = {

@@ -43,7 +43,7 @@ export function InputBar({
   useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
   resolveSubmitMode, toggleCommandMenu, stop, command, t,
   renderSlot, useNotices, useLexicon, useMenuLauncher,
-  useProjection, sessionId, variant, disabled: inert = false, blocked,
+  useProjection, sessionId, active, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
   placeholder, accessory, overlay, leftItems, rightItems, footer,
 }: InputBarProps) {
@@ -91,14 +91,15 @@ export function InputBar({
   // rejections show product copy keyed by the wire reason; other codes are
   // developer-facing and keep the raw message plus code.
   useEffect(() => {
-    if (promptError === null) return
+    if (!active || promptError === null) return
     showToast(promptError.error.code === 'attachment-error'
       ? attachmentErrorText(t, promptError.error.details.reason, imageLimits)
       : `${promptError.error.message} (${promptError.error.code})`)
-  }, [promptError, showToast, t, imageLimits])
+  }, [active, promptError, showToast, t, imageLimits])
   useEffect(() => {
-    if (notice?.level === 'error') showToast(notice.text)
-  }, [notice, showToast])
+    if (active && notice?.level === 'error') showToast(notice.text)
+  }, [active, notice, showToast])
+  useEffect(() => { if (!active) dismissToast() }, [active, dismissToast])
   const cardRef = useRef<HTMLDivElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -114,19 +115,19 @@ export function InputBar({
   // inert no-workspace state, the machine faces absent (no session), or a
   // parent-offline continuable child. An owner block also disables input;
   // adjudicating and submitting render read-only so the draft stays visible.
-  const disabled = removed || inert || !live || blocked !== undefined || parentOffline
+  const disabled = !active || removed || inert || !live || blocked !== undefined || parentOffline
   const locked = disabled
   // The model seat is the ONE control a block leaves live: every block this
   // contract has is cleared by choosing a model, so locking it too would leave
   // the composer asking for the only thing it prevents. The other reasons to
   // be disabled do lock it — there is no session to choose a model for.
-  const modelSeatLocked = removed || inert || !live
+  const modelSeatLocked = !active || removed || inert || !live
   const machineBusy = input?.phase === 'adjudicating' || input?.phase === 'submitting'
   // The no-workspace surface remains the resident DOM node but acts as the
   // existing picker trigger. Message controls stay locked until a Session
   // exists; the trigger itself is read-only rather than disabled so pointer
   // and keyboard users can reach the recovery action.
-  const workspaceTrigger = inert && !removed && onRequestWorkspace !== undefined
+  const workspaceTrigger = active && inert && !removed && onRequestWorkspace !== undefined
   const editorDisabled = removed || (locked && !workspaceTrigger)
   const editable = live && !locked && !machineBusy
   const canSteerQueue = !locked && !machineBusy && !commandMenuOpen && empty && running && subagent === null
@@ -363,7 +364,7 @@ export function InputBar({
 
   return (
     <div className={clsx(css.root, variant === 'hero' && css.hero)}>
-      {toast !== null && (
+      {active && toast !== null && (
         <Toast
           key={toast.seq}
           text={toast.text}
@@ -372,7 +373,7 @@ export function InputBar({
           onDone={dismissToast}
         />
       )}
-      {notice?.level === 'info' && (
+      {active && notice?.level === 'info' && (
         <div className={css.notice} role="status">
           {notice.text}
         </div>
@@ -392,6 +393,7 @@ export function InputBar({
         {overlay !== undefined && <div className={css.overlayAnchor}>{overlay}</div>}
         {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
         {renderSlot('conversation.input.attachments', {
+          active,
           attachments,
           canAcceptDrop,
           onAddImages: intakeImages,

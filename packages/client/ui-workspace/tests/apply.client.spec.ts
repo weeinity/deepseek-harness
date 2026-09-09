@@ -58,6 +58,7 @@ async function bench() {
     binding,
     fork,
   } as never)
+  ctx.provide('layout', { closeMainSurface: vi.fn() } as never)
   ctx.provide('connection', {
     generation: { getSnapshot: () => undefined, subscribe: () => () => {} },
   } as never)
@@ -88,7 +89,7 @@ function declare(slots: SlotRegistry, ...names: HoleName[]): () => void {
 describe('ui-workspace apply', () => {
   it('declares the services it drives', () => {
     expect(inject).toEqual([
-      'slots', 'sessions', 'workspaces', 'locale', 'connection', 'remote', 'remote.directoryPicker',
+      'slots', 'sessions', 'workspaces', 'locale', 'layout', 'connection', 'remote', 'remote.directoryPicker',
     ])
   })
 

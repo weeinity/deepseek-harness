@@ -13,6 +13,7 @@ import sessionReferencesRemote from '@deepseek-ai/dsh-session-reference/remote'
 import subagentsRemote from '@deepseek-ai/dsh-subagent/remote'
 import sessionRemote from '@deepseek-ai/dsh-api-session-controller/remote'
 import workspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
+import taskboardRemote from '@deepseek-ai/dsh-api-taskboard-controller/remote'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 
 export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
@@ -31,6 +32,8 @@ export type {} from '@deepseek-ai/dsh-api-session-controller/remote'
 export type * from '@deepseek-ai/dsh-api-session-controller/types'
 export type {} from '@deepseek-ai/dsh-api-workspace-controller/remote'
 export type * from '@deepseek-ai/dsh-api-workspace-controller/types'
+export type {} from '@deepseek-ai/dsh-api-taskboard-controller/remote'
+export type * from '@deepseek-ai/dsh-api-taskboard-controller/types'
 export type { SessionJob as JobView } from '@deepseek-ai/dsh-api-session-controller/types'
 // The forwarded-event allowlist's selection seat: without it in the consumer's
 // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
@@ -130,6 +133,7 @@ export type ClientFailure =
   | import('@deepseek-ai/dsh-llm/types').LlmModelDiscoveryError
   | import('@deepseek-ai/dsh-subagent/client').SubagentControlError
   | import('@deepseek-ai/dsh-api-workspace-controller/types').WorkspaceError
+  | import('@deepseek-ai/dsh-api-taskboard-controller/types').TaskboardError
 
 /** Success or failure returned by Client operations spanning both API families. */
 export type ClientResult<T> =
@@ -157,7 +161,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
     for (const contribution of [
       agentPresetsRemote, commandsRemote, settingsControllerRemote, goalsRemote, llmRemote, dynamicRemote,
       pluginInventoryRemote, messageFeedbackRemote, sessionReferencesRemote,
-      subagentsRemote, sessionRemote, workspaceRemote,
+      subagentsRemote, sessionRemote, workspaceRemote, taskboardRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

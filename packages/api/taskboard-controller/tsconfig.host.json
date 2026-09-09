@@ -1,0 +1,21 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
+  },
+  "files": ["src/index.ts", "src/invariant.ts", "src/types.ts", "src/feed.ts", "src/agency.ts"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../../storage/storage-domain" },
+    { "path": "../../subprocess/subprocess" },
+    { "path": "../../subprocess/win32-process" },
+    { "path": "../../util/launch-environment" },
+    { "path": "../../typert/protocol" },
+    { "path": "../../workspace/taskboard" },
+    { "path": "../../workspace/workspace" }
+  ]
+}

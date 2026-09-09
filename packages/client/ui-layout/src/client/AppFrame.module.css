@@ -36,6 +36,24 @@
   overflow: hidden;
 }
 
+.centerCol[data-obscured],
+.detailsCol[data-obscured] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.mainSurface {
+  min-width: 0;
+  min-height: 0;
+  grid-column: 2 / -1;
+  grid-row: 1;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+}
+
 .detailsCol {
   min-width: 0;
   overflow: hidden;

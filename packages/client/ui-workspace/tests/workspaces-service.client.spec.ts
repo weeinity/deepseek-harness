@@ -196,6 +196,7 @@ function bench(options: BenchOptions = {}) {
     directoryPicker.remote,
     workspaces,
     sessions as unknown as ISessions,
+    { closeMainSurface: vi.fn() },
   )
   return { ctx, directoryPicker, sessions, uiWorkspace, workspaces }
 }

@@ -67,6 +67,25 @@ describe('FishLogo', () => {
   })
 })
 
+describe('MipAutolabelingMark', () => {
+  it('renders the fixed MIP palette at a caller-selected square size', () => {
+    const { container, rerender } = render(<primitives.MipAutolabelingMark className="brand-mark" />)
+    const svg = container.querySelector('svg')!
+    expect(svg.getAttribute('width')).toBe('24')
+    expect(svg.getAttribute('height')).toBe('24')
+    expect(svg.getAttribute('class')).toBe('brand-mark')
+    expect(svg.getAttribute('viewBox')).toBe('0 0 512 512')
+    expect(svg.getAttribute('data-brand')).toBe('mip-autolabeling')
+    expect([...container.querySelectorAll('path')].map(path => path.getAttribute('fill')))
+      .toEqual(['#0F6CBD', '#FFC53D'])
+    expect(container.querySelector('path[fill-rule="evenodd"]')).not.toBeNull()
+
+    rerender(<primitives.MipAutolabelingMark size={34} />)
+    expect(svg.getAttribute('width')).toBe('34')
+    expect(svg.getAttribute('height')).toBe('34')
+  })
+})
+
 describe('BrandWordmark', () => {
   it('can render the name artwork with or without its leading mark', () => {
     const view = render(<primitives.BrandWordmark />)

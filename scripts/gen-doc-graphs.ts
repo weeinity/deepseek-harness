@@ -92,6 +92,7 @@ const GROUP_ORDER = [
   'telemetry',
   'storage',
   'workspace',
+  'taskboard',
   'support',
   'acp',
   'ui',
@@ -192,6 +193,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns Workspace commands and reconnect-safe Workspace state delivery through the generated Remote namespace.',
   },
   {
+    key: 'taskboardController',
+    pkg: 'api-taskboard-controller',
+    title: 'Host Taskboard Remote controller',
+    mode: 'core',
+    note: 'Owns revision-checked Taskboard commands and reconnect-safe baseline-plus-increment state delivery.',
+  },
+  {
     key: 'directoryPickerController',
     pkg: 'api-workspace-controller',
     title: 'Host directory-picking Remote controller',
@@ -288,7 +296,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     pkg: 'storage-domain',
     title: 'Domain data facility',
     mode: 'core',
-    consumers: ['workspace', 'message-feedback'],
+    consumers: ['workspace', 'taskboard', 'message-feedback'],
     note: 'Waits for every configured backend, then publishes the domain form as one lifecycle-bound service for typed durable state.',
   },
   {
@@ -305,6 +313,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'core',
     consumers: ['api-workspace-controller', 'api-session-controller'],
     note: 'Owns WorkspaceId-branded records over the domain facility; stable sessionIds accounts drive Host RPC and GUI projections.',
+  },
+  {
+    key: 'taskboard',
+    pkg: 'taskboard',
+    title: 'Durable Workspace Taskboard',
+    mode: 'core',
+    consumers: ['api-taskboard-controller'],
+    note: 'Owns revisioned five-column task records over the storage domain and optional links to Workspace Sessions.',
   },
   {
     key: 'sessionQuery',

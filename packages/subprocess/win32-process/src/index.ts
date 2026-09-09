@@ -18,6 +18,7 @@ export type {
 } from './ffi.ts'
 export {
   drainPipe,
+  quoteArg,
   spawnInheritedJobProcess,
   spawnPipedProcess,
   waitForProcessExit,

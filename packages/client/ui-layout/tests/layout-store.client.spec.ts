@@ -85,6 +85,22 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().details).toBe(0)
   })
 
+  it('selects a main surface without rewriting panel geometry and guards stale disposal', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.openDetails()
+    actions.setDetails(500)
+    actions.openMainSurface('taskboard')
+    expect(store.getSnapshot()).toMatchObject({ details: 500, mainSurface: 'taskboard' })
+    actions.closeMainSurface('other')
+    expect(store.getSnapshot().mainSurface).toBe('taskboard')
+    actions.toggleMainSurface('taskboard')
+    expect(store.getSnapshot().mainSurface).toBeUndefined()
+    actions.toggleMainSurface('taskboard')
+    actions.closeMainSurface()
+    expect(store.getSnapshot()).toMatchObject({ details: 500 })
+    expect(store.getSnapshot().mainSurface).toBeUndefined()
+  })
+
   it('does not persist panel geometry', () => {
     const first = createLayoutStore().create()
     first.actions.setSidebar(400)

@@ -28,6 +28,12 @@
     path: ':memory:'
     openAt: never
 
+- id: storage-domain
+  config:
+    backend: json
+    routes:
+      taskboard: sqlite
+
 - id: tools
   config:
     # TEMPORARY workaround: DSH_TOOLS_MODE (native|ptc|both) opts a whole dsh
@@ -49,6 +55,11 @@
     - id: code-runtime
       name: '@deepseek-ai/dsh-code-runtime-worker-thread'
 
+    - id: storage-sqlite
+      name: '@deepseek-ai/dsh-storage-sqlite'
+      config:
+        path: !!js dshHomePath('storages', 'taskboard.db')
+
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
       config:
@@ -60,6 +71,9 @@
 
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
+
+    - id: taskboard
+      name: '@deepseek-ai/dsh-taskboard'
 
     - id: session-reference
       name: '@deepseek-ai/dsh-session-reference'
@@ -94,6 +108,12 @@
     # Workspace commands and reconnect-safe projection over Typert Remote.
     - id: workspace-controller
       name: '@deepseek-ai/dsh-api-workspace-controller'
+
+    - id: taskboard-controller
+      name: '@deepseek-ai/dsh-api-taskboard-controller'
+      inject: [webStartup]
+      config:
+        agencyCopilotLaunch: !!js (ctx.webStartup.host ?? '127.0.0.1') === '127.0.0.1'
 
     - id: cordis-host-runner
       name: '@deepseek-ai/dsh-cordis-host-runner'
@@ -186,6 +206,9 @@
 
     - id: ui-sidebar
       name: '@deepseek-ai/dsh-client-ui-sidebar'
+
+    - id: ui-taskboard
+      name: '@deepseek-ai/dsh-client-ui-taskboard'
 
     - id: ui-settings
       name: '@deepseek-ai/dsh-client-ui-settings'

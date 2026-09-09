@@ -25,6 +25,7 @@ workspace 组提供宿主 UI 背后的持久项目列表：一个产品包 `work
 | 包 | 职责 | ctx 键 |
 |---|---|---|
 | [`workspace`](workspace/README.zh.md) | 提供命名且有序的项目，并在每个目录下聚合其会话 | `ctx.workspaceRegistry` |
+| [`taskboard`](taskboard/README.zh.md) | 持久化带修订检查的五列 Workspace 任务 | `ctx.taskboard` |
 
 -----
 

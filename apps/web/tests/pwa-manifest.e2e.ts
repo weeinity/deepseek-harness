@@ -26,10 +26,11 @@ it('ships install metadata with the built web application', async () => {
   })
 })
 
-it('ships a favicon that switches to a light mark under dark color scheme', async () => {
+it('ships the MIP Autolabeling mark as the favicon', async () => {
   const favicon = await readFile(join(DIST_ROOT, 'favicon.svg'), 'utf8')
-  // The light fill must live inside the dark-scheme media query, so the icon
-  // stays black in light mode and only turns white under a dark scheme.
-  expect(favicon).toMatch(/@media \(prefers-color-scheme: dark\)\s*{\s*path\s*{[^}]*fill:\s*#fff/i)
-  expect(favicon).toContain('fill="#000"')
+  expect(favicon).toContain('data-brand="mip-autolabeling"')
+  expect(favicon).toContain('viewBox="0 0 512 512"')
+  expect(favicon).toContain('fill="#0F6CBD"')
+  expect(favicon).toContain('fill="#FFC53D"')
+  expect(favicon).toContain('fill-rule="evenodd"')
 })

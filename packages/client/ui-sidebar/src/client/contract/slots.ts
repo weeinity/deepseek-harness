@@ -18,7 +18,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /**
      * Brand mark rendered in the expanded brand row and collapsed rail.
      * Declared by this package's `sidebar` entry; deployments may replace
-     * the shell's fish fallback without replacing the surrounding controls.
+     * the shell's MIP shield fallback without replacing the surrounding controls.
      */
     'sidebar.brand.mark': { kind: 'single'; scope: 'root'; owner: SidebarBrandMarkOwnerProps }
     /**
@@ -83,6 +83,8 @@ export interface SidebarSettingsOwnerProps {
 export interface SidebarFooterActionOwnerProps {
   /** Whether the sidebar renders wide content (false = 56px rail). */
   wide: boolean
+  /** Selected full-height main surface; absent means Conversation. */
+  mainSurface?: string
 }
 
 /**

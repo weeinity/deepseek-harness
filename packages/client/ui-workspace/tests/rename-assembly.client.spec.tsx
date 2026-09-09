@@ -34,6 +34,7 @@ beforeEach(() => { localStorage.clear() })
 async function createRuntime(): Promise<SlotTestRuntime> {
   const runtime = await SlotTestRuntime.create()
   runtime.releaseWorkspaceSource()
+  runtime.ctx.provide('layout', { closeMainSurface: vi.fn() } as never)
   runtime.ctx.provide('connection', {
     generation: { getSnapshot: () => undefined, subscribe: () => () => {} },
   })

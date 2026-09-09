@@ -1,25 +1,11 @@
-/**
- * LayoutController: the cross-plugin panel-action face behind ctx.layout.
- * Panel geometry itself lives in the root entry's layout store (stores.ts);
- * the current-session selection lives with the runtime sessions service, and
- * the per-session active view dissolved into ui-conversation's session store
- * (its only consumer). What remains here is the contract other plugins'
- * apply worlds reach for panel transitions (sidebar toggle from ui-sidebar,
- * details open/close from ui-conversation) — writes stay inside the store's
- * declared action set, delivered as the registration's bound actions.
- */
+/** Cross-plugin panel actions and first-class main-surface selection. */
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createLayoutStore } from './stores.ts'
 
-/** The layout store's bound action set (framework-baked, draft params peeled). */
+/** The layout store's bound action set delivered by the root registration. */
 export type PanelActions = BoundActions<ReturnType<typeof createLayoutStore>>
 
-/**
- * The outward layout face (`ctx.layout`): the panel transitions other
- * plugins may trigger — and exactly what a test fake must supply. The
- * attachPanels wiring hook stays on the concrete class (root-entry assembly
- * only).
- */
+/** The outward layout face used by feature plugins and sidebar launchers. */
 export interface ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void
@@ -27,42 +13,64 @@ export interface ILayout {
   openDetails(): void
   /** Close the details panel. */
   closeDetails(): void
+  /**
+   * Register one available main surface for this plugin lifetime.
+   * @param id - Stable keyed-slot entry id.
+   * @returns disposer that removes the id and closes it when active.
+   */
+  registerMainSurface(id: string): () => void
+  /**
+   * Select a registered surface while preserving underlying panel geometry.
+   * @param id - Registered surface id.
+   */
+  openMainSurface(id: string): void
+  /** Return to the Conversation surface. */
+  closeMainSurface(): void
+  /**
+   * Toggle one registered surface against the Conversation.
+   * @param id - Registered surface id.
+   */
+  toggleMainSurface(id: string): void
 }
 
-/** Cross-plugin panel-action face (ctx.layout). */
+/** Cross-plugin viewing-state and panel-action service. */
 export class LayoutController implements ILayout {
   #panels: PanelActions | undefined
+  #surfaceIds = new Set<string>()
 
   /**
-   * Adopt the root entry's bound store actions. Called from the root
-   * registration's inject hook (a sanctioned assembly side effect), so the
-   * face is live from the entry's first render; on entry re-register the
-   * fresh actions overwrite the stale set.
-   * @param actions - bound actions of the entry's layout store instance.
+   * Adopt the root entry's bound store actions.
+   * @param actions - bound actions of the root layout store.
    */
-  attachPanels(actions: PanelActions): void {
-    this.#panels = actions
+  attachPanels(actions: PanelActions): void { this.#panels = actions }
+
+  toggleSidebar(): void { this.#require().toggleSidebar() }
+  openDetails(): void { this.#require().openDetails() }
+  closeDetails(): void { this.#require().closeDetails() }
+
+  registerMainSurface(id: string): () => void {
+    if (id === '' || this.#surfaceIds.has(id)) {
+      throw new Error(`layout: main surface id '${id}' is empty or already registered`)
+    }
+    this.#surfaceIds.add(id)
+    return () => {
+      if (!this.#surfaceIds.delete(id)) return
+      this.#panels?.closeMainSurface(id)
+    }
   }
 
-  /** Toggle the sidebar panel (closed ⟷ contract default width). */
-  toggleSidebar(): void {
-    this.#require().toggleSidebar()
+  openMainSurface(id: string): void {
+    if (!this.#surfaceIds.has(id)) throw new Error(`layout: main surface '${id}' is not registered`)
+    this.#require().openMainSurface(id)
   }
 
-  /** Open the details panel (no-op when already open). */
-  openDetails(): void {
-    this.#require().openDetails()
-  }
-
-  /** Close the details panel. */
-  closeDetails(): void {
-    this.#require().closeDetails()
+  closeMainSurface(): void { this.#require().closeMainSurface() }
+  toggleMainSurface(id: string): void {
+    if (!this.#surfaceIds.has(id)) throw new Error(`layout: main surface '${id}' is not registered`)
+    this.#require().toggleMainSurface(id)
   }
 
   #require(): PanelActions {
-    // Callers are UI gestures, which cannot fire before the root entry
-    // rendered (the inject hook runs in its first render) — reaching this
-    // unwired is a boot-order bug, not a race to tolerate.
     if (this.#panels === undefined) throw new Error('layout: panel actions not wired (root entry not mounted)')
     return this.#panels
   }

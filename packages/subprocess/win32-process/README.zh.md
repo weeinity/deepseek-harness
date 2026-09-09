@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-供 Windows ACL 沙箱消费的底层 Win32 进程库。它唯一拥有仓库中可复用 restricted-process、stdio 与 Job Object 操作的 Koffi 绑定表；它不是 Cordis 服务，也不决定沙箱策略或公共 child 行为。维护沙箱原生进程路径或检查 handle 生命周期限制时，请阅读本页。
+供 Windows 集成消费的底层 Win32 进程与参数引用库。它唯一拥有仓库中可复用 restricted-process、stdio 与 Job Object 操作的 Koffi 绑定表；它不是 Cordis 服务，也不决定沙箱策略或公共 child 行为。维护原生进程参数或检查 Windows ACL 沙箱的 handle 生命周期限制时，请阅读本页。
 
 ## 目录
 
@@ -25,6 +25,7 @@ kind: "package-library"
 ## Behavior
 
 - **唯一可复用 ABI owner** — `abi.ts` 拥有 sandbox process 路径消费的 Win32 常量与 x64 布局值。`ffi.ts` 懒加载 `kernel32.dll` 与 `advapi32.dll`，核验 `STARTUPINFOW` 和 `PROCESS_INFORMATION`，提供带类型的操作与错误格式化，并让 sandbox policy 通过同一组已加载库绑定剩余 API。
+- **参数引用** — `quoteArg()` 让一个参数经 `CommandLineToArgvW` 解析后保持原样，包括内嵌引号和尾部反斜杠。它不处理 shell 或终端命令分隔符；调用方负责这些额外解析器。
 - **restricted-token 创建** — `RestrictedProcessSpawnOptions` 要求 sandbox 的 primary token，并使用 `CreateProcessAsUserW`。pipe 与 inherited-stdio 路径共用命令行引用、cwd、继承环境块、返回值检查与句柄清理。
 - **管道进程原语** — `spawnPipedProcess()` 创建匿名 stdin/stdout/stderr 管道，立即关闭 stdin，并返回两个读取端；调用方负责等待进程与排空管道。任一局部失败都会关闭该操作已经拥有的句柄，并在各自 Win32 生命周期结束后释放每个 Koffi 输出槽与结构体分配。
 - **继承 stdio 的 Job 原语** — `spawnInheritedJobProcess()` 创建一个 kill-on-close Job，临时把当前 stdio 句柄设为可继承，以 suspended 状态创建 restricted child，把它分配给 Job，再恢复初始线程。目标代码不会在 Job 分配前运行；受控的分配或恢复失败会终止 suspended child，或在释放全部已拥有句柄前关闭已分配的 Job。

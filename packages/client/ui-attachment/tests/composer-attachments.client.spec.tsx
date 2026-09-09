@@ -55,6 +55,7 @@ function attachment(id: string, name = `${id}.png`): ComposerAttachment {
 
 function props(overrides: Partial<ComposerAttachmentsOwnerProps> = {}): ComposerAttachmentsProps {
   return {
+    active: true,
     attachments: [],
     canAcceptDrop: true,
     onAddImages: () => {},
@@ -148,6 +149,18 @@ describe('ComposerAttachments', () => {
     fireEvent.click(view.getByTitle('查看原图'))
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(view.queryByRole('dialog', { name: '原图预览' })).toBeNull()
+  })
+
+  it('removes document interactions and dismisses portal state while inactive', () => {
+    const image = attachment('hidden')
+    const view = render(<ComposerAttachments {...props({ attachments: [image] })} />)
+    fireEvent.click(view.getByTitle('查看原图'))
+    expect(view.getByRole('dialog')).toBeTruthy()
+    view.rerender(<ComposerAttachments {...props({ active: false, attachments: [image] })} />)
+    expect(view.queryByRole('dialog')).toBeNull()
+    const transfer = { types: ['Files'], files: [image.file], dropEffect: 'none' }
+    expect(fireEvent.dragEnter(document.body, { dataTransfer: transfer })).toBe(true)
+    expect(view.queryByRole('status')).toBeNull()
   })
 
   it('labels an unnamed attachment and its original-image preview', () => {

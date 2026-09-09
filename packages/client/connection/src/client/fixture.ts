@@ -339,6 +339,64 @@ interface FixtureWorkspace {
   updatedAt: string
 }
 
+type FixtureTaskId = string & { readonly __fixtureTaskId: 'TaskId' }
+type FixtureAgencyCopilotSessionId = string & { readonly __fixtureAgencyCopilotSessionId: 'AgencyCopilotSessionId' }
+type FixtureTaskStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done'
+type FixtureTaskPriority = 'low' | 'medium' | 'high' | 'urgent'
+interface FixtureTask {
+  id: FixtureTaskId
+  revision: number
+  ordinal: number
+  workspaceId: WorkspaceId
+  title: string
+  description: string
+  status: FixtureTaskStatus
+  rank: number
+  priority?: FixtureTaskPriority
+  labels: string[]
+  sessionId?: SessionId
+  agencyCopilotSessionId?: FixtureAgencyCopilotSessionId
+  createdAt: string
+  updatedAt: string
+  archivedAt?: string
+}
+interface FixtureTaskCreateRequest {
+  workspaceId: WorkspaceId
+  title: string
+  description?: string
+  status?: FixtureTaskStatus
+  priority?: FixtureTaskPriority
+  labels?: readonly string[]
+  agencyCopilotSessionId?: FixtureAgencyCopilotSessionId
+}
+interface FixtureTaskUpdateRequest {
+  taskId: FixtureTaskId
+  expectedRevision: number
+  patch: {
+    title?: string
+    description?: string
+    priority?: FixtureTaskPriority | null
+    labels?: readonly string[]
+    sessionId?: SessionId | null
+    agencyCopilotSessionId?: FixtureAgencyCopilotSessionId | null
+  }
+}
+interface FixtureTaskMoveRequest {
+  taskId: FixtureTaskId
+  expectedRevision: number
+  status: FixtureTaskStatus
+  beforeTaskId?: FixtureTaskId
+}
+interface FixtureTaskArchiveRequest { taskId: FixtureTaskId; expectedRevision: number }
+interface FixtureTaskDeleteRequest { taskId: FixtureTaskId; expectedRevision: number }
+interface FixtureTaskStartAgencyCopilotRequest { taskId: FixtureTaskId; expectedRevision: number }
+interface FixtureTaskOpenAgencyCopilotRequest { taskId: FixtureTaskId }
+interface FixtureTaskInspectAgencyCopilotRequest { taskIds: readonly FixtureTaskId[] }
+type FixtureTaskFollowFrame =
+  | { readonly type: 'baseline'; readonly value: { readonly tasks: readonly FixtureTask[] } }
+  | { readonly type: 'upsert'; readonly task: FixtureTask }
+  | { readonly type: 'remove'; readonly taskId: FixtureTaskId; readonly revision: number }
+
 function text(t: string): ContentBlock[] {
   return [{ type: 'text', text: t }]
 }
@@ -1923,6 +1981,31 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       archivedSessionIds: [...archivedSessionIds],
     },
   })
+  const taskId = (raw: string): FixtureTaskId => raw as FixtureTaskId
+  const agencyId = (raw: string): FixtureAgencyCopilotSessionId => raw as FixtureAgencyCopilotSessionId
+  const fixtureAgencyId = agencyId('13e59df5-bd3a-46e6-bfd5-b61e22ff0491')
+  const agencySessions = new Map<FixtureAgencyCopilotSessionId, {
+    workspaceId: WorkspaceId
+    summary: string
+    status: 'idle' | 'in_use'
+  }>([
+    [fixtureAgencyId, { workspaceId: wid('fx-ws-fixture'), summary: 'Existing Copilot investigation', status: 'idle' }],
+    [agencyId('2eb3dbf2-8b82-4863-b505-520708dcce80'), { workspaceId: wid('fx-ws-fixture'), summary: 'Active Copilot review', status: 'in_use' }],
+    [agencyId('e1239201-0601-4ec4-b33f-e88aeccf8d4c'), { workspaceId: wid('fx-ws-home'), summary: 'Home workspace planning', status: 'idle' }],
+  ])
+  let nextTask = 6
+  const taskEpoch = new Date(Date.now() - 180_000).toISOString()
+  const tasks: FixtureTask[] = options.empty ? [] : [
+    { id: taskId('fx-task-1'), revision: 1, ordinal: 1, workspaceId: wid('fx-ws-fixture'), title: 'Design Taskboard domain', description: 'Define durable task records and revisions.', status: 'done', rank: 0, priority: 'high', labels: ['Domain'], createdAt: taskEpoch, updatedAt: taskEpoch },
+    { id: taskId('fx-task-2'), revision: 1, ordinal: 2, workspaceId: wid('fx-ws-fixture'), title: 'Build native board surface', description: 'Keep the DSH sidebar and render five columns.', status: 'in_progress', rank: 0, priority: 'high', labels: ['UI', 'MVP'], sessionId: sid('fx-alpha'), createdAt: taskEpoch, updatedAt: taskEpoch },
+    { id: taskId('fx-task-3'), revision: 1, ordinal: 3, workspaceId: wid('fx-ws-fixture'), title: 'Verify reconnect stream', description: 'Baseline then ordered task increments.', status: 'in_review', rank: 0, labels: ['Remote', 'Tests'], sessionId: sid('fx-beta'), createdAt: taskEpoch, updatedAt: taskEpoch },
+    { id: taskId('fx-task-4'), revision: 1, ordinal: 4, workspaceId: wid('fx-ws-fixture'), title: 'Continue in Agency Copilot', description: 'Open the generated Copilot terminal from this task.', status: 'todo', rank: 0, priority: 'medium', labels: ['Copilot'], agencyCopilotSessionId: fixtureAgencyId, createdAt: taskEpoch, updatedAt: taskEpoch },
+    { id: taskId('fx-task-5'), revision: 1, ordinal: 5, workspaceId: wid('fx-ws-home'), title: 'Plan GitHub synchronization', description: '', status: 'backlog', rank: 0, labels: ['Future'], createdAt: taskEpoch, updatedAt: taskEpoch },
+  ]
+  const taskSnapshot = (task: FixtureTask): FixtureTask => ({ ...task, labels: [...task.labels] })
+  const taskboardBaseline = (): Extract<FixtureTaskFollowFrame, { type: 'baseline' }> => ({
+    type: 'baseline', value: { tasks: tasks.map(taskSnapshot) },
+  })
 
   // In-memory browse tree behind the fixture's `browse` picker capability —
   // deterministic content mirroring the design mock so assembled Web tests
@@ -1995,12 +2078,16 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
   const controlConns = new Set<StreamConn<FixtureControlFrame>>()
   const followConns = new Map<SessionId, Set<StreamConn<FixtureFollowEventFrame>>>()
   const workspaceConns = new Set<StreamConn<WorkspaceFollowFrame>>()
+  const taskboardConns = new Set<StreamConn<FixtureTaskFollowFrame>>()
   const remoteEventConns = new Map<string, StreamConn<FixtureRemoteEventFrame>>()
   const emitControl = (frame: FixtureControlFrame): void => {
     for (const conn of controlConns) conn.push(frame)
   }
   const emitWorkspace = (frame: Exclude<WorkspaceFollowFrame, { type: 'baseline' }>): void => {
     for (const conn of workspaceConns) conn.push(frame)
+  }
+  const emitTaskboard = (frame: Exclude<FixtureTaskFollowFrame, { type: 'baseline' }>): void => {
+    for (const conn of taskboardConns) conn.push(frame)
   }
   const emitRemote = (event: string, args: readonly unknown[]): void => {
     for (const conn of remoteEventConns.values()) conn.push({ type: 'emit', event, args })
@@ -3139,6 +3226,21 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     }
   }
 
+  async function* openTaskboard(signal: AbortSignal): AsyncGenerator<FixtureTaskFollowFrame> {
+    signal.throwIfAborted()
+    const conn = new FxInbox<FixtureTaskFollowFrame>()
+    taskboardConns.add(conn)
+    const breakNow = (): void => { conn.breakNow() }
+    streamBreakers.add(breakNow)
+    try {
+      yield taskboardBaseline()
+      yield* conn.drain(signal)
+    } finally {
+      streamBreakers.delete(breakNow)
+      taskboardConns.delete(conn)
+    }
+  }
+
   async function* openRemoteEvents(
     signal: AbortSignal,
   ): AsyncGenerator<FixtureRemoteEventReadyFrame | FixtureRemoteEventFrame> {
@@ -3391,6 +3493,157 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     },
   }
 
+
+  const requireTask = (id: FixtureTaskId): FixtureTask | undefined => tasks.find(task => task.id === id)
+  const taskboardApi = {
+    list: () => sessionOk({ tasks: tasks.map(taskSnapshot) }),
+    listAgencyCopilotSessions: (request: { workspaceId: WorkspaceId }) => {
+      if (!workspaces.some(workspace => workspace.workspaceId === request.workspaceId)) {
+        return sessionErr({ code: 'workspace-not-found', message: 'no workspace', details: { workspaceId: request.workspaceId } })
+      }
+      return sessionOk({
+        sessions: [...agencySessions].flatMap(([sessionId, session]) => session.workspaceId === request.workspaceId
+          ? [{ sessionId, summary: session.summary, status: session.status }] : []),
+        truncated: false,
+      })
+    },
+    create: (request: FixtureTaskCreateRequest) => {
+      const workspace = workspaces.find(candidate => candidate.workspaceId === request.workspaceId)
+      if (workspace === undefined) return sessionErr({ code: 'workspace-not-found', message: 'no workspace', details: { workspaceId: request.workspaceId } })
+      if (request.agencyCopilotSessionId !== undefined
+        && agencySessions.get(request.agencyCopilotSessionId)?.workspaceId !== request.workspaceId) {
+        return sessionErr({ code: 'bad-request', message: 'Copilot session is not in this Workspace', details: {} })
+      }
+      const status = request.status ?? 'backlog'
+      const now = new Date().toISOString()
+      const rank = tasks.filter(task => task.workspaceId === request.workspaceId && task.status === status && task.archivedAt === undefined)
+        .reduce((value, task) => Math.max(value, task.rank), -1024) + 1024
+      const task: FixtureTask = {
+        id: taskId(`fx-task-${nextTask}`), revision: 1, ordinal: nextTask++, workspaceId: request.workspaceId,
+        title: request.title.trim(), description: request.description ?? '', status, rank,
+        ...(request.priority === undefined ? {} : { priority: request.priority }),
+        ...(request.agencyCopilotSessionId === undefined ? {} : { agencyCopilotSessionId: request.agencyCopilotSessionId }),
+        labels: [...(request.labels ?? [])], createdAt: now, updatedAt: now,
+      }
+      tasks.push(task)
+      const view = taskSnapshot(task)
+      emitTaskboard({ type: 'upsert', task: view })
+      return sessionOk({ task: view })
+    },
+    update: (request: FixtureTaskUpdateRequest) => {
+      const task = requireTask(request.taskId)
+      if (task === undefined) return sessionErr({ code: 'task-not-found', message: 'no task', details: { taskId: request.taskId } })
+      if (task.archivedAt !== undefined) return sessionErr({ code: 'task-archived', message: 'task is archived', details: { taskId: task.id } })
+      if (task.revision !== request.expectedRevision) return sessionErr({ code: 'revision-conflict', message: 'stale task', details: { taskId: task.id, expectedRevision: request.expectedRevision, actualRevision: task.revision } })
+      const copilot = request.patch.agencyCopilotSessionId
+      if (copilot !== undefined && copilot !== null && copilot !== task.agencyCopilotSessionId
+        && agencySessions.get(copilot)?.workspaceId !== task.workspaceId) {
+        return sessionErr({ code: 'bad-request', message: 'Copilot session is not in this Workspace', details: {} })
+      }
+      task.title = request.patch.title?.trim() ?? task.title
+      task.description = request.patch.description ?? task.description
+      if (request.patch.priority === null) delete task.priority
+      else if (request.patch.priority !== undefined) task.priority = request.patch.priority
+      if (request.patch.labels !== undefined) task.labels = [...request.patch.labels]
+      if (request.patch.sessionId === null) delete task.sessionId
+      else if (request.patch.sessionId !== undefined) task.sessionId = request.patch.sessionId
+      if (copilot === null) delete task.agencyCopilotSessionId
+      else if (copilot !== undefined) task.agencyCopilotSessionId = copilot
+      task.revision += 1
+      task.updatedAt = new Date().toISOString()
+      const view = taskSnapshot(task)
+      emitTaskboard({ type: 'upsert', task: view })
+      return sessionOk({ task: view })
+    },
+    startAgencyCopilot: (request: FixtureTaskStartAgencyCopilotRequest) => {
+      const task = requireTask(request.taskId)
+      if (task === undefined) return sessionErr({ code: 'task-not-found', message: 'no task', details: { taskId: request.taskId } })
+      if (task.revision !== request.expectedRevision) return sessionErr({ code: 'revision-conflict', message: 'stale task', details: { taskId: task.id, expectedRevision: request.expectedRevision, actualRevision: task.revision } })
+      if (task.agencyCopilotSessionId !== undefined) return sessionErr({ code: 'agency-already-linked', message: 'already linked', details: { taskId: task.id } })
+      const sessionId = agencyId(randomUuid())
+      task.agencyCopilotSessionId = sessionId
+      agencySessions.set(sessionId, { workspaceId: task.workspaceId, summary: task.title, status: 'in_use' })
+      task.revision += 1
+      task.updatedAt = new Date().toISOString()
+      const view = taskSnapshot(task)
+      emitTaskboard({ type: 'upsert', task: view })
+      return sessionOk({ task: view, launch: 'accepted' as const })
+    },
+    clearAgencyCopilot: (request: FixtureTaskStartAgencyCopilotRequest) => {
+      const task = requireTask(request.taskId)
+      if (task === undefined) return sessionErr({ code: 'task-not-found', message: 'no task', details: { taskId: request.taskId } })
+      if (task.revision !== request.expectedRevision) return sessionErr({ code: 'revision-conflict', message: 'stale task', details: { taskId: task.id, expectedRevision: request.expectedRevision, actualRevision: task.revision } })
+      delete task.agencyCopilotSessionId
+      task.revision += 1
+      task.updatedAt = new Date().toISOString()
+      const view = taskSnapshot(task)
+      emitTaskboard({ type: 'upsert', task: view })
+      return sessionOk({ task: view })
+    },
+    openAgencyCopilot: (request: FixtureTaskOpenAgencyCopilotRequest) => {
+      const task = requireTask(request.taskId)
+      if (task?.agencyCopilotSessionId === undefined) return sessionErr({ code: 'agency-not-linked', message: 'not linked', details: { taskId: request.taskId } })
+      const status = agencySessions.get(task.agencyCopilotSessionId)?.status
+      return sessionOk({ outcome: status === 'in_use'
+        ? 'already-running' as const
+        : status === 'idle' ? 'resume-accepted' as const : 'create-retry-accepted' as const })
+    },
+    inspectAgencyCopilot: (request: FixtureTaskInspectAgencyCopilotRequest) => sessionOk({
+      observations: request.taskIds.flatMap((id) => {
+        const task = requireTask(id)
+        if (task?.agencyCopilotSessionId === undefined) return []
+        return [{
+          taskId: task.id,
+          sessionId: task.agencyCopilotSessionId,
+          status: agencySessions.get(task.agencyCopilotSessionId)?.status ?? 'missing',
+        }]
+      }),
+    }),
+    move: (request: FixtureTaskMoveRequest) => {
+      const task = requireTask(request.taskId)
+      if (task === undefined) return sessionErr({ code: 'task-not-found', message: 'no task', details: { taskId: request.taskId } })
+      if (task.revision !== request.expectedRevision) return sessionErr({ code: 'revision-conflict', message: 'stale task', details: { taskId: task.id, expectedRevision: request.expectedRevision, actualRevision: task.revision } })
+      const peers = tasks
+        .filter(candidate => candidate.id !== task.id && candidate.workspaceId === task.workspaceId
+          && candidate.status === request.status && candidate.archivedAt === undefined)
+        .sort((a, b) => a.rank - b.rank)
+      const before = request.beforeTaskId === undefined ? undefined : peers.findIndex(candidate => candidate.id === request.beforeTaskId)
+      if (before === -1) return sessionErr({ code: 'move-invalid', message: 'invalid anchor', details: { beforeTaskId: request.beforeTaskId } })
+      task.status = request.status
+      const next = before === undefined ? undefined : peers[before]
+      const previous = before === undefined || before === 0 ? undefined : peers[before - 1]
+      task.rank = before === undefined
+        ? (peers.at(-1)?.rank ?? -1024) + 1024
+        : before === 0 && next !== undefined ? next.rank - 1024
+          : previous !== undefined && next !== undefined ? (previous.rank + next.rank) / 2 : 0
+      task.revision += 1
+      task.updatedAt = new Date().toISOString()
+      const view = taskSnapshot(task)
+      emitTaskboard({ type: 'upsert', task: view })
+      return sessionOk({ task: view })
+    },
+    delete: (request: FixtureTaskDeleteRequest) => {
+      const task = requireTask(request.taskId)
+      if (task === undefined) return sessionErr({ code: 'task-not-found', message: 'no task', details: { taskId: request.taskId } })
+      if (task.revision !== request.expectedRevision) return sessionErr({ code: 'revision-conflict', message: 'stale task', details: { taskId: task.id, expectedRevision: request.expectedRevision, actualRevision: task.revision } })
+      const receipt = { taskId: task.id, revision: Number.MAX_SAFE_INTEGER }
+      tasks.splice(tasks.indexOf(task), 1)
+      emitTaskboard({ type: 'remove', ...receipt })
+      return sessionOk(receipt)
+    },
+    archive: (request: FixtureTaskArchiveRequest) => {
+      const task = requireTask(request.taskId)
+      if (task === undefined) return sessionErr({ code: 'task-not-found', message: 'no task', details: { taskId: request.taskId } })
+      if (task.revision !== request.expectedRevision) return sessionErr({ code: 'revision-conflict', message: 'stale task', details: { taskId: task.id, expectedRevision: request.expectedRevision, actualRevision: task.revision } })
+      task.revision += 1
+      task.updatedAt = new Date().toISOString()
+      task.archivedAt = task.updatedAt
+      const view = taskSnapshot(task)
+      emitTaskboard({ type: 'upsert', task: view })
+      return sessionOk({ task: view })
+    },
+  }
+
   const rpc: ClientConnectionRpc = {
     call(channel, endpoint, payload, signal) {
       if (channel !== '/api') {
@@ -3571,6 +3824,18 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           request as WorkspaceInsertSessionBeforeRequest,
         )
         case 'workspace/archiveSession': return workspaceApi.archiveSession(request as WorkspaceArchiveSessionRequest)
+        case 'taskboard/list': return taskboardApi.list()
+        case 'taskboard/agencyCopilotCapability': return sessionOk({ launch: true })
+        case 'taskboard/listAgencyCopilotSessions': return taskboardApi.listAgencyCopilotSessions(request as { workspaceId: WorkspaceId })
+        case 'taskboard/create': return taskboardApi.create(request as FixtureTaskCreateRequest)
+        case 'taskboard/update': return taskboardApi.update(request as FixtureTaskUpdateRequest)
+        case 'taskboard/move': return taskboardApi.move(request as FixtureTaskMoveRequest)
+        case 'taskboard/archive': return taskboardApi.archive(request as FixtureTaskArchiveRequest)
+        case 'taskboard/delete': return taskboardApi.delete(request as FixtureTaskDeleteRequest)
+        case 'taskboard/startAgencyCopilot': return taskboardApi.startAgencyCopilot(request as FixtureTaskStartAgencyCopilotRequest)
+        case 'taskboard/clearAgencyCopilot': return taskboardApi.clearAgencyCopilot(request as FixtureTaskStartAgencyCopilotRequest)
+        case 'taskboard/openAgencyCopilot': return taskboardApi.openAgencyCopilot(request as FixtureTaskOpenAgencyCopilotRequest)
+        case 'taskboard/inspectAgencyCopilot': return taskboardApi.inspectAgencyCopilot(request as FixtureTaskInspectAgencyCopilotRequest)
         default:
           return Promise.reject(new Error(`fixture connection RPC endpoint ${JSON.stringify(endpoint)} is unavailable`))
       }
@@ -3585,6 +3850,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         case 'session/control': return openControl(signal)
         case 'session/follow': return openFollow(args.request as FixtureFollowRequest, signal)
         case 'workspace/follow': return openWorkspace(signal)
+        case 'taskboard/follow': return openTaskboard(signal)
         default:
           throw new Error(`fixture connection stream endpoint ${JSON.stringify(endpoint)} is unavailable`)
       }

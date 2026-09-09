@@ -36,6 +36,8 @@ export interface ComposerAttachment {
 
 /** Input state handed to the optional attachment presentation plugin. */
 export interface ComposerAttachmentsOwnerProps {
+  /** Whether the resident Conversation may install document-level interactions. */
+  active: boolean
   /** Browser-owned draft images in input order. */
   attachments: readonly ComposerAttachment[]
   /** Whether a document-level file drop may add images now. */
@@ -238,6 +240,8 @@ export interface ConversationSessionHeaderInjected {
 
 /** Owner share of the resident composer bar. */
 export interface ComposerBarOwnerProps {
+  /** Whether the resident Conversation is the active main surface. */
+  active: boolean
   /** Hero uses centered placement; composer uses the active bottom placement. */
   variant: 'hero' | 'composer'
   /** A feature-owned reason that makes message input inert while leaving model selection live. */

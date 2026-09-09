@@ -61,18 +61,17 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
 
   // The sidebar renders from the boot graph: every inject layer activated.
   const tree = await screen.findByRole('tree', { name: 'Sessions' }, { timeout: 10_000 })
-  if (clientBuildValue('DSH_CLIENT_BUILD_PROFILE') === 'official') {
-    expect(document.querySelector('svg[viewBox="26 0 156 24"]')).not.toBeNull()
-    expect(screen.queryByText('DSH Local Build')).toBeNull()
-  } else {
-    expect(document.querySelector('svg[viewBox="0 0 23.16 17.04"]')).not.toBeNull()
+  expect(document.querySelector('svg[data-brand="mip-autolabeling"]')).not.toBeNull()
+  screen.getByText('MIP')
+  screen.getByText('Autolabeling')
+  expect(screen.queryByText('DSH Local Build')).toBeNull()
+  if (clientBuildValue('DSH_CLIENT_BUILD_PROFILE') !== 'official') {
     const version = clientBuildValue('DSH_CLIENT_VERSION')
     if (version === undefined) throw new Error('default client build record must carry DSH_CLIENT_VERSION')
     const commit = clientBuildValue('DSH_CLIENT_COMMIT_HASH')
     const buildVersion = version
       + (commit === undefined ? '' : `-${commit}`)
       + (clientBuildValue('DSH_CLIENT_GIT_DIRTY') === 'true' ? '-dirty' : '')
-    screen.getByText('DSH Local Build')
     screen.getByText(buildVersion)
   }
   // The compact layout dropped group session counts; the fixture workspace
@@ -81,6 +80,67 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
     .map(el => el.closest<HTMLElement>('[role="treeitem"]'))
     .find(el => el?.getAttribute('aria-expanded') !== null)
   if (fixtureGroup === undefined) throw new Error('fixture Workspace group missing')
+
+  // The native Taskboard keeps the sidebar present, consumes the fixture's
+  // baseline-first stream, and restores Conversation through its close action.
+  const taskboardTrigger = screen.getByRole('button', { name: 'Taskboard' })
+  fireEvent.click(taskboardTrigger)
+  await screen.findByRole('heading', { name: 'Taskboard' })
+  fireEvent.click(screen.getByRole('button', { name: 'New task' }))
+  const newTask = screen.getByRole('dialog', { name: 'New task' })
+  await within(newTask).findByRole('option', { name: /Existing Copilot investigation/ })
+  fireEvent.change(within(newTask).getByRole('textbox', { name: 'Title' }), { target: { value: 'Continue existing CLI work' } })
+  fireEvent.change(within(newTask).getByRole('combobox', { name: 'Copilot CLI session (optional)' }), {
+    target: { value: '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' },
+  })
+  fireEvent.click(within(newTask).getByRole('button', { name: 'Create' }))
+  await waitFor(() => { expect(screen.queryByRole('dialog', { name: 'New task' })).toBeNull() })
+  const createdTask = screen.getByRole('dialog', { name: 'Task details' })
+  within(createdTask).getByText('13e59df5-bd3a-46e6-bfd5-b61e22ff0491')
+  await within(createdTask).findByRole('option', { name: /Active Copilot review/ })
+  fireEvent.change(within(createdTask).getByRole('combobox', { name: 'Copilot CLI session (optional)' }), {
+    target: { value: '2eb3dbf2-8b82-4863-b505-520708dcce80' },
+  })
+  fireEvent.click(within(createdTask).getByRole('button', { name: 'Save' }))
+  await within(createdTask).findByText('2eb3dbf2-8b82-4863-b505-520708dcce80')
+  fireEvent.click(within(createdTask).getByRole('button', { name: 'Close' }))
+  fireEvent.click(screen.getByRole('article', { name: 'Continue existing CLI work' }))
+  const linkedDetails = screen.getByRole('dialog', { name: 'Task details' })
+  within(linkedDetails).getByText('2eb3dbf2-8b82-4863-b505-520708dcce80')
+  expect(within(linkedDetails).getByRole<HTMLInputElement>('textbox', { name: 'Workspace' }).readOnly).toBe(true)
+  fireEvent.click(within(linkedDetails).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete task?' })).getByRole('button', { name: 'Cancel' }))
+  expect(screen.getByRole('article', { name: 'Continue existing CLI work' })).toBeTruthy()
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Task details' })).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete task?' })).getByRole('button', { name: 'Delete' }))
+  await waitFor(() => { expect(screen.queryByRole('article', { name: 'Continue existing CLI work' })).toBeNull() })
+  await waitFor(() => { expect(screen.queryByRole('dialog', { name: 'Delete task?' })).toBeNull() })
+  screen.getByText('Build native board surface')
+  const copilotTask = screen.getByText('Continue in Agency Copilot')
+  fireEvent.click(copilotTask)
+  const taskDetails = screen.getByRole('dialog', { name: 'Task details' })
+  await within(taskDetails).findByText('Ready to resume')
+  within(taskDetails).getByRole('button', { name: 'Open/Resume Copilot' })
+  fireEvent.click(within(taskDetails).getByRole('button', { name: 'Close' }))
+  const activeCard = screen.getByRole('article', { name: 'Build native board surface' })
+  within(activeCard).getByText('In Progress')
+  fireEvent.click(activeCard)
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Task details' })).getByRole('button', { name: 'Archive' }))
+  await waitFor(() => { expect(screen.queryByRole('dialog', { name: 'Task details' })).toBeNull() })
+  expect(screen.queryByRole('article', { name: 'Build native board surface' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Archived (1)' }))
+  const archive = screen.getByRole('region', { name: 'Archive' })
+  fireEvent.click(within(archive).getByRole('article', { name: 'Build native board surface' }))
+  screen.getByText('This task is archived and read-only.')
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Task details' })).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete task?' })).getByRole('button', { name: 'Delete' }))
+  await waitFor(() => { expect(within(archive).queryByRole('article', { name: 'Build native board surface' })).toBeNull() })
+  await waitFor(() => { expect(screen.queryByRole('dialog', { name: 'Delete task?' })).toBeNull() })
+  fireEvent.click(screen.getByRole('button', { name: 'Back to board' }))
+  expect(screen.getByRole('button', { name: 'Archived (0)' })).toBeTruthy()
+  expect(screen.getByRole('tree', { name: 'Sessions' })).toBe(tree)
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  expect(screen.queryByRole('heading', { name: 'Taskboard' })).toBeNull()
 
   // The resident fixture has both a question and an approval; composer routing
   // exposes the question first, and the assembled workspace plugin mirrors that
@@ -156,7 +216,7 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
   // Every bundle injected its plugin-owned style tag (the loader's CSS path).
   const styleOwners = [...document.head.querySelectorAll('style[data-plugin]')]
     .map(style => style.getAttribute('data-plugin'))
-  for (const plugin of ['@deepseek-ai/dsh-client-ui-layout', '@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-client-ui-tool']) {
+  for (const plugin of ['@deepseek-ai/dsh-client-ui-layout', '@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-client-ui-taskboard', '@deepseek-ai/dsh-client-ui-tool']) {
     expect(styleOwners).toContain(plugin)
   }
 })

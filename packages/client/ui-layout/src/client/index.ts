@@ -64,6 +64,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'conversation': { kind: 'single'; scope: 'session-maybe'; owner: ConvOwnerProps }
     /**
+     * Keyed full-height surfaces shown in the center column while Conversation
+     * stays mounted but hidden. Feature plugins register their stable surface id
+     * and activate it through ctx.layout.
+     */
+    'main.surface': { kind: 'keyed'; scope: 'root'; owner: MainSurfaceOwnerProps }
+    /**
      * The right details column, shown when the layout opens it. OCCUPIED by
      * ui-conversation's DetailsPanel, which declares the tool-details seat
      * inside it — registering here replaces the column and takes that seat
@@ -99,10 +105,18 @@ export interface SidebarOwnerProps {
   collapsed: boolean
   /** Rendered column width in px (SIDEBAR_COLLAPSED when collapsed). */
   width: number
+  /** Selected full-height main surface; absent means Conversation. */
+  mainSurface?: string
 }
 
-/** Conversation owner share: business state and actions belong to the registrant. */
-export interface ConvOwnerProps {}
+/** Conversation owner share: whether its document-wide interactions may run. */
+export interface ConvOwnerProps {
+  /** False while a first-class main surface obscures the resident Conversation. */
+  active: boolean
+}
+
+/** Main-surface owner share: the frame supplies no feature data. */
+export interface MainSurfaceOwnerProps {}
 
 /** Details owner share: empty — sessionId arrives as a framework-standard prop. */
 export interface DetailsOwnerProps {}
@@ -126,6 +140,7 @@ export function apply(ctx: ClientContext): void {
       children: {
         'sidebar': { kind: 'single', scope: 'root' },
         'conversation': { kind: 'single', scope: 'session-maybe' },
+        'main.surface': { kind: 'keyed', scope: 'root' },
         'details': { kind: 'single', scope: 'session' },
         'shell.overlay': { kind: 'list', scope: 'root' },
       },

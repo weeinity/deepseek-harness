@@ -129,7 +129,7 @@ function WidthHandle(props: {
 }
 
 export function ConversationRoot({
-  sessionId, useSession, useSessions, useSessionPendingInteraction,
+  active, sessionId, useSession, useSessions, useSessionPendingInteraction,
   useWorkspaces, useConversation, useInput, useComposerBlock,
   renderSlot, renderSlotChain, selectWorkspace, t,
 }: ConversationRootProps) {
@@ -327,6 +327,7 @@ export function ConversationRoot({
   // when both hold — picking a workspace is the earlier prerequisite.
   const blocked = !inert && composerBlock !== undefined
   const inputBar = renderSlot('conversation.composer.bar', {
+    active,
     variant: hero ? 'hero' : 'composer',
     ...(inert
       ? {

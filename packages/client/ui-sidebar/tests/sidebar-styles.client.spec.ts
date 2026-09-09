@@ -64,12 +64,25 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
   })
 
-  it('keeps the slotted brand row at the full artwork height', () => {
-    expect(declarations('.brandIdentity')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('line-height')).toBe('24px')
-    expect(declarations('.brandName')?.get('font-size')).toBe('18px')
-    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
-    expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
+  it('fits the label and version into the compact header without changing the rail', () => {
+    expect(declarations('.root::before')?.get('border-radius')).toBe('12px')
+    expect(declarations('.root::before')?.get('height')).toBe('94px')
+    expect(declarations('.logoRow')?.get('height')).toBe('42px')
+    expect(declarations('.newSession')?.get('height')).toBe('32px')
+    expect(declarations('.root.collapsed::before')?.get('content')).toBe('none')
+    expect(declarations('.brandIdentity')?.get('height')).toBe('28px')
+    expect(declarations('.brandName')?.get('height')).toBe('28px')
+    expect(declarations('.brandName')?.get('line-height')).toBe('28px')
+    expect(declarations('.brandName')?.get('font-size')).toBe('13px')
+    expect(declarations('.localBuildTitle')?.get('display')).toBe('inline-flex')
+    expect(declarations('.localBrandInitialism')?.get('font-size')).toBe('13px')
+    expect(declarations('.localBrandProduct')?.get('font-size')).toBe('13px')
+  })
+
+  it('keeps the brand and New Session ahead of DOM-injected navigation rows', () => {
+    expect(declarations('.logoRow')?.get('order')).toBe('-2')
+    expect(declarations('.newSession')?.get('order')).toBe('-1')
+    expect(declarations('.logoRow')?.get('z-index')).toBe('1')
+    expect(declarations('.newSession')?.get('z-index')).toBe('1')
   })
 })

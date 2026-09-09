@@ -127,6 +127,7 @@ root
 │        ├─ settings.models.footer
 │        └─ settings.plugins.tab
 │           └─ settings.plugin.item
+├─ main.surface (keyed; taskboard)
 ├─ conversation
 │  ├─ conversation.session
 │  │  └─ conversation.view

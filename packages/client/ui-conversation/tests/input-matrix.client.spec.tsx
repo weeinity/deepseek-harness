@@ -44,6 +44,7 @@ function mountBar(shell: SessionInputShell, over?: { running?: boolean; disabled
     removed: over?.disabled ?? false,
   })
   const props: InputBarProps = {
+    active: true,
     sessionId: SID,
     SessionProvider: ({ children }) => children,
     useSession: bindSnapshotSelector(session),

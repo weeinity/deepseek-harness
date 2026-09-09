@@ -2347,6 +2347,146 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'taskboard',
+    summary: 'Durable Taskboard command and query service.',
+    description: 'Durable Taskboard command and query service.',
+    methods: [
+      {
+        signature: 'list(workspaceId?: WorkspaceId, includeArchived: boolean = false): TaskboardTask[]',
+        description: 'List tasks in deterministic board order.',
+        parameters: [{ name: 'workspaceId', description: 'Optional Workspace filter.' }, { name: 'includeArchived', description: 'Include archived tasks when true.' }],
+        returns: 'detached current tasks.',
+      },
+      {
+        signature: 'get(taskId: TaskId): TaskboardTask | undefined',
+        description: 'Read one task by identity.',
+        parameters: [{ name: 'taskId', description: 'Stable task identity.' }],
+        returns: 'detached task or undefined when absent.',
+      },
+      {
+        signature: 'create(input: TaskboardCreateInput, signal?: AbortSignal): Promise<TaskboardTask>',
+        description: 'Create a durable task and optional Host-validated Agency link in one write.',
+        parameters: [{ name: 'input', description: 'Initial fields; the caller must validate an Agency identity against its Workspace.' }, { name: 'signal', description: 'Cancellation checked at the serialized write slot, before durability begins.' }],
+        returns: 'the committed task.',
+      },
+      {
+        signature: 'update(input: TaskboardUpdateInput, signal?: AbortSignal): Promise<TaskboardTask>',
+        description: 'Update content and independent Session links in one revision-checked write.',
+        parameters: [{ name: 'input', description: 'Mutable fields; the caller must validate a newly selected Agency identity against the task Workspace.' }, { name: 'signal', description: 'Cancellation checked at the serialized write slot, before durability begins.' }],
+        returns: 'the committed task, or the unchanged task for a material no-op.',
+      },
+      {
+        signature: 'setAgencyCopilotSession(input: TaskboardSetAgencyCopilotSessionInput): Promise<TaskboardTask>',
+        description: 'Set or clear one Host-validated Agency Copilot terminal identity with revision CAS.',
+        parameters: [{ name: 'input', description: 'Task, exact revision, and the validated identity or null to clear.' }],
+        returns: 'the committed task, or the unchanged task for a material no-op.',
+      },
+      {
+        signature: 'move(input: TaskboardMoveInput): Promise<TaskboardTask>',
+        description: 'Move a task into a column and optionally before another task.',
+        parameters: [{ name: 'input', description: 'Exact revision and destination position.' }],
+        returns: 'the committed task, or unchanged current task for a same-position move.',
+      },
+      {
+        signature: 'archive(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>',
+        description: 'Archive one task with revision CAS.',
+        parameters: [{ name: 'taskId', description: 'Task identity.' }, { name: 'expectedRevision', description: 'Exact current revision.' }],
+        returns: 'the committed archived task; repeated exact-revision archive is unchanged.',
+      },
+      {
+        signature: 'delete(taskId: TaskId, expectedRevision: number, signal?: AbortSignal): Promise<TaskboardDeleteValue>',
+        description: 'Permanently delete an active or archived task without changing its Workspace, Sessions, or terminals.',
+        parameters: [{ name: 'taskId', description: 'Task identity; a missing task rejects.' }, { name: 'expectedRevision', description: 'Exact current revision, checked in the serialized mutation slot.' }, { name: 'signal', description: 'Cancellation checked before the durable deletion begins; an in-flight deletion settles normally.' }],
+        returns: 'a durable removal receipt with Number.MAX_SAFE_INTEGER as the tombstone revision.',
+      },
+    ],
+  },
+  {
+    key: 'taskboardController',
+    summary: 'Host service backing the generated `ctx.remote.taskboard` namespace.',
+    description: 'Host service backing the generated `ctx.remote.taskboard` namespace.',
+    methods: [
+      {
+        signature: '@Remote(\'list\') list(request: TaskboardListRequest): Promise<TaskboardListValue>',
+        description: 'Return active and archived tasks belonging to registered Workspaces.',
+        parameters: [{ name: 'request', description: 'Optional Workspace filter.' }],
+        returns: 'matching tasks; archived rows retain their status and archivedAt.',
+      },
+      {
+        signature: '@Remote(\'create\') async create( request: TaskboardCreateRequest, signal?: AbortSignal, ): Promise<TaskboardTaskValue>',
+        description: 'Create content and an optional existing Agency link in one durable write.',
+        parameters: [{ name: 'request', description: 'Initial task fields; selected Agency identities must be discoverable in the Workspace.' }, { name: 'signal', description: 'Caller cancellation before the durable write begins.' }],
+        returns: 'committed task; selection never launches Copilot or changes planning status.',
+      },
+      {
+        signature: '@Remote(\'update\') async update( request: TaskboardUpdateRequest, signal?: AbortSignal, ): Promise<TaskboardTaskValue>',
+        description: 'Update task content or linkage with revision CAS.',
+        parameters: [{ name: 'request', description: 'Exact revision and field patch; only changed Agency identities require discovery.' }, { name: 'signal', description: 'Caller cancellation before the durable write begins.' }],
+        returns: 'content and links committed together without launching Copilot or changing planning status.',
+      },
+      {
+        signature: '@Remote(\'move\') async move(request: TaskboardMoveRequest): Promise<TaskboardTaskValue>',
+        description: 'Move a task with revision CAS.',
+        parameters: [{ name: 'request', description: 'Exact revision and destination.' }],
+        returns: 'committed task.',
+      },
+      {
+        signature: '@Remote(\'archive\') async archive(request: TaskboardArchiveRequest): Promise<TaskboardTaskValue>',
+        description: 'Archive a task with revision CAS.',
+        parameters: [{ name: 'request', description: 'Exact revision archive request.' }],
+        returns: 'committed archived task.',
+      },
+      {
+        signature: '@Remote(\'delete\') async delete(request: TaskboardDeleteRequest, signal?: AbortSignal): Promise<TaskboardDeleteValue>',
+        description: 'Delete an active or archived task, serialized with Agency operations, without changing linked Sessions or terminals.',
+        parameters: [{ name: 'request', description: 'Task identity and exact current revision; stale or missing tasks reject without retry.' }, { name: 'signal', description: 'Cancellation before durable deletion begins; an in-flight deletion settles normally.' }],
+        returns: 'the committed task removal and its authoritative tombstone revision.',
+      },
+      {
+        signature: '@Remote(\'agencyCopilotCapability\') agencyCopilotCapability(): TaskboardAgencyCopilotCapabilityValue',
+        description: 'Report whether this Host deployment permits native Agency Copilot launch.',
+        parameters: [],
+        returns: 'true only for a loopback-bound Web server outside SSH.',
+      },
+      {
+        signature: '@Remote(\'listAgencyCopilotSessions\') async listAgencyCopilotSessions( request: TaskboardListAgencyCopilotSessionsRequest, signal: AbortSignal, ): Promise<TaskboardListAgencyCopilotSessionsValue>',
+        description: 'Discover existing local Copilot sessions matching a registered Workspace\'s canonical folder.',
+        parameters: [{ name: 'request', description: 'Registered Workspace whose sessions are selectable.' }, { name: 'signal', description: 'Caller cancellation for discovery and folder resolution.' }],
+        returns: 'safe session metadata and bounded-scan truncation; discovery failures reject explicitly.',
+      },
+      {
+        signature: '@Remote(\'startAgencyCopilot\') async startAgencyCopilot( request: TaskboardStartAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardStartAgencyCopilotValue>',
+        description: 'Start a fresh local Agency Copilot terminal and persist its generated identity first.',
+        parameters: [{ name: 'request', description: 'Task identity and exact current revision.' }, { name: 'signal', description: 'Caller cancellation before commit or terminal handoff acceptance.' }],
+        returns: 'the committed linked task and accepted-launch receipt.',
+      },
+      {
+        signature: '@Remote(\'clearAgencyCopilot\') async clearAgencyCopilot(request: TaskboardClearAgencyCopilotRequest): Promise<TaskboardTaskValue>',
+        description: 'Clear one task\'s Agency Copilot identity without touching its terminal process.',
+        parameters: [{ name: 'request', description: 'Task identity and exact current revision.' }],
+        returns: 'the committed task without an Agency Copilot link.',
+      },
+      {
+        signature: '@Remote(\'openAgencyCopilot\') async openAgencyCopilot( request: TaskboardOpenAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardOpenAgencyCopilotValue>',
+        description: 'Open a linked Copilot identity: report active, resume idle, or retry an identity not yet materialized.',
+        parameters: [{ name: 'request', description: 'Task whose durable Copilot identity is addressed.' }, { name: 'signal', description: 'Caller cancellation for status discovery and terminal handoff.' }],
+        returns: 'whether Copilot was already running or a launch handoff was accepted.',
+      },
+      {
+        signature: '@Remote(\'inspectAgencyCopilot\') async inspectAgencyCopilot( request: TaskboardInspectAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardInspectAgencyCopilotValue>',
+        description: 'Inspect current Agency status for linked tasks without launching or mutating them.',
+        parameters: [{ name: 'request', description: 'Bounded task identities whose linked Copilot status is requested.' }, { name: 'signal', description: 'Caller cancellation for bounded Agency status discovery.' }],
+        returns: 'transient observations for the currently linked requested tasks.',
+      },
+      {
+        signature: '@Remote({ mode: \'stream\' }) follow(signal: AbortSignal): AsyncIterable<TaskboardFollowFrame>',
+        description: 'Stream active and archived tasks followed by ordered upserts and removals.',
+        parameters: [{ name: 'signal', description: 'Generation cancellation.' }],
+        returns: 'a registered-Workspace baseline followed by task changes, including archive upserts.',
+      },
+    ],
+  },
+  {
     key: 'terminals',
     summary: 'In-process registry for replaceable PTY backends and exact-Agent sessions.',
     description: 'In-process registry for replaceable PTY backends and exact-Agent sessions.',
@@ -3385,6 +3525,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AdapterRegistrationHandle',
     declaration: 'export interface AdapterRegistrationHandle {\n    (): void;\n    replace(providers: string[]): void;\n}',
+  },
+  {
+    name: 'AgencyCopilotObservation',
+    declaration: 'export interface AgencyCopilotObservation {\n    readonly taskId: TaskId;\n    readonly sessionId: AgencyCopilotSessionId;\n    readonly status: AgencyCopilotObservationStatus;\n}',
+  },
+  {
+    name: 'AgencyCopilotObservationStatus',
+    declaration: 'export type AgencyCopilotObservationStatus = \'unknown\' | \'missing\' | \'workspace_mismatch\' | \'idle\' | \'in_use\';',
+  },
+  {
+    name: 'AgencyCopilotSessionOption',
+    declaration: 'export interface AgencyCopilotSessionOption {\n    readonly sessionId: AgencyCopilotSessionId;\n    readonly summary?: string;\n    readonly status: \'idle\' | \'in_use\';\n}',
   },
   {
     name: 'Agent',
@@ -5521,6 +5673,126 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TableValueOf',
     declaration: 'export type TableValueOf<S extends DomainSpec, N extends keyof S[\'tables\']> = S[\'tables\'][N] extends DomainTableSpec<string, infer V> ? V : never;',
+  },
+  {
+    name: 'TaskboardAgencyCopilotCapabilityValue',
+    declaration: 'export interface TaskboardAgencyCopilotCapabilityValue {\n    readonly launch: boolean;\n}',
+  },
+  {
+    name: 'TaskboardArchiveRequest',
+    declaration: 'export interface TaskboardArchiveRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardBaseline',
+    declaration: 'export interface TaskboardBaseline {\n    readonly tasks: readonly TaskboardTask[];\n}',
+  },
+  {
+    name: 'TaskboardClearAgencyCopilotRequest',
+    declaration: 'export interface TaskboardClearAgencyCopilotRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardCreateInput',
+    declaration: 'export interface TaskboardCreateInput {\n    readonly workspaceId: WorkspaceId;\n    readonly title: string;\n    readonly description?: string;\n    readonly status?: TaskStatus;\n    readonly priority?: TaskPriority;\n    readonly labels?: readonly string[];\n    readonly agencyCopilotSessionId?: AgencyCopilotSessionId;\n}',
+  },
+  {
+    name: 'TaskboardCreateRequest',
+    declaration: 'export type TaskboardCreateRequest = TaskboardCreateInput;',
+  },
+  {
+    name: 'TaskboardDeleteRequest',
+    declaration: 'export interface TaskboardDeleteRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardDeleteValue',
+    declaration: 'export interface TaskboardDeleteValue {\n    readonly taskId: TaskId;\n    readonly revision: number;\n}',
+  },
+  {
+    name: 'TaskboardFollowFrame',
+    declaration: 'export type TaskboardFollowFrame = {\n    readonly type: \'baseline\';\n    readonly value: TaskboardBaseline;\n} | TaskboardFollowIncrement;',
+  },
+  {
+    name: 'TaskboardFollowIncrement',
+    declaration: 'export type TaskboardFollowIncrement = {\n    readonly type: \'upsert\';\n    readonly task: TaskboardTask;\n} | {\n    readonly type: \'remove\';\n    readonly taskId: TaskId;\n    readonly revision: number;\n};',
+  },
+  {
+    name: 'TaskboardInspectAgencyCopilotRequest',
+    declaration: 'export interface TaskboardInspectAgencyCopilotRequest {\n    readonly taskIds: readonly TaskId[];\n}',
+  },
+  {
+    name: 'TaskboardInspectAgencyCopilotValue',
+    declaration: 'export interface TaskboardInspectAgencyCopilotValue {\n    readonly observations: readonly AgencyCopilotObservation[];\n}',
+  },
+  {
+    name: 'TaskboardListAgencyCopilotSessionsRequest',
+    declaration: 'export interface TaskboardListAgencyCopilotSessionsRequest {\n    readonly workspaceId: WorkspaceId;\n}',
+  },
+  {
+    name: 'TaskboardListAgencyCopilotSessionsValue',
+    declaration: 'export interface TaskboardListAgencyCopilotSessionsValue {\n    readonly sessions: readonly AgencyCopilotSessionOption[];\n    readonly truncated: boolean;\n}',
+  },
+  {
+    name: 'TaskboardListRequest',
+    declaration: 'export interface TaskboardListRequest {\n    readonly workspaceId?: WorkspaceId;\n}',
+  },
+  {
+    name: 'TaskboardListValue',
+    declaration: 'export interface TaskboardListValue {\n    readonly tasks: readonly TaskboardTask[];\n}',
+  },
+  {
+    name: 'TaskboardMoveInput',
+    declaration: 'export interface TaskboardMoveInput {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly status: TaskStatus;\n    readonly beforeTaskId?: TaskId;\n}',
+  },
+  {
+    name: 'TaskboardMoveRequest',
+    declaration: 'export type TaskboardMoveRequest = TaskboardMoveInput;',
+  },
+  {
+    name: 'TaskboardOpenAgencyCopilotRequest',
+    declaration: 'export interface TaskboardOpenAgencyCopilotRequest {\n    readonly taskId: TaskId;\n}',
+  },
+  {
+    name: 'TaskboardOpenAgencyCopilotValue',
+    declaration: 'export interface TaskboardOpenAgencyCopilotValue {\n    readonly outcome: \'launch-pending\' | \'already-running\' | \'resume-accepted\' | \'create-retry-accepted\';\n}',
+  },
+  {
+    name: 'TaskboardSetAgencyCopilotSessionInput',
+    declaration: 'export interface TaskboardSetAgencyCopilotSessionInput {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly agencyCopilotSessionId: AgencyCopilotSessionId | null;\n}',
+  },
+  {
+    name: 'TaskboardStartAgencyCopilotRequest',
+    declaration: 'export interface TaskboardStartAgencyCopilotRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardStartAgencyCopilotValue',
+    declaration: 'export interface TaskboardStartAgencyCopilotValue {\n    readonly task: TaskboardTask;\n    readonly launch: \'accepted\';\n}',
+  },
+  {
+    name: 'TaskboardTask',
+    declaration: 'export interface TaskboardTask {\n    readonly id: TaskId;\n    readonly revision: number;\n    readonly ordinal: number;\n    readonly workspaceId: WorkspaceId;\n    readonly title: string;\n    readonly description: string;\n    readonly status: TaskStatus;\n    readonly rank: number;\n    readonly priority?: TaskPriority;\n    readonly labels: readonly string[];\n    readonly sessionId?: SessionId;\n    readonly agencyCopilotSessionId?: AgencyCopilotSessionId;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n    readonly archivedAt?: string;\n}',
+  },
+  {
+    name: 'TaskboardTaskValue',
+    declaration: 'export interface TaskboardTaskValue {\n    readonly task: TaskboardTask;\n}',
+  },
+  {
+    name: 'TaskboardUpdateInput',
+    declaration: 'export interface TaskboardUpdateInput {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly patch: TaskboardUpdatePatch;\n}',
+  },
+  {
+    name: 'TaskboardUpdatePatch',
+    declaration: 'export interface TaskboardUpdatePatch {\n    readonly title?: string;\n    readonly description?: string;\n    readonly priority?: TaskPriority | null;\n    readonly labels?: readonly string[];\n    readonly sessionId?: SessionId | null;\n    readonly agencyCopilotSessionId?: AgencyCopilotSessionId | null;\n}',
+  },
+  {
+    name: 'TaskboardUpdateRequest',
+    declaration: 'export type TaskboardUpdateRequest = TaskboardUpdateInput;',
+  },
+  {
+    name: 'TaskPriority',
+    declaration: 'export type TaskPriority = \'low\' | \'medium\' | \'high\' | \'urgent\';',
+  },
+  {
+    name: 'TaskStatus',
+    declaration: 'export type TaskStatus = \'backlog\' | \'todo\' | \'in_progress\' | \'in_review\' | \'done\';',
   },
   {
     name: 'TeamId',

@@ -1,5 +1,5 @@
 ---
-description: "Official DeepSeek Harness brand occupants for the sidebar and conversation hero, active only in official builds; for users and maintainers choosing or replacing brand presentation."
+description: "MIP Autolabeling brand occupants for the sidebar and conversation hero, active only in official builds; for users and maintainers choosing or replacing brand presentation."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package fills the browser brand slots — `sidebar.brand.mark`, `sidebar.brand.name`, and `conversation.hero.brand.mark` — with the official DeepSeek Harness mark and name. It registers these occupants only when the client bundle builds with the `official` profile; every other build loads the plugin but registers nothing, so the shell fallbacks stay visible. Choose it when the deployed identity is DeepSeek's own; a deployment with its own brand composes a different package into the same slots instead. It retains no runtime state and contributes nothing to model requests.
+This package fills the browser brand slots — `sidebar.brand.mark`, `sidebar.brand.name`, and `conversation.hero.brand.mark` — with the MIP Autolabeling mark and sidebar wordmark. It registers these occupants only when the client bundle builds with the `official` profile; every other build loads the plugin but registers nothing, so the shell fallbacks stay visible. Choose it for the MIP deployment; a deployment with another identity composes a different package into the same slots instead. It retains no runtime state and contributes nothing to model requests.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ This package fills the browser brand slots — `sidebar.brand.mark`, `sidebar.br
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin in the browser roster of a deployment whose identity is DeepSeek's own, then build the client with the `official` profile so the occupants register.
+Mount this plugin in the MIP deployment's browser roster, then build the client with the `official` profile so the occupants register.
 
 ### Choosing the profile
 
-`DSH_CLIENT_BUILD_PROFILE` selects which brand renders. An `official` build shows the official mark and name in the sidebar and the mark in the conversation hero; any other value leaves the shell fallbacks — the fish mark and the local-build label — in place. The plugin still loads and validates in both cases; only the registration is profile-gated.
+`DSH_CLIENT_BUILD_PROFILE` selects whether these occupants register. An `official` build shows the MIP Autolabeling blue applied-label mark, transparent checkmark, and gold sparkle in both the sidebar and conversation Hero, with the compact wordmark in the sidebar. The marks match the local sidebar and Hero fallbacks ([decision](../../../.agents/notes/implemented/feature/2026-09-08-mip-autolabeling-portal-identity.md)); other profiles leave those fallbacks and local build metadata in place. The plugin still loads and validates in both cases; only the registration is profile-gated.
 
 ### Replacing the brand
 

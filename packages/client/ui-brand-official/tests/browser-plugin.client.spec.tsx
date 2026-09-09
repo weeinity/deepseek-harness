@@ -3,8 +3,9 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { MipAutolabelingMark } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '../src/client/index.ts'
-import { OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
+import { MipAutolabelingName } from '../src/client/Brand.tsx'
 
 afterEach(() => {
   cleanup()
@@ -47,6 +48,9 @@ describe('official browser-brand plugin', () => {
     const fiber = before.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     for (const hole of HOLES) expect(before.slots.entries(hole)).toHaveLength(1)
+    expect(before.slots.entries('sidebar.brand.mark')[0]?.component).toBe(MipAutolabelingMark)
+    expect(before.slots.entries('sidebar.brand.name')[0]?.component).toBe(MipAutolabelingName)
+    expect(before.slots.entries('conversation.hero.brand.mark')[0]?.component).toBe(MipAutolabelingMark)
 
     before.disposeHoles?.()
     for (const hole of HOLES) expect(before.slots.entries(hole)).toHaveLength(0)
@@ -65,15 +69,17 @@ describe('official browser-brand plugin', () => {
     for (const hole of HOLES) expect(after.slots.entries(hole)).toHaveLength(1)
   })
 
-  it('renders the official name independently from both requested mark sizes', () => {
-    const name = render(<OfficialBrandName />)
-    expect(name.container.querySelector('svg')?.getAttribute('viewBox')).toBe('26 0 156 24')
+  it('renders the MIP identity in both mark slots', () => {
+    const name = render(<MipAutolabelingName />)
+    expect(name.getByText('MIP')).toBeTruthy()
+    expect(name.getByText('Autolabeling')).toBeTruthy()
+    expect(name.container.querySelector('[data-brand-name="mip-autolabeling"]')).toBeTruthy()
     name.unmount()
 
-    const mark = render(<OfficialBrandMark size={34} className="hero-mark" />)
-    expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('34')
-    expect(mark.container.querySelector('svg')?.getAttribute('class')).toBe('hero-mark')
-    mark.rerender(<OfficialBrandMark size={24} />)
-    expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('24')
+    const heroMark = render(<MipAutolabelingMark size={34} className="hero-mark" />)
+    expect(heroMark.container.querySelector('svg')?.getAttribute('width')).toBe('34')
+    expect(heroMark.container.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 512 512')
+    expect(heroMark.container.querySelector('svg')?.getAttribute('data-brand')).toBe('mip-autolabeling')
+    expect(heroMark.container.querySelector('svg')?.getAttribute('class')).toBe('hero-mark')
   })
 })

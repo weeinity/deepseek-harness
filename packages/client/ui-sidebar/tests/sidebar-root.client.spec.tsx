@@ -110,9 +110,16 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('MIP')).toBeTruthy()
+    expect(screen.getByText('Autolabeling')).toBeTruthy()
     expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
-    expect(container.querySelector('svg')).not.toBeNull()
+    expect(container.querySelector('svg[data-brand="mip-autolabeling"]')).not.toBeNull()
+    const mark = container.querySelector('svg[data-brand="mip-autolabeling"]')
+    expect(mark?.getAttribute('viewBox')).toBe('0 0 512 512')
+    expect([...container.querySelectorAll('svg[data-brand="mip-autolabeling"] path')].map(path => path.getAttribute('fill')))
+      .toEqual(['#0F6CBD', '#FFC53D'])
+    expect(mark?.querySelector('path[fill-rule="evenodd"]')).not.toBeNull()
+    expect(screen.queryByText('DSH Local Build')).toBeNull()
   })
 
   it.each([
@@ -128,7 +135,8 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('MIP')).toBeTruthy()
+    expect(screen.getByText('Autolabeling')).toBeTruthy()
     expect(screen.getByText(expected)).toBeTruthy()
   })
 
@@ -141,7 +149,10 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText('MIP')).toBeTruthy()
+    expect(screen.getByText('Autolabeling')).toBeTruthy()
+    expect(document.querySelector('[data-brand-name="mip-autolabeling"]')).not.toBeNull()
+    expect(screen.queryByText('DSH Local Build')).toBeNull()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {

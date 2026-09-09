@@ -20,7 +20,13 @@ import {
  * `narrowExpanded` is the manual override that re-expands the auto-collapsed
  * sidebar over the squeezed center without rewriting the width preference.
  */
-type LayoutState = { sidebar: number; details: number; narrow: boolean; narrowExpanded: boolean }
+type LayoutState = {
+  sidebar: number
+  details: number
+  narrow: boolean
+  narrowExpanded: boolean
+  mainSurface?: string
+}
 
 /**
  * Annotation twin of the actions literal below (the export needs a declared
@@ -33,6 +39,9 @@ type LayoutActions = {
   setNarrow: (draft: LayoutState, narrow: boolean) => void
   openDetails: (draft: LayoutState) => void
   closeDetails: (draft: LayoutState) => void
+  openMainSurface: (draft: LayoutState, id: string) => void
+  closeMainSurface: (draft: LayoutState, id?: string) => void
+  toggleMainSurface: (draft: LayoutState, id: string) => void
 }
 
 /**
@@ -66,6 +75,14 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       },
       openDetails: (d) => { if (d.details === 0) d.details = DETAILS_DEFAULT },
       closeDetails: (d) => { d.details = 0 },
+      openMainSurface: (d, id: string) => { d.mainSurface = id },
+      closeMainSurface: (d, id?: string) => {
+        if (id === undefined || d.mainSurface === id) delete d.mainSurface
+      },
+      toggleMainSurface: (d, id: string) => {
+        if (d.mainSurface === id) delete d.mainSurface
+        else d.mainSurface = id
+      },
     },
   })
   return handle
