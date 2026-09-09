@@ -3,6 +3,7 @@ import { notifySubscribers } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-api-taskboard-controller/remote'
 import type { TaskboardDeleteValue, TaskboardTask, TaskId } from '@deepseek-ai/dsh-taskboard/types'
 import type { RemoteFailure, RemoteResult, TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   AgencyCopilotObservation, TaskboardAgencyCopilotCapabilityValue, TaskboardArchiveRequest, TaskboardBaseline,
   TaskboardClearAgencyCopilotRequest,
@@ -350,9 +351,6 @@ function compareTasks(left: TaskboardTask, right: TaskboardTask): number {
 }
 
 function failureOf(error: unknown): RemoteFailure {
-  if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
-    const value = error as { code: string; message: string; details?: unknown }
-    return { code: value.code, message: value.message, details: value.details ?? {} }
-  }
-  return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} }
+  return remoteErrorOf(error)
+    ?? new RemoteError('gateway/internal', error instanceof Error ? error.message : String(error), {}, { cause: error })
 }

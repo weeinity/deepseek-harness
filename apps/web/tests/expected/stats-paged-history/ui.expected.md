@@ -4,6 +4,8 @@
   - button "Session log":
     - text: Session log
     - img
+  - button "Open the sidebar":
+    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -48,7 +50,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m2 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m2 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r2
@@ -60,7 +65,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m3 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m3 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r3
@@ -72,7 +80,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m4 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m4 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r4
@@ -84,7 +95,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m5 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m5 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r5
@@ -96,7 +110,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m6 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m6 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r6
@@ -108,7 +125,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m7 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m7 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r7
@@ -120,7 +140,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m8 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m8 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r8
@@ -132,7 +155,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m9 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m9 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r9
@@ -144,7 +170,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m10 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m10 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r10
@@ -156,7 +185,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m11 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m11 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r11
@@ -168,7 +200,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m12 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m12 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r12
@@ -180,7 +215,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m13 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m13 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r13
@@ -192,7 +230,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m14 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m14 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r14
@@ -204,7 +245,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m15 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m15 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r15
@@ -216,7 +260,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m16 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m16 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r16
@@ -228,7 +275,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m17 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m17 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r17
@@ -240,7 +290,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m18 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m18 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r18
@@ -252,7 +305,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m19 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m19 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r19
@@ -264,7 +320,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m20 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m20 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r20
@@ -276,7 +335,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m21 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m21 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r21
@@ -288,7 +350,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m22 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m22 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r22
@@ -300,7 +365,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m23 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m23 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r23
@@ -312,7 +380,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m24 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m24 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r24
@@ -324,7 +395,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m25 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m25 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r25
@@ -336,7 +410,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m26 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m26 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r26
@@ -348,7 +425,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m27 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m27 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r27
@@ -360,7 +440,10 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}} m28 7/25 {{clock}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}} m28 7/25 {{clock}}
 - button "Copy":
   - img
 - paragraph: r28
@@ -372,15 +455,22 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: 7/25 {{clock}} Ran for {{duration}}
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: 7/25 {{clock}}
 - button "Back to bottom":
   - img
-- textbox "Message or run a task... / commands, @ files or sessions"
+- textbox "Message or run a task, / commands, @ files or sessions"
 - button "Commands":
+  - img
+- button "Add attachment":
   - img
 - 'button "Access mode, current: Workspace Write"': Workspace Write
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
 - button "Send message" [disabled]
-- text: 28 turns · 28 steps LLM {{duration}}
+- button "28 turns 28 steps":
+  - img
+  - text: 28 turns 28 steps

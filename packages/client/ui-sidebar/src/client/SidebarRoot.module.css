@@ -25,7 +25,7 @@
 
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
-   the    mark's box (24px to the 24-wide MIP label itself). */
+   the mark's box (24px to the 24-wide MIP label itself). */
 .root.collapsed {
   padding: 18px 10px 6px;
 }
@@ -223,6 +223,7 @@
   height: 28px;
   border: none;
   border-radius: 50%;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -297,7 +298,7 @@
   padding: 4px 12px;
   margin: 0 7px 15px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 7px;
   background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-primary);

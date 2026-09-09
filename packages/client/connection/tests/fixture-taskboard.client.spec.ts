@@ -17,7 +17,7 @@ describe('Taskboard fixture session association', () => {
         ], truncated: false,
       } })
     await expect(rpc.call('/api', 'taskboard/listAgencyCopilotSessions', { args: { request: { workspaceId: 'missing' } } }))
-      .resolves.toMatchObject({ ok: false, error: { code: 'workspace-not-found' } })
+      .resolves.toMatchObject({ ok: false, error: { code: 'taskboard/workspace-not-found' } })
   })
 
   describe('Taskboard fixture deletion', () => {
@@ -49,7 +49,7 @@ describe('Taskboard fixture session association', () => {
         expect(await call('session/list')).toEqual(sessions)
         expect(await call('taskboard/listAgencyCopilotSessions', { workspaceId })).toEqual(copilotSessions)
         await expect(call('taskboard/delete', { taskId: 'fx-task-2', expectedRevision }))
-          .resolves.toMatchObject({ ok: false, error: { code: 'task-not-found' } })
+          .resolves.toMatchObject({ ok: false, error: { code: 'taskboard/task-not-found' } })
       } finally {
         cancellation.abort()
         await iterator.return?.()
@@ -60,7 +60,7 @@ describe('Taskboard fixture session association', () => {
       const { rpc } = createFixtureFaces()
       const before = await rpc.call('/api', 'taskboard/list', { args: { request: {} } })
       await expect(rpc.call('/api', 'taskboard/delete', { args: { request: { taskId: 'fx-task-2', expectedRevision: 0 } } }))
-        .resolves.toMatchObject({ ok: false, error: { code: 'revision-conflict' } })
+        .resolves.toMatchObject({ ok: false, error: { code: 'taskboard/revision-conflict' } })
       expect(await rpc.call('/api', 'taskboard/list', { args: { request: {} } })).toEqual(before)
       await expect(rpc.call('/api', 'taskboard/delete', { args: { request: { taskId: 'fx-task-2', expectedRevision: 1 } } }))
         .resolves.toEqual({ ok: true, value: { taskId: 'fx-task-2', revision: Number.MAX_SAFE_INTEGER } })
@@ -90,10 +90,10 @@ describe('Taskboard fixture session association', () => {
     const { rpc } = createFixtureFaces()
     await expect(rpc.call('/api', 'taskboard/create', { args: { request: {
       workspaceId, title: 'Rejected creation', agencyCopilotSessionId: foreign,
-    } } })).resolves.toMatchObject({ ok: false, error: { code: 'bad-request' } })
+    } } })).resolves.toMatchObject({ ok: false, error: { code: 'taskboard/bad-request' } })
     await expect(rpc.call('/api', 'taskboard/update', { args: { request: {
       taskId: 'fx-task-2', expectedRevision: 1, patch: { title: 'Rejected edit', agencyCopilotSessionId: foreign },
-    } } })).resolves.toMatchObject({ ok: false, error: { code: 'bad-request' } })
+    } } })).resolves.toMatchObject({ ok: false, error: { code: 'taskboard/bad-request' } })
     const listed = await rpc.call('/api', 'taskboard/list', { args: { request: {} } })
     expect(listed).toHaveProperty('value.tasks.length', 5)
     expect(listed).toHaveProperty('value.tasks.1.title', 'Build native board surface')

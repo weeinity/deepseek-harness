@@ -59,7 +59,9 @@ kind: "package-reference"
 
 插件填充 layout 拥有的 keyed `main.surface` 单元 `taskboard`，并向 additive `sidebar.footer.action` 行贡献入口。两个注册共享 Client Taskboard observable，但使用各自最小化的 inject face。筛选、搜索、所选任务和对话框草稿等纯视图状态保留在 React 本地；业务任务保留在 controller 的无 React Client model 中。
 
-打开任务看板时，Conversation 与 Details 被遮蔽而非卸载。AppFrame 保持其 grid 几何稳定，并传入 `active:false` 以暂停 document 级附件行为。显式 Session 导航先打开 Session，再关闭任务看板。
+打开任务看板时，Conversation 与右侧栏被遮蔽而非卸载。AppFrame 保留它们的面板偏好，并传入 `active:false` 以暂停 document 级附件行为与右侧栏 portal。显式 Session 导航先打开 Session，再关闭任务看板。
+
+不发布运行时不变式伴生入口：本插件渲染 Controller 的权威任务快照，只持有本地查看状态；它没有需要核对的独立事件流。
 
 <a id="model-experience"></a>
 ## 模型体验

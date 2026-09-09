@@ -27,13 +27,29 @@ export class TaskboardCommandError extends Error {
 export interface ITaskboard {
   /** Host-authoritative active and archived task rows and stream lifecycle. */
   readonly list: ObservableSnapshot<TaskboardSnapshot>
-  /** Create a durable task. */
+  /**
+   * Create a durable task.
+   * @param request - Initial task fields and optional existing Agency link.
+   * @returns the committed task.
+   */
   create(request: TaskboardCreateRequest): Promise<TaskboardTask>
-  /** Update task content or linkage with revision CAS. */
+  /**
+   * Update task content or linkage with revision CAS.
+   * @param request - Task identity, exact current revision, and field patch.
+   * @returns the committed task.
+   */
   update(request: TaskboardUpdateRequest): Promise<TaskboardTask>
-  /** Move a task with revision CAS. */
+  /**
+   * Move a task with revision CAS.
+   * @param request - Task identity, exact current revision, and destination.
+   * @returns the committed task.
+   */
   move(request: TaskboardMoveRequest): Promise<TaskboardTask>
-  /** Archive with revision CAS; retain the archived row in the task snapshot. */
+  /**
+   * Archive with revision CAS; retain the archived row in the task snapshot.
+   * @param taskId - Task identity to archive.
+   * @param expectedRevision - Exact current revision.
+   */
   archive(taskId: TaskId, expectedRevision: number): Promise<void>
   /**
    * Permanently delete an active or archived task without changing its linked Sessions or terminals.
@@ -42,7 +58,10 @@ export interface ITaskboard {
    * @returns resolution after the committed removal is installed in the Client snapshot.
    */
   delete(taskId: TaskId, expectedRevision: number): Promise<void>
-  /** Read whether this Host deployment permits native Copilot launch. */
+  /**
+   * Read whether this Host deployment permits native Copilot launch.
+   * @returns whether native launch is permitted.
+   */
   agencyCopilotCapability(): Promise<boolean>
   /**
    * Discover existing local Copilot sessions; rejects when Agency discovery is unavailable.
@@ -50,13 +69,30 @@ export interface ITaskboard {
    * @returns bounded matching sessions and whether further rows may exist.
    */
   listAgencyCopilotSessions(workspaceId: WorkspaceId): Promise<TaskboardListAgencyCopilotSessionsValue>
-  /** Start a fresh Host-generated Agency Copilot terminal for a task. */
+  /**
+   * Start a fresh Host-generated Agency Copilot terminal for a task.
+   * @param taskId - Task identity to link and launch.
+   * @param expectedRevision - Exact current revision.
+   * @returns the committed linked task after an accepted terminal handoff.
+   */
   startAgencyCopilot(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
-  /** Open or resume a task's linked Agency Copilot terminal. */
+  /**
+   * Open or resume a task's linked Agency Copilot terminal.
+   * @param taskId - Task whose linked Agency identity is addressed.
+   * @returns the terminal handoff outcome or current running state.
+   */
   openAgencyCopilot(taskId: TaskId): Promise<TaskboardOpenAgencyCopilotValue['outcome']>
-  /** Clear the durable Agency Copilot link without touching the terminal. */
+  /**
+   * Clear the durable Agency Copilot link without touching the terminal.
+   * @param taskId - Task whose Agency link is cleared.
+   * @param expectedRevision - Exact current revision.
+   * @returns the committed task without its Agency link.
+   */
   clearAgencyCopilot(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
-  /** Refresh transient Agency status for linked tasks. */
+  /**
+   * Refresh transient Agency status for linked tasks.
+   * @param taskIds - Task identities whose linked Agency status is requested.
+   */
   inspectAgencyCopilot(taskIds: readonly TaskId[]): Promise<void>
 }
 

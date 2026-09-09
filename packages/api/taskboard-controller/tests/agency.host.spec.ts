@@ -23,7 +23,6 @@ function subprocess(stdout: string | string[], outcome = { exitCode: 0, signal: 
       specs.push(spec)
       const text = typeof stdout === 'string' ? stdout : stdout.shift()!
       return {
-        pid: 7,
         stdin: undefined,
         stdout: undefined,
         stderr: undefined,

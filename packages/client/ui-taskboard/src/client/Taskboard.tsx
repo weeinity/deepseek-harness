@@ -15,7 +15,11 @@ import css from './Taskboard.module.css'
 
 const TASK_DRAG_MIME = 'application/x-dsh-taskboard-task'
 
-/** Render the native root-scoped Taskboard surface. */
+/**
+ * Render the native root-scoped Taskboard surface.
+ * @param props - Live task, Session, and Workspace sources with task operations.
+ * @returns the board, filters, and selected task dialog.
+ */
 export function Taskboard(props: TaskboardSurfaceProps) {
   const taskboard = props.useTaskboard(snapshot => snapshot)
   const sessions = props.useSessions(snapshot => snapshot)

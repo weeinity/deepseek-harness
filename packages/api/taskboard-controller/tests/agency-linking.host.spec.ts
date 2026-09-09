@@ -1,7 +1,7 @@
 import { resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
 import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
@@ -31,7 +31,8 @@ async function harness(pool = new MemoryMediaPool(), launchEnabled = false) {
   ctx.storage.mount('domain', facility)
   ctx.provide('storageDomain', facility)
   ctx.provide('sessionPersistence', { list: async () => [{
-    version: 0, id: SessionId('native'), createdAt: 0, cwd: process.cwd(),
+    header: { version: SESSION_FORMAT_VERSION, id: SessionId('native'), createdAt: 0, cwd: process.cwd(), isSeeded: false },
+    revision: 'fixture',
   }] } as never)
   await ctx.plugin(WorkspaceRegistry)
   await ctx.plugin(TaskboardService)
@@ -40,7 +41,7 @@ async function harness(pool = new MemoryMediaPool(), launchEnabled = false) {
   const spawn = vi.fn((_spec: SubprocessSpawnSpec): SubprocessHandle => {
     let output = ''
     return {
-      pid: 7, stdin: undefined, stdout: undefined, stderr: undefined,
+      stdin: undefined, stdout: undefined, stderr: undefined,
       collected: {
         stdout: { readFrom: () => ({ text: output, nextOffset: output.length, lossy: false }) },
         stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) },
@@ -105,7 +106,7 @@ describe('Taskboard existing Agency session selection', () => {
     const b = await harness()
     await expect(b.controller.listAgencyCopilotSessions(
       { workspaceId: WorkspaceId('missing') }, new AbortController().signal,
-    )).rejects.toMatchObject({ failure: { code: 'workspace-not-found' } })
+    )).rejects.toMatchObject({ code: 'taskboard/workspace-not-found' })
     expect(b.read).not.toHaveBeenCalled()
   })
 
@@ -122,7 +123,7 @@ describe('Taskboard existing Agency session selection', () => {
     }
     const request = b.controller.listAgencyCopilotSessions({ workspaceId: b.workspace.id }, signal.signal)
     if (kind === 'cancelled') await expect(request).rejects.toThrow('Cancelled')
-    else await expect(request).rejects.toMatchObject({ failure: { code: 'agency-unavailable' } })
+    else await expect(request).rejects.toMatchObject({ code: 'taskboard/agency-unavailable' })
     expect(b.launch).not.toHaveBeenCalled()
   })
 
@@ -213,15 +214,15 @@ describe('Taskboard existing Agency session selection', () => {
 
   describe.each(['create', 'update'] as const)('%s rejects before writing', (operation) => {
     it.each([
-      ['missing', 'bad-request'],
-      ['wrong-identity', 'bad-request'],
-      ['wrong-workspace', 'bad-request'],
-      ['missing-folder', 'bad-request'],
-      ['invalid-uuid', 'bad-request'],
-      ['incomplete', 'agency-unavailable'],
-      ['malformed', 'agency-unavailable'],
-      ['unavailable', 'agency-unavailable'],
-      ['missing-workspace', 'workspace-not-found'],
+      ['missing', 'taskboard/bad-request'],
+      ['wrong-identity', 'taskboard/bad-request'],
+      ['wrong-workspace', 'taskboard/bad-request'],
+      ['missing-folder', 'taskboard/bad-request'],
+      ['invalid-uuid', 'taskboard/bad-request'],
+      ['incomplete', 'taskboard/agency-unavailable'],
+      ['malformed', 'taskboard/agency-unavailable'],
+      ['unavailable', 'taskboard/agency-unavailable'],
+      ['missing-workspace', 'taskboard/workspace-not-found'],
     ] as const)('%s', async (kind, code) => {
       const b = await harness()
       const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial' })
@@ -243,7 +244,7 @@ describe('Taskboard existing Agency session selection', () => {
         : b.controller.update({
           taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Edited', agencyCopilotSessionId: selected },
         })
-      await expect(request).rejects.toMatchObject({ failure: { code } })
+      await expect(request).rejects.toMatchObject({ code })
       expect(write).not.toHaveBeenCalled()
       expect(b.board.list()).toEqual([initial])
       expect(b.launch).not.toHaveBeenCalled()
@@ -290,7 +291,7 @@ describe('Taskboard existing Agency session selection', () => {
       : await b.board.archive(initial.id, initial.revision)
     await expect(b.controller.update({
       taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Stale', agencyCopilotSessionId: firstId },
-    })).rejects.toMatchObject({ failure: { code: kind === 'stale' ? 'revision-conflict' : 'task-archived' } })
+    })).rejects.toMatchObject({ code: kind === 'stale' ? 'taskboard/revision-conflict' : 'taskboard/task-archived' })
     expect(b.board.get(initial.id)).toEqual(current)
     expect(b.read).not.toHaveBeenCalled()
   })
@@ -311,8 +312,9 @@ describe('Taskboard existing Agency session selection', () => {
       } else if (kind === 'archived') await b.board.archive(initial.id, initial.revision)
       else await b.ctx.workspaceRegistry.delete(b.workspace.id)
       const retained = b.board.get(initial.id)
-      const code = kind === 'stale' ? 'revision-conflict' : kind === 'archived' ? 'task-archived' : 'workspace-not-found'
-      const rejected = expect(updating).rejects.toMatchObject({ failure: { code } })
+      const code = kind === 'stale' ? 'taskboard/revision-conflict'
+        : kind === 'archived' ? 'taskboard/task-archived' : 'taskboard/workspace-not-found'
+      const rejected = expect(updating).rejects.toMatchObject({ code })
       pending.resolve(page())
       await rejected
       expect(b.board.get(initial.id)).toEqual(retained)
@@ -342,9 +344,9 @@ describe('Taskboard existing Agency session selection', () => {
     expect(settled).not.toHaveBeenCalled()
     pending.resolve(page(secondId))
     const { task: linked } = await updating
-    await expect(competing).rejects.toMatchObject({ failure: {
-      code: operation === 'open' ? 'agency-not-linked' : 'revision-conflict',
-    } })
+    await expect(competing).rejects.toMatchObject({
+      code: operation === 'open' ? 'taskboard/agency-not-linked' : 'taskboard/revision-conflict',
+    })
     expect(b.board.get(initial.id)).toEqual(linked)
     expect(b.launch).not.toHaveBeenCalled()
   })
@@ -390,7 +392,7 @@ describe('Taskboard deletion and Agency operations', () => {
     })).resolves.toEqual({ taskId: current.id, revision: Number.MAX_SAFE_INTEGER })
     expect(b.ctx.workspaceRegistry.get(b.workspace.id)).toBe(b.workspace)
     expect(b.workspace.sessionIds).toEqual(sessions)
-    expect(await b.ctx.sessionPersistence.list()).toMatchObject([{ id: SessionId('native') }])
+    expect(await b.ctx.sessionPersistence.list()).toMatchObject([{ header: { id: SessionId('native') } }])
     expect(changed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       domain: 'taskboard', table: 'tasks', key: current.id, operation: 'deleted',
     }))
@@ -419,7 +421,7 @@ describe('Taskboard deletion and Agency operations', () => {
     await expect(opening).resolves.toEqual({ outcome: 'already-running' })
     await expect(deleting).resolves.toEqual({ taskId: task.id, revision: Number.MAX_SAFE_INTEGER })
     await expect(b.controller.openAgencyCopilot({ taskId: task.id }, new AbortController().signal))
-      .rejects.toMatchObject({ failure: { code: 'task-not-found' } })
+      .rejects.toMatchObject({ code: 'taskboard/task-not-found' })
     expect(b.launch).not.toHaveBeenCalled()
   })
 
@@ -450,7 +452,7 @@ describe('Taskboard deletion and Agency operations', () => {
         case 'clear': competing = b.controller.clearAgencyCopilot(request); break
         case 'update': competing = b.controller.update({ ...request, patch: { title: 'Late edit' } }); break
       }
-      const rejected = expect(competing).rejects.toMatchObject({ failure: { code: 'task-not-found' } })
+      const rejected = expect(competing).rejects.toMatchObject({ code: 'taskboard/task-not-found' })
       expect(b.read).not.toHaveBeenCalled()
       expect(b.board.get(task.id)).toEqual(task)
       resume.resolve(undefined)

@@ -114,7 +114,7 @@ Source: [`packages/workspace/taskboard/src/index.ts`](../../packages/workspace/t
 
 ### `ctx.taskboardController` — `TaskboardController`
 
-Host service backing the generated `ctx.remote.taskboard` namespace.
+Host service backing the generated `ctx.remote.taskboard` namespace. Business failures throw RemoteError with `taskboard/*` codes and typed details.
 
 ```ts cordis-catalog
 /** Return active and archived tasks belonging to registered Workspaces.

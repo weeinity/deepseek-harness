@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-taskboard",
   "description": "Durable Workspace task board with revision-checked five-column ordering",
-  "version": "0.1.2-alpha.1",
+  "version": "0.1.5-alpha.1",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",

@@ -22,7 +22,11 @@ export interface TaskCardProps {
   readonly onDropBefore: (event: DragEvent<HTMLElement>) => void
 }
 
-/** Render one keyboard-openable, draggable task card. */
+/**
+ * Render one keyboard-openable, draggable task card.
+ * @param props - Durable task, live activity, and card interactions.
+ * @returns the task summary with independent planning and execution status.
+ */
 export function TaskCard(props: TaskCardProps) {
   const activity = taskActivity(props.task, props.sessions)
   const archived = props.task.archivedAt !== undefined

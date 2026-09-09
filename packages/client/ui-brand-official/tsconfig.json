@@ -9,13 +9,13 @@
   ],
   "references": [
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
-      "path": "../ui-renderer"
+      "path": "../../../vendor/cordis"
     },
     {
       "path": "../ui-conversation"
+    },
+    {
+      "path": "../ui-renderer"
     },
     {
       "path": "../ui-primitives"

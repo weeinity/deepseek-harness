@@ -59,7 +59,9 @@ The launch controls are enabled only on the local DSH page. The browser never su
 
 The plugin fills the layout-owned keyed `main.surface` cell `taskboard` and the additive `sidebar.footer.action` row. The two registrations share the Client Taskboard observable but receive separate minimal inject faces. View-only state—filter, search, selected task, and dialog drafts—stays local to React. Business tasks remain in the controller's React-free Client model.
 
-Opening Taskboard obscures rather than unmounts Conversation and Details. AppFrame keeps their grid geometry stable and passes `active:false` to suspend document-level attachment behavior. Explicit Session navigation opens the Session first, then closes Taskboard.
+Opening Taskboard obscures rather than unmounts Conversation and the right sidebar. AppFrame preserves their panel preferences and passes `active:false` to suspend document-level attachment behavior and right-sidebar portals. Explicit Session navigation opens the Session first, then closes Taskboard.
+
+No runtime invariant companion is published: this plugin renders the Controller's authoritative task snapshot and owns only local viewing state; it has no independent event stream to reconcile.
 
 <a id="model-experience"></a>
 ## Model Experience

@@ -31,6 +31,8 @@ Lists and reconnect baselines include both active and archived tasks in register
 
 `delete` permanently removes an active or archived Taskboard record at its expected revision without changing its Workspace, native DSH Session, Agency session, or terminal. It shares the task's Agency-operation lock and checks cancellation before admitting the durable deletion. The Client removes the row and its Agency observation only on success; Remote failures and rejected requests retain existing state without automatic retry. The removal receipt and feed tombstone use `Number.MAX_SAFE_INTEGER`, preventing delayed task echoes, baselines, or Agency observations from restoring the deleted identity.
 
+Taskboard business failures carry `taskboard/*` codes and typed details declared in `RemoteErrorDetailsMap`. Host commands throw `RemoteError`; discriminate errors by `code`, not constructor identity. The Client command service retains the original Remote error in `TaskboardCommandError.failure` and adds the operation name to its message.
+
 <a id="model-experience"></a>
 ## Model Experience
 

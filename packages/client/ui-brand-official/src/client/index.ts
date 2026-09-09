@@ -10,7 +10,7 @@ import { MipAutolabelingName } from './Brand.tsx'
 export const inject = ['slots']
 
 /**
- * Fill every shipped brand slot as one declaration-aware registration set.
+ * Fill the sidebar and hero brand slots as one declaration-aware registration set.
  * @param ctx - Client root context.
  */
 export function apply(ctx: ClientContext): void {

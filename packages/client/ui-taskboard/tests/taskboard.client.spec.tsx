@@ -53,6 +53,7 @@ function mountBoard(
     useSessions: selector => selector(sessions),
     useWorkspaces: selector => selector(workspaces),
     useSessionPendingInteraction: selector => selector(new Map()),
+    useResource: () => ({ status: 'none', value: undefined, failure: undefined, reload: () => {} }),
     t: locale.bind('taskboard'),
     createTask,
     updateTask: vi.fn(async () => {}),

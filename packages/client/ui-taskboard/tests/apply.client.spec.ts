@@ -6,6 +6,15 @@ import { apply, inject } from '../src/client/index.ts'
 import type { TaskboardLauncherInjected, TaskboardSurfaceInjected } from '../src/client/contract.ts'
 import type { AgencyCopilotSessionId, TaskboardTask } from '@deepseek-ai/dsh-api-taskboard-controller/client'
 
+function taskFixture(): TaskboardTask {
+  return {
+    id: 'task' as TaskboardTask['id'], revision: 4, ordinal: 1,
+    workspaceId: 'workspace' as TaskboardTask['workspaceId'],
+    title: 'Linked', description: '', status: 'todo', rank: 0, labels: [],
+    createdAt: '', updatedAt: '',
+  }
+}
+
 async function bench() {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
@@ -67,6 +76,7 @@ describe('ui-taskboard apply', () => {
     await fiber.dispose()
     expect(b.slots.entries('main.surface')).toEqual([])
     expect(b.slots.entries('sidebar.footer.action')).toEqual([])
+    expect(b.layout.registerMainSurface.mock.results[0]?.value).toHaveBeenCalledOnce()
   })
 
   it('forwards existing-session discovery and atomic task writes without opening a session', async () => {
@@ -77,12 +87,7 @@ describe('ui-taskboard apply', () => {
       const surface = b.slots.entries('main.surface')[0]!
       const face = (surface.inject as unknown as () => TaskboardSurfaceInjected)()
       const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-      const task: TaskboardTask = {
-        id: 'task' as TaskboardTask['id'], revision: 4, ordinal: 1,
-        workspaceId: 'workspace' as TaskboardTask['workspaceId'],
-        title: 'Linked', description: '', status: 'todo', rank: 0, labels: [],
-        createdAt: '', updatedAt: '', agencyCopilotSessionId: sessionId,
-      }
+      const task: TaskboardTask = { ...taskFixture(), agencyCopilotSessionId: sessionId }
       const catalog = { sessions: [{ sessionId, status: 'idle' }], truncated: false }
       b.taskboard.listAgencyCopilotSessions.mockResolvedValue(catalog)
       b.taskboard.create.mockResolvedValue(task)
@@ -101,6 +106,53 @@ describe('ui-taskboard apply', () => {
       expect(b.taskboard.openAgencyCopilot).not.toHaveBeenCalled()
       expect(b.sessions.create).not.toHaveBeenCalled()
       expect(b.sessions.open).not.toHaveBeenCalled()
+    } finally {
+      await fiber.dispose()
+      await b.ctx.fiber.dispose()
+    }
+  })
+
+  it('opens the linked Session before returning from Taskboard after a successful start', async () => {
+    const b = await bench()
+    const fiber = b.ctx.plugin({ inject: [...inject], apply })
+    try {
+      await fiber.await()
+      const face = (b.slots.entries('main.surface')[0]!.inject as unknown as () => TaskboardSurfaceInjected)()
+      const task = taskFixture()
+      const sessionId = 'created-session' as NonNullable<TaskboardTask['sessionId']>
+      b.sessions.create.mockResolvedValue(sessionId)
+      b.taskboard.update.mockResolvedValue({ ...task, revision: 5, sessionId })
+      await face.startWork(task)
+      expect(b.sessions.create).toHaveBeenCalledWith({ workspaceId: task.workspaceId })
+      expect(b.taskboard.update).toHaveBeenCalledWith({
+        taskId: task.id, expectedRevision: 4, patch: { sessionId },
+      })
+      expect(b.taskboard.move).toHaveBeenCalledWith({
+        taskId: task.id, expectedRevision: 5, status: 'in_progress',
+      })
+      expect(b.sessions.open).toHaveBeenCalledWith(sessionId)
+      expect(b.layout.closeMainSurface).toHaveBeenCalledOnce()
+      expect(b.sessions.open.mock.invocationCallOrder[0]).toBeLessThan(
+        b.layout.closeMainSurface.mock.invocationCallOrder[0]!,
+      )
+    } finally {
+      await fiber.dispose()
+      await b.ctx.fiber.dispose()
+    }
+  })
+
+  it('retains Taskboard selection when starting work cannot commit the task link', async () => {
+    const b = await bench()
+    const fiber = b.ctx.plugin({ inject: [...inject], apply })
+    try {
+      await fiber.await()
+      const face = (b.slots.entries('main.surface')[0]!.inject as unknown as () => TaskboardSurfaceInjected)()
+      b.sessions.create.mockResolvedValue('created-session')
+      b.taskboard.update.mockRejectedValue(new Error('task revision changed'))
+      await expect(face.startWork(taskFixture())).rejects.toThrow('task revision changed')
+      expect(b.taskboard.move).not.toHaveBeenCalled()
+      expect(b.sessions.open).not.toHaveBeenCalled()
+      expect(b.layout.closeMainSurface).not.toHaveBeenCalled()
     } finally {
       await fiber.dispose()
       await b.ctx.fiber.dispose()

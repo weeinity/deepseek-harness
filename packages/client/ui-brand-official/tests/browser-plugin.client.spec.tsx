@@ -6,6 +6,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { MipAutolabelingMark } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '../src/client/index.ts'
 import { MipAutolabelingName } from '../src/client/Brand.tsx'
+import { apply as hostApply } from '../src/index.ts'
 
 afterEach(() => {
   cleanup()
@@ -31,6 +32,10 @@ async function bench(declare = true) {
 }
 
 describe('official browser-brand plugin', () => {
+  it('keeps the host Loader entry inert', () => {
+    expect(hostApply).not.toThrow()
+  })
+
   it('declares only the slot service it uses', () => {
     expect(inject).toEqual(['slots'])
   })
@@ -81,5 +86,7 @@ describe('official browser-brand plugin', () => {
     expect(heroMark.container.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 512 512')
     expect(heroMark.container.querySelector('svg')?.getAttribute('data-brand')).toBe('mip-autolabeling')
     expect(heroMark.container.querySelector('svg')?.getAttribute('class')).toBe('hero-mark')
+    heroMark.rerender(<MipAutolabelingMark size={24} />)
+    expect(heroMark.container.querySelector('svg')?.getAttribute('width')).toBe('24')
   })
 })

@@ -20,7 +20,11 @@ export interface NewTaskDialogProps {
   readonly onCreate: (request: TaskboardCreateRequest) => Promise<void>
 }
 
-/** Render the new-task modal. */
+/**
+ * Render the new-task modal.
+ * @param props - Initial Workspace, creation operation, and localized copy.
+ * @returns the task draft form and existing-session selector.
+ */
 export function NewTaskDialog(props: NewTaskDialogProps) {
   const [draft, setDraft] = useState<NewTaskDraft>({
     workspaceId: props.workspaceId,

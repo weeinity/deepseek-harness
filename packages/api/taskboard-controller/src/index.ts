@@ -11,7 +11,7 @@ import type { TaskboardDeleteValue } from '@deepseek-ai/dsh-taskboard/types'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { realpathNormalize } from '@deepseek-ai/dsh-workspace'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
-import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, remoteErrorOf, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   AgencyCopilotHost, AgencyCopilotLaunchError, AgencyCopilotUnavailableError,
 } from './agency.ts'
@@ -23,7 +23,7 @@ import type {
   TaskboardCreateRequest, TaskboardDeleteRequest, TaskboardFollowFrame, TaskboardInspectAgencyCopilotRequest,
   TaskboardInspectAgencyCopilotValue, TaskboardListRequest, TaskboardOpenAgencyCopilotRequest,
   TaskboardListAgencyCopilotSessionsRequest, TaskboardListAgencyCopilotSessionsValue,
-  TaskboardOpenAgencyCopilotValue, TaskboardErrorDetailsMap, TaskboardListValue, TaskboardMoveRequest,
+  TaskboardOpenAgencyCopilotValue, TaskboardListValue, TaskboardMoveRequest,
   TaskboardStartAgencyCopilotRequest, TaskboardStartAgencyCopilotValue, TaskboardTask, TaskboardTaskValue, TaskboardUpdateRequest,
 } from './types.ts'
 
@@ -53,7 +53,10 @@ interface AgencyOpenAdmission {
 const AGENCY_OPEN_COOLDOWN_MS = 30_000
 const AGENCY_OPEN_TIMEOUT_MS = 20_000
 
-/** Host service backing the generated `ctx.remote.taskboard` namespace. */
+/**
+ * Host service backing the generated `ctx.remote.taskboard` namespace.
+ * Business failures throw RemoteError with `taskboard/*` codes and typed details.
+ */
 export class TaskboardController extends TypertRemoteService {
   static Config: Schema<Config> = Schema.object({ agencyCopilotLaunch: Schema.boolean().default(false) })
   static inject = ['typert', 'taskboard', 'workspaceRegistry']
@@ -231,12 +234,12 @@ export class TaskboardController extends TypertRemoteService {
     signal.throwIfAborted()
     const observed = scan.sessions.get(sessionId)
     if (observed === undefined) {
-      if (!scan.complete) throw failure('agency-unavailable', 'Agency Copilot session discovery is incomplete', {})
-      throw failure('bad-request', 'Selected Agency Copilot session is not discoverable', {})
+      if (!scan.complete) throw new RemoteError('taskboard/agency-unavailable', 'Agency Copilot session discovery is incomplete', {})
+      throw new RemoteError('taskboard/bad-request', 'Selected Agency Copilot session is not discoverable', {})
     }
     const matching = await sameWorkspace(observed.folder, workspace.path)
     signal.throwIfAborted()
-    if (!matching) throw failure('bad-request', 'Selected Agency Copilot session does not match the task Workspace', {})
+    if (!matching) throw new RemoteError('taskboard/bad-request', 'Selected Agency Copilot session does not match the task Workspace', {})
   }
 
   /**
@@ -259,7 +262,7 @@ export class TaskboardController extends TypertRemoteService {
         throw mapFailure(new TaskboardRevisionConflictError(current.id, request.expectedRevision, current.revision))
       }
       if (current.agencyCopilotSessionId !== undefined) {
-        throw failure('agency-already-linked', 'Task already has an Agency Copilot session', { taskId: current.id })
+        throw new RemoteError('taskboard/agency-already-linked', 'Task already has an Agency Copilot session', { taskId: current.id })
       }
       try { await this.agency.preflight(signal) }
       catch (error: unknown) { throw agencyFailure(error, current.id) }
@@ -279,7 +282,7 @@ export class TaskboardController extends TypertRemoteService {
         await this.agency.launchNew(workspace.path, sessionId, agencyTaskPrompt(linked), launchSignal)
       } catch (error: unknown) {
         if (launchSignal.aborted) {
-          throw failure('agency-launch-failed', 'Agency Copilot terminal launch timed out', { taskId: linked.id })
+          throw new RemoteError('taskboard/agency-launch-failed', 'Agency Copilot terminal launch timed out', { taskId: linked.id })
         }
         throw agencyFailure(error, linked.id)
       }
@@ -323,7 +326,7 @@ export class TaskboardController extends TypertRemoteService {
     const task = this.requireActiveTask(request.taskId)
     const sessionId = task.agencyCopilotSessionId
     if (sessionId === undefined) {
-      throw failure('agency-not-linked', 'Task has no Agency Copilot session', { taskId: task.id })
+      throw new RemoteError('taskboard/agency-not-linked', 'Task has no Agency Copilot session', { taskId: task.id })
     }
     const pending = this.agencyOpens.get(sessionId)
     if (pending !== undefined) {
@@ -346,37 +349,37 @@ export class TaskboardController extends TypertRemoteService {
     try {
       const task = this.requireActiveTask(taskId)
       if (task.agencyCopilotSessionId !== sessionId) {
-        throw failure('agency-not-linked', 'Task Agency Copilot link changed before status inspection', { taskId })
+        throw new RemoteError('taskboard/agency-not-linked', 'Task Agency Copilot link changed before status inspection', { taskId })
       }
       const workspace = this.ctx.workspaceRegistry.get(task.workspaceId)
       if (workspace === undefined) throw mapFailure(new TaskboardWorkspaceNotFoundError(task.workspaceId))
       let scan
       try { scan = await this.agency.inspect([sessionId], signal) }
       catch (error: unknown) {
-        if (signal.aborted) throw failure('agency-unavailable', 'Agency Copilot open timed out', {})
+        if (signal.aborted) throw new RemoteError('taskboard/agency-unavailable', 'Agency Copilot open timed out', {})
         throw agencyFailure(error, task.id)
       }
       const latest = this.requireActiveTask(task.id)
       if (latest.agencyCopilotSessionId !== sessionId || latest.workspaceId !== task.workspaceId) {
-        throw failure('agency-not-linked', 'Task Agency Copilot link changed during status inspection', { taskId: task.id })
+        throw new RemoteError('taskboard/agency-not-linked', 'Task Agency Copilot link changed during status inspection', { taskId: task.id })
       }
       const observed = scan.sessions.get(sessionId)
       if (observed !== undefined) {
         if (!(await sameWorkspace(observed.folder, workspace.path))) {
-          throw failure('agency-workspace-mismatch', 'Agency Copilot session belongs to another Workspace', { taskId: task.id })
+          throw new RemoteError('taskboard/agency-workspace-mismatch', 'Agency Copilot session belongs to another Workspace', { taskId: task.id })
         }
         if (observed.status === 'in_use') return { outcome: 'already-running' }
         try { await this.agency.resume(workspace.path, sessionId, signal) }
         catch (error: unknown) {
-          if (signal.aborted) throw failure('agency-unavailable', 'Agency Copilot open timed out', {})
+          if (signal.aborted) throw new RemoteError('taskboard/agency-unavailable', 'Agency Copilot open timed out', {})
           throw agencyFailure(error, task.id)
         }
         return { outcome: 'resume-accepted' }
       }
-      if (!scan.complete) throw failure('agency-unavailable', 'Agency Copilot session state is incomplete', {})
+      if (!scan.complete) throw new RemoteError('taskboard/agency-unavailable', 'Agency Copilot session state is incomplete', {})
       try { await this.agency.launchNew(workspace.path, sessionId, agencyTaskPrompt(latest), signal) }
       catch (error: unknown) {
-        if (signal.aborted) throw failure('agency-unavailable', 'Agency Copilot open timed out', {})
+        if (signal.aborted) throw new RemoteError('taskboard/agency-unavailable', 'Agency Copilot open timed out', {})
         throw agencyFailure(error, task.id)
       }
       return { outcome: 'create-retry-accepted' }
@@ -394,7 +397,7 @@ export class TaskboardController extends TypertRemoteService {
     request: TaskboardInspectAgencyCopilotRequest,
     signal: AbortSignal,
   ): Promise<TaskboardInspectAgencyCopilotValue> {
-    if (request.taskIds.length > 100) throw failure('bad-request', 'At most 100 Copilot tasks may be inspected', {})
+    if (request.taskIds.length > 100) throw new RemoteError('taskboard/bad-request', 'At most 100 Copilot tasks may be inspected', {})
     const tasks = request.taskIds.flatMap((taskId) => {
       const task = this.ctx.taskboard.get(taskId)
       return task !== undefined && task.archivedAt === undefined && task.agencyCopilotSessionId !== undefined
@@ -484,7 +487,7 @@ export class TaskboardController extends TypertRemoteService {
 
   private assertLocalAgencyLaunch(): void {
     if (!this.localAgencyLaunchAvailable()) {
-      throw failure('agency-local-only', 'Agency Copilot launch requires a loopback-only DSH Web server', {})
+      throw new RemoteError('taskboard/agency-local-only', 'Agency Copilot launch requires a loopback-only DSH Web server', {})
     }
   }
 
@@ -507,40 +510,32 @@ function agencyTaskPrompt(task: TaskboardTask): string {
   return task.description === '' ? task.title : `${task.title}\n\n${task.description}`
 }
 
-function mapFailure(error: unknown): TypertRemoteFailure {
-  if (error instanceof TypertRemoteFailure) return error
+function mapFailure(error: unknown): Error {
+  const remote = remoteErrorOf(error)
+  if (remote !== undefined) return remote
   if (error instanceof TaskboardTaskNotFoundError) {
-    return failure('task-not-found', error.message, { taskId: error.taskId })
+    return new RemoteError('taskboard/task-not-found', error.message, { taskId: error.taskId })
   }
   if (error instanceof TaskboardWorkspaceNotFoundError) {
-    return failure('workspace-not-found', error.message, { workspaceId: error.workspaceId })
+    return new RemoteError('taskboard/workspace-not-found', error.message, { workspaceId: error.workspaceId })
   }
   if (error instanceof TaskboardRevisionConflictError) {
-    return failure('revision-conflict', error.message, {
+    return new RemoteError('taskboard/revision-conflict', error.message, {
       taskId: error.taskId, expectedRevision: error.expected, actualRevision: error.actual,
     })
   }
   if (error instanceof TaskboardSessionInvalidError) {
-    return failure('session-invalid', error.message, { workspaceId: error.workspaceId, sessionId: error.sessionId })
+    return new RemoteError('taskboard/session-invalid', error.message, { workspaceId: error.workspaceId, sessionId: error.sessionId })
   }
   if (error instanceof TaskboardTaskArchivedError) {
-    return failure('task-archived', error.message, { taskId: error.taskId })
+    return new RemoteError('taskboard/task-archived', error.message, { taskId: error.taskId })
   }
   if (error instanceof TaskboardMoveInvalidError) {
-    return failure('move-invalid', error.message, { beforeTaskId: error.beforeTaskId })
+    return new RemoteError('taskboard/move-invalid', error.message, { beforeTaskId: error.beforeTaskId })
   }
-  if (error instanceof TaskboardInputError) return failure('bad-request', error.message, {})
+  if (error instanceof TaskboardInputError) return new RemoteError('taskboard/bad-request', error.message, {})
   throw error
 }
-
-function failure<Code extends keyof TaskboardErrorDetailsMap>(
-  code: Code,
-  message: string,
-  details: TaskboardErrorDetailsMap[Code],
-): TypertRemoteFailure {
-  return new TypertRemoteFailure({ code, message, details })
-}
-
 
 function errorOf(reason: unknown, fallback: string): Error {
   if (reason instanceof Error) return reason
@@ -563,11 +558,11 @@ function waitForCaller<T>(operation: Promise<T>, signal: AbortSignal): Promise<T
   })
 }
 
-function agencyFailure(error: unknown, taskId?: TaskboardStartAgencyCopilotRequest['taskId']): TypertRemoteFailure {
+function agencyFailure(error: unknown, taskId?: TaskboardStartAgencyCopilotRequest['taskId']): Error {
   if (error instanceof AgencyCopilotLaunchError && taskId !== undefined) {
-    return failure('agency-launch-failed', error.message, { taskId })
+    return new RemoteError('taskboard/agency-launch-failed', error.message, { taskId })
   }
-  if (error instanceof AgencyCopilotUnavailableError) return failure('agency-unavailable', error.message, {})
+  if (error instanceof AgencyCopilotUnavailableError) return new RemoteError('taskboard/agency-unavailable', error.message, {})
   throw error
 }
 

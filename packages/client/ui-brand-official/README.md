@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package fills the browser brand slots — `sidebar.brand.mark`, `sidebar.brand.name`, and `conversation.hero.brand.mark` — with the MIP Autolabeling mark and sidebar wordmark. It registers these occupants only when the client bundle builds with the `official` profile; every other build loads the plugin but registers nothing, so the shell fallbacks stay visible. Choose it for the MIP deployment; a deployment with another identity composes a different package into the same slots instead. It retains no runtime state and contributes nothing to model requests.
+This package gives an `official` client build the MIP Autolabeling mark in the sidebar and conversation hero, with a compact sidebar wordmark. Other build profiles retain the matching shell fallbacks and local-build metadata. Choose it for the MIP deployment; deployments with another identity provide a replacement brand package. It has no runtime state and does not affect model requests.
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@ Mount this plugin in the MIP deployment's browser roster, then build the client 
 
 ### Replacing the brand
 
-A deployment with its own identity leaves this package out and composes another package that occupies the same three slots. Occupying a slot is the only composition route; there is no brand configuration surface here.
+A deployment with its own identity leaves this package out and composes another package that occupies `sidebar.brand.mark`, `sidebar.brand.name`, and `conversation.hero.brand.mark`. Occupying a slot is the only composition route; this plugin has no brand configuration.
 
 -----
 
@@ -43,7 +43,7 @@ A deployment with its own identity leaves this package out and composes another 
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The three occupants install as one declaration-aware registration set: nested `ctx.slots.inject()` calls wait on the sidebar and conversation declarations, so the set works whether this row activates before or after the declarers, withdraws all three occupants when either declaration collapses, and leaves no partial brand mix during HMR. The browser half is [`src/client/index.ts`](src/client/index.ts); the node half is an empty Loader seat. The browser title is a build-environment concern (`DSH_CLIENT_TITLE`), outside the slot system.
+The three occupants install as one declaration-aware registration set: nested `ctx.slots.inject()` calls wait on the sidebar and hero declarations, so the set works whether this row activates before or after the declarers, withdraws every occupant when a declaration collapses, and leaves no partial brand mix during HMR. The browser half is [`src/client/index.ts`](src/client/index.ts); the node half is an empty Loader seat. The browser title is a build-environment concern (`DSH_CLIENT_TITLE`), outside the slot system.
 
 </details>
 
@@ -88,3 +88,5 @@ These limits define how brand presentation is supplied. They are current package
 None.
 
 </details>
+
+**Runtime invariant:** No companion is published. The package retains no mutable state, and its three slot occupants install and leave through one transactional effect.

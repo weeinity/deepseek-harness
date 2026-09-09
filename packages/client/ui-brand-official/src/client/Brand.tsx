@@ -1,6 +1,9 @@
 import css from './Brand.module.css'
 
-/** Render the compact MIP Autolabeling sidebar wordmark. */
+/**
+ * Render the compact MIP Autolabeling sidebar wordmark.
+ * @returns the MIP initialism and product name.
+ */
 export function MipAutolabelingName() {
   return (
     <span className={css.wordmark} data-brand-name="mip-autolabeling">

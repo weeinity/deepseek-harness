@@ -68,41 +68,35 @@ export interface AgencyCopilotObservation {
 /** Bounded transient observations for linked tasks. */
 export interface TaskboardInspectAgencyCopilotValue { readonly observations: readonly AgencyCopilotObservation[] }
 
-/** Stable Taskboard failure details returned by unary methods. */
-export interface TaskboardErrorDetailsMap {
-  'bad-request': Record<never, never>
-  'task-not-found': { readonly taskId: TaskId }
-  'task-archived': { readonly taskId: TaskId }
-  'workspace-not-found': { readonly workspaceId: WorkspaceId }
-  'revision-conflict': { readonly taskId: TaskId; readonly expectedRevision: number; readonly actualRevision: number }
-  'session-invalid': { readonly workspaceId: WorkspaceId; readonly sessionId: SessionId }
-  'move-invalid': { readonly beforeTaskId: TaskId }
-  'agency-unavailable': Record<never, never>
-  'agency-local-only': Record<never, never>
-  'agency-not-linked': { readonly taskId: TaskId }
-  'agency-already-linked': { readonly taskId: TaskId }
-  'agency-workspace-mismatch': { readonly taskId: TaskId }
-  'agency-launch-failed': { readonly taskId: TaskId }
-}
-
-/** Taskboard business failure returned without throwing a carrier error. */
-export type TaskboardError = {
-  [Code in keyof TaskboardErrorDetailsMap]: {
-    readonly code: Code
-    readonly message: string
-    readonly details: TaskboardErrorDetailsMap[Code]
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    /** Task content or the selected Agency identity is invalid. */
+    'taskboard/bad-request': Record<never, never>
+    /** The requested task does not exist. */
+    'taskboard/task-not-found': { readonly taskId: TaskId }
+    /** The task is archived and cannot accept this operation. */
+    'taskboard/task-archived': { readonly taskId: TaskId }
+    /** The task's Workspace is not registered. */
+    'taskboard/workspace-not-found': { readonly workspaceId: WorkspaceId }
+    /** The durable task revision differs from the requested revision. */
+    'taskboard/revision-conflict': { readonly taskId: TaskId; readonly expectedRevision: number; readonly actualRevision: number }
+    /** The selected DSH Session does not belong to the task's Workspace. */
+    'taskboard/session-invalid': { readonly workspaceId: WorkspaceId; readonly sessionId: SessionId }
+    /** The task's destination cannot use the requested anchor. */
+    'taskboard/move-invalid': { readonly beforeTaskId: TaskId }
+    /** Agency discovery is unavailable or incomplete. */
+    'taskboard/agency-unavailable': Record<never, never>
+    /** This Host deployment does not permit native Agency launch. */
+    'taskboard/agency-local-only': Record<never, never>
+    /** The task has no matching Agency link for the requested operation. */
+    'taskboard/agency-not-linked': { readonly taskId: TaskId }
+    /** The task already has an Agency link. */
+    'taskboard/agency-already-linked': { readonly taskId: TaskId }
+    /** The linked Agency session belongs to another Workspace. */
+    'taskboard/agency-workspace-mismatch': { readonly taskId: TaskId }
+    /** The Agency terminal handoff failed. */
+    'taskboard/agency-launch-failed': { readonly taskId: TaskId }
   }
-}[keyof TaskboardErrorDetailsMap]
-
-/**
- * Return whether an open Remote failure belongs to the Taskboard business subset.
- * @param error - Open generated Remote failure.
- * @returns whether the failure code belongs to Taskboard business errors.
- */
-export function isTaskboardError(error: { readonly code: string }): error is TaskboardError {
-  return ['bad-request', 'task-not-found', 'task-archived', 'workspace-not-found',
-    'revision-conflict', 'session-invalid', 'move-invalid', 'agency-unavailable', 'agency-local-only', 'agency-not-linked',
-    'agency-already-linked', 'agency-workspace-mismatch', 'agency-launch-failed'].includes(error.code)
 }
 
 /** Complete reconnect baseline of active and archived tasks in registered Workspaces. */

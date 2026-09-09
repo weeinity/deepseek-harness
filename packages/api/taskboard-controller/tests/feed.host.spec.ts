@@ -4,6 +4,12 @@ import { Context } from '@deepseek-ai/cordis'
 import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import TaskboardService from '@deepseek-ai/dsh-taskboard'
+import {
+  TaskboardInputError, TaskboardMoveInvalidError, TaskboardRevisionConflictError, TaskboardSessionInvalidError,
+  TaskboardTaskArchivedError, TaskboardTaskNotFoundError, TaskboardWorkspaceNotFoundError,
+} from '@deepseek-ai/dsh-taskboard'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
 import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 import TaskboardController from '../src/index.ts'
@@ -41,6 +47,43 @@ async function harness(pool = new MemoryMediaPool()) {
 }
 
 describe('Taskboard archive feed', () => {
+  it('maps owned business failures to Error instances with namespaced codes and typed details', async () => {
+    const { ctx, controller, workspace } = await harness()
+    const { task } = await controller.create({ workspaceId: workspace.id, title: 'Failure mapping' })
+    const sessionId = SessionId('missing')
+    const cases = [
+      [new TaskboardInputError('Invalid task'), 'taskboard/bad-request', {}],
+      [new TaskboardTaskNotFoundError(task.id), 'taskboard/task-not-found', { taskId: task.id }],
+      [new TaskboardTaskArchivedError(task.id), 'taskboard/task-archived', { taskId: task.id }],
+      [new TaskboardWorkspaceNotFoundError(workspace.id), 'taskboard/workspace-not-found', { workspaceId: workspace.id }],
+      [new TaskboardRevisionConflictError(task.id, 1, 2), 'taskboard/revision-conflict', {
+        taskId: task.id, expectedRevision: 1, actualRevision: 2,
+      }],
+      [new TaskboardSessionInvalidError(workspace.id, sessionId), 'taskboard/session-invalid', {
+        workspaceId: workspace.id, sessionId,
+      }],
+      [new TaskboardMoveInvalidError(task.id), 'taskboard/move-invalid', { beforeTaskId: task.id }],
+    ] as const
+    const create = vi.spyOn(ctx.taskboard, 'create')
+    for (const [error, code, details] of cases) {
+      create.mockRejectedValueOnce(error)
+      const result = controller.create({ workspaceId: workspace.id, title: 'Rejected' })
+      await expect(result).rejects.toBeInstanceOf(Error)
+      const failure = remoteErrorOf(await result.catch((caught: unknown) => caught))
+      expect(failure).toMatchObject({ code, message: error.message, details })
+      expect(failure).not.toHaveProperty('failure')
+    }
+  })
+
+  it('preserves a structurally marked Remote error from another module copy', async () => {
+    const { ctx, controller, workspace } = await harness()
+    const error = Object.assign(new Error('Provider refused the task'), {
+      isDSHRemoteError: true as const, code: 'taskboard/bad-request' as const, details: {},
+    })
+    vi.spyOn(ctx.taskboard, 'create').mockRejectedValueOnce(error)
+    await expect(controller.create({ workspaceId: workspace.id, title: 'Rejected' })).rejects.toBe(error)
+  })
+
   it('queues an archive upsert after an in-flight active baseline and lists the archived record', async () => {
     const { ctx, controller, workspace, follow } = await harness()
     const { task } = await controller.create({ workspaceId: workspace.id, title: 'Review', status: 'in_review' })
@@ -80,7 +123,7 @@ describe('Taskboard archive feed', () => {
       taskId: task.id, expectedRevision: task.revision, patch: { description: 'Review complete' },
     })
     await expect(controller.archive({ taskId: task.id, expectedRevision: task.revision }))
-      .rejects.toMatchObject({ failure: { code: 'revision-conflict' } })
+      .rejects.toMatchObject({ code: 'taskboard/revision-conflict' })
     await expect(controller.list({})).resolves.toEqual({ tasks: [updated] })
     const stream = follow()
     expect(await stream.next()).toMatchObject({ value: { type: 'baseline', value: { tasks: [updated] } } })
@@ -160,7 +203,7 @@ describe('Taskboard archive feed', () => {
     const stream = b.follow()
     await stream.next()
     await expect(b.controller.delete({ taskId: task.id, expectedRevision: task.revision }))
-      .rejects.toMatchObject({ failure: { code: 'revision-conflict' } })
+      .rejects.toMatchObject({ code: 'taskboard/revision-conflict' })
     b.pool.failNextWrites = 1
     await expect(b.controller.delete({ taskId: edited.id, expectedRevision: edited.revision }))
       .rejects.toThrow('injected write failure')
@@ -173,7 +216,7 @@ describe('Taskboard archive feed', () => {
     const receipt = await b.controller.delete({ taskId: edited.id, expectedRevision: edited.revision })
     expect(await next).toEqual({ done: false, value: { type: 'remove', ...receipt } })
     await expect(b.controller.delete({ taskId: edited.id, expectedRevision: edited.revision }))
-      .rejects.toMatchObject({ failure: { code: 'task-not-found', details: { taskId: edited.id } } })
+      .rejects.toMatchObject({ code: 'taskboard/task-not-found', details: { taskId: edited.id } })
   })
 
   it('rejects ordinary mutations and ignores Agency inspection for archived records', async () => {
@@ -182,13 +225,13 @@ describe('Taskboard archive feed', () => {
     const { task: archived } = await controller.archive({ taskId: task.id, expectedRevision: task.revision })
     await expect(controller.update({
       taskId: task.id, expectedRevision: archived.revision, patch: { title: 'Changed' },
-    })).rejects.toMatchObject({ failure: { code: 'task-archived' } })
+    })).rejects.toMatchObject({ code: 'taskboard/task-archived' })
     await expect(controller.move({
       taskId: task.id, expectedRevision: archived.revision, status: 'done',
-    })).rejects.toMatchObject({ failure: { code: 'task-archived' } })
+    })).rejects.toMatchObject({ code: 'taskboard/task-archived' })
     await expect(controller.clearAgencyCopilot({
       taskId: task.id, expectedRevision: archived.revision,
-    })).rejects.toMatchObject({ failure: { code: 'task-archived' } })
+    })).rejects.toMatchObject({ code: 'taskboard/task-archived' })
     await expect(controller.inspectAgencyCopilot({
       taskIds: [task.id],
     }, new AbortController().signal)).resolves.toEqual({ observations: [] })

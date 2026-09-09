@@ -12,7 +12,7 @@ The MIP portal presents its deployment identity in independent browser and React
 
 `MipAutolabelingMark` in [`dsh-client-ui-primitives`](../../../../packages/client/ui-primitives/README.md) owns the React artwork. The sidebar fallback, blank-session Hero fallback, and both official-brand mark occupants render that shared component; the sidebar wordmark remains a separate occupant because the Hero needs only the mark.
 
-[`apps/web/public/favicon.svg`](../../../../apps/web/public/favicon.svg) carries the same applied-label silhouette, transparent checkmark, and gold sparkle as a standalone SVG. Browser chrome and the [install manifest](2026-08-06-web-install-manifest.md) need that asset before the React plugin graph runs, so the favicon remains outside the slot system and its built-artifact test pins the matching identity.
+[`apps/web/public/favicon.svg`](../../../../apps/web/public/favicon.svg) carries the same applied-label silhouette, transparent checkmark, and gold sparkle as a standalone SVG. Browser chrome and the [install manifest](../../../../apps/web/public/manifest.webmanifest) need that asset before the React plugin graph runs, so the favicon remains outside the slot system and its built-artifact test pins the matching identity.
 
 The MIP palette is fixed artwork rather than theme ink. The Hero keeps its existing placement and reduced-motion-aware hover movement, while the document title, build badge, and install-manifest names remain independently configured text.
 

@@ -31,6 +31,8 @@ kind: "package-reference"
 
 `delete` 按预期修订号永久移除活动或已归档的 Taskboard 记录，不改变其 Workspace、原生 DSH Session、Agency 会话或终端。它共用任务的 Agency 操作锁，并在允许持久删除前检查取消状态。Client 仅在成功后移除记录与其 Agency 观察结果；Remote 失败或请求拒绝保留现有状态，不自动重试。移除回执和 feed tombstone 使用 `Number.MAX_SAFE_INTEGER`，防止延迟任务回显、baseline 或 Agency 观察结果恢复已删除标识。
 
+Taskboard 业务失败携带 `taskboard/*` 错误码，以及在 `RemoteErrorDetailsMap` 中声明的类型化详情。宿主命令抛出 `RemoteError`；按 `code` 而不是构造函数身份区分错误。Client 命令服务在 `TaskboardCommandError.failure` 中保留原始 Remote 错误，并在错误消息中加入操作名称。
+
 <a id="model-experience"></a>
 ## 模型体验
 

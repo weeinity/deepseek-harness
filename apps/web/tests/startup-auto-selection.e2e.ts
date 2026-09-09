@@ -42,11 +42,16 @@ describe('web e2e: startup auto-selection', () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-first-workspace-stable-tree'))
     await page.locator(`${ROOT_PHASE}[data-phase="hero"]`).waitFor({ timeout: 15_000 })
     const headline = page.getByText('Into the Unknown', { exact: true })
-    const markHitbox = headline.locator('xpath=preceding-sibling::span[1]')
+    const markHitbox = headline.locator('xpath=../preceding-sibling::span[1]')
     const mark = markHitbox.locator('svg')
     expect(await mark.getAttribute('data-brand')).toBe('mip-autolabeling')
+    expect(await mark.getAttribute('width')).toBe('34')
+    expect(await mark.evaluate(node => getComputedStyle(node).animationName)).toBe('none')
     await markHitbox.hover()
     expect(await mark.evaluate(node => getComputedStyle(node).animationName)).not.toBe('none')
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(await mark.evaluate(node => getComputedStyle(node).animationName)).toBe('none')
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
     await page.evaluate(() => {
       const refs = {
         root: document.querySelector('div[data-phase="hero"]'),
@@ -129,7 +134,7 @@ describe('web e2e: startup auto-selection', () => {
       expect(await page.locator('[data-composer-input]').first().isVisible()).toBe(true)
 
       releaseOpening()
-      await page.locator('[data-composer-input][contenteditable="true"][data-placeholder="Describe what you want to build... / commands, @ files or sessions"]')
+      await page.locator('[data-composer-input][contenteditable="true"][data-placeholder="Describe what you want to build, / commands, @ files or sessions"]')
         .waitFor({ timeout: 15_000 })
       acknowledgeReloadConnectionLoss(tripwire, warningsBefore)
 

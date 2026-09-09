@@ -12,7 +12,7 @@ MIP 门户在彼此独立的浏览器与 React 位置展示部署身份。侧栏
 
 [`dsh-client-ui-primitives`](../../../../packages/client/ui-primitives/README.zh.md) 中的 `MipAutolabelingMark` 拥有 React 图稿。侧栏回退、空白 Session Hero 回退以及官方品牌的两个标志占位者都渲染这个共享组件；侧栏字标保持为独立占位者，因为 Hero 只需要标志。
 
-[`apps/web/public/favicon.svg`](../../../../apps/web/public/favicon.svg) 以独立 SVG 形式携带相同的已应用标签轮廓、透明勾选符号与金色星芒。浏览器界面与[安装 manifest](2026-08-06-web-install-manifest.zh.md) 在 React 插件图运行前就需要该资产，因此 favicon 保持在 slot 系统之外，并由构建产物测试固定一致的身份。
+[`apps/web/public/favicon.svg`](../../../../apps/web/public/favicon.svg) 以独立 SVG 形式携带相同的已应用标签轮廓、透明勾选符号与金色星芒。浏览器界面与[安装 manifest](../../../../apps/web/public/manifest.webmanifest) 在 React 插件图运行前就需要该资产，因此 favicon 保持在 slot 系统之外，并由构建产物测试固定一致的身份。
 
 MIP 调色板属于固定图稿，而不是主题墨色。Hero 保留既有位置和遵循减少动态效果设置的悬停移动；文档标题、构建徽标与安装 manifest 名称仍是独立配置的文本。
 

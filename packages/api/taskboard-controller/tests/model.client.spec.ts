@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   AgencyCopilotSessionId, TaskboardCreateRequest, TaskboardDeleteValue, TaskboardInspectAgencyCopilotValue, TaskboardTask,
   TaskboardTaskValue, TaskId, TaskStatus,
@@ -50,7 +51,7 @@ describe('ClientTaskboardModel', () => {
 
   it.each(['remote-failure', 'rejected-fetch'] as const)('surfaces %s during session discovery', async (kind) => {
     const wire = remote()
-    const failure = { code: 'agency-unavailable', message: 'Agency is offline', details: {} }
+    const failure = new RemoteError('taskboard/agency-unavailable', 'Agency is offline', {})
     const rejected = new TypeError('Failed to fetch')
     if (kind === 'remote-failure') wire.listAgencyCopilotSessions.mockResolvedValue({ ok: false, error: failure })
     else wire.listAgencyCopilotSessions.mockRejectedValue(rejected)
@@ -144,7 +145,7 @@ describe('ClientTaskboardModel', () => {
       const wire = remote()
       const initial = task('t1', 'done', 0)
       const archived = { ...initial, revision: 2, archivedAt: '2026-01-02T00:00:00.000Z' }
-      const failure = { code: 'internal', message: 'Failed to fetch', details: {} }
+      const failure = new RemoteError('gateway/internal', 'Failed to fetch', {})
       const rejected = new TypeError('Failed to fetch')
       if (failureMode === 'remote-failure') wire.archive.mockResolvedValueOnce({ ok: false, error: failure })
       else wire.archive.mockRejectedValueOnce(rejected)
@@ -257,7 +258,7 @@ describe('ClientTaskboardModel', () => {
       value: { observations: [{ taskId: id('t1'), sessionId, status: 'idle' }] },
     }).mockResolvedValueOnce({
       ok: false,
-      error: { code: 'agency-unavailable', message: 'offline', details: {} },
+      error: new RemoteError('taskboard/agency-unavailable', 'offline', {}),
     })
     const model = new ClientTaskboardModel(wire as never)
     model.replaceBaseline({ tasks: [task('t1', 'todo', 0)] })
@@ -378,6 +379,38 @@ describe('ClientTaskboardModel', () => {
     expect(model.getSnapshot()).toBe(model.getSnapshot())
   })
 
+  it('retains the Remote error instance and typed details on a terminal stream failure', () => {
+    const model = new ClientTaskboardModel(remote() as never)
+    const failure = new RemoteError('taskboard/task-not-found', 'Task was removed', { taskId: id('t1') })
+    model.handleStreamFailure(failure)
+    expect(model.getSnapshot().error).toBe(failure)
+    expect(remoteErrorOf(model.getSnapshot().error)).toMatchObject({
+      code: 'taskboard/task-not-found', details: { taskId: id('t1') },
+    })
+  })
+
+  it.each([new Error('Broken stream'), 'Broken stream'])('normalizes an unclassified stream failure into an Error', (error) => {
+    const model = new ClientTaskboardModel(remote() as never)
+    model.handleStreamFailure(error)
+    const failure = model.getSnapshot().error
+    expect(failure).toBeInstanceOf(Error)
+    expect(remoteErrorOf(failure)).toMatchObject({
+      code: 'gateway/internal', message: 'Broken stream', details: {}, cause: error,
+    })
+  })
+
+  it('records a rejected Agency inspection as a Remote error while preserving the original rejection', async () => {
+    const wire = remote()
+    const error = new Error('Agency inspection failed')
+    wire.inspectAgencyCopilot.mockRejectedValue(error)
+    const model = new ClientTaskboardModel(wire as never)
+    await expect(model.inspectAgencyCopilot({ taskIds: [id('t1')] })).rejects.toBe(error)
+    expect(model.getSnapshot().agencyError).toBeInstanceOf(Error)
+    expect(remoteErrorOf(model.getSnapshot().agencyError)).toMatchObject({
+      code: 'gateway/internal', message: error.message, cause: error,
+    })
+  })
+
   it.each([false, true])('deletes an active or archived linked row only after a successful receipt (archived=%s)', async (archived) => {
     const wire = remote()
     const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
@@ -411,7 +444,9 @@ describe('ClientTaskboardModel', () => {
       const wire = remote()
       const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
       const initial = { ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionId }
-      const failure = { code: 'revision-conflict', message: 'Current revision changed', details: {} }
+      const failure = new RemoteError('taskboard/revision-conflict', 'Current revision changed', {
+        taskId: initial.id, expectedRevision: initial.revision, actualRevision: initial.revision + 1,
+      })
       const rejected = new TypeError('Failed to fetch')
       if (kind === 'remote-failure') wire.delete.mockResolvedValueOnce({ ok: false, error: failure })
       else wire.delete.mockRejectedValueOnce(rejected)

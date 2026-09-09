@@ -135,7 +135,7 @@ describe('TaskboardController Agency Copilot saga', () => {
           ])
           break
         case 'unknown':
-          await expect(opening).rejects.toMatchObject({ failure: { code: 'agency-unavailable' } })
+          await expect(opening).rejects.toMatchObject({ code: 'taskboard/agency-unavailable' })
           expect(b.launch).not.toHaveBeenCalled()
           break
       }
@@ -153,13 +153,13 @@ describe('TaskboardController Agency Copilot saga', () => {
 
   it('rejects unsupported platforms and missing executables before durability', async () => {
     const cases = [
-      { bench: bench({ platform: 'linux' }), code: 'agency-local-only' },
-      { bench: bench({ failResolve: true }), code: 'agency-launch-failed' },
+      { bench: bench({ platform: 'linux' }), code: 'taskboard/agency-local-only' },
+      { bench: bench({ failResolve: true }), code: 'taskboard/agency-launch-failed' },
     ] as const
     for (const entry of cases) {
       await expect(entry.bench.controller.startAgencyCopilot(
         { taskId, expectedRevision: 1 }, new AbortController().signal,
-      )).rejects.toMatchObject({ failure: { code: entry.code } })
+      )).rejects.toMatchObject({ code: entry.code })
       expect(entry.bench.setAgencyCopilotSession).not.toHaveBeenCalled()
       expect(entry.bench.launch).not.toHaveBeenCalled()
     }
@@ -169,7 +169,7 @@ describe('TaskboardController Agency Copilot saga', () => {
     const b = bench()
     await expect(b.controller.startAgencyCopilot(
       { taskId, expectedRevision: 99 }, new AbortController().signal,
-    )).rejects.toMatchObject({ failure: { code: 'revision-conflict' } })
+    )).rejects.toMatchObject({ code: 'taskboard/revision-conflict' })
     expect(b.setAgencyCopilotSession).not.toHaveBeenCalled()
     expect(b.launch).not.toHaveBeenCalled()
   })
@@ -182,10 +182,10 @@ describe('TaskboardController Agency Copilot saga', () => {
     const inspect = vi.spyOn(AgencyCopilotHost.prototype, 'inspect')
     await expect(b.controller.startAgencyCopilot(
       { taskId, expectedRevision: 1 }, new AbortController().signal,
-    )).rejects.toMatchObject({ failure: { code: 'task-archived' } })
+    )).rejects.toMatchObject({ code: 'taskboard/task-archived' })
     await expect(b.controller.openAgencyCopilot(
       { taskId }, new AbortController().signal,
-    )).rejects.toMatchObject({ failure: { code: 'task-archived' } })
+    )).rejects.toMatchObject({ code: 'taskboard/task-archived' })
     await expect(b.controller.inspectAgencyCopilot(
       { taskIds: [taskId] }, new AbortController().signal,
     )).resolves.toEqual({ observations: [] })
@@ -199,7 +199,7 @@ describe('TaskboardController Agency Copilot saga', () => {
     expect(b.controller.agencyCopilotCapability()).toEqual({ launch: false })
     await expect(b.controller.startAgencyCopilot(
       { taskId, expectedRevision: 1 }, new AbortController().signal,
-    )).rejects.toMatchObject({ failure: { code: 'agency-local-only' } })
+    )).rejects.toMatchObject({ code: 'taskboard/agency-local-only' })
     expect(b.launch).not.toHaveBeenCalled()
   })
 
@@ -207,7 +207,7 @@ describe('TaskboardController Agency Copilot saga', () => {
     const b = bench({ failLaunch: true })
     await expect(b.controller.startAgencyCopilot(
       { taskId, expectedRevision: 1 }, new AbortController().signal,
-    )).rejects.toMatchObject({ failure: { code: 'agency-launch-failed' } })
+    )).rejects.toMatchObject({ code: 'taskboard/agency-launch-failed' })
     expect(b.order).toEqual(['commit', 'launch'])
     expect(b.setAgencyCopilotSession).toHaveBeenCalledOnce()
   })

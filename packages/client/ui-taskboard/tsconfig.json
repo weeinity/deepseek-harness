@@ -17,7 +17,6 @@
     { "path": "../ui-session" },
     { "path": "../ui-sidebar" },
     { "path": "../ui-workspace" },
-    { "path": "../ui-slots" },
-    { "path": "../../runtime-diagnostics/invariants" }
+    { "path": "../ui-slots" }
   ]
 }

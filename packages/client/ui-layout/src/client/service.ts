@@ -9,10 +9,6 @@ export type PanelActions = BoundActions<ReturnType<typeof createLayoutStore>>
 export interface ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void
-  /** Open the details panel (no-op when already open). */
-  openDetails(): void
-  /** Close the details panel. */
-  closeDetails(): void
   /**
    * Register one available main surface for this plugin lifetime.
    * @param id - Stable keyed-slot entry id.
@@ -31,6 +27,16 @@ export interface ILayout {
    * @param id - Registered surface id.
    */
   toggleMainSurface(id: string): void
+  /**
+   * Report the right panel's presentation without changing its expanded state.
+   * @param track - whether the normal panel width reserves a grid track,
+   *   including beneath a fullscreen overlay.
+   * @param fullscreen - whether the panel covers the frame and hides its outer
+   *   resize handle; independent of the underlying grid track.
+   */
+  openRightbar(track: boolean, fullscreen: boolean): void
+  /** Report the right panel as hidden: no track, no handle. */
+  closeRightbar(): void
 }
 
 /** Cross-plugin viewing-state and panel-action service. */
@@ -45,8 +51,6 @@ export class LayoutController implements ILayout {
   attachPanels(actions: PanelActions): void { this.#panels = actions }
 
   toggleSidebar(): void { this.#require().toggleSidebar() }
-  openDetails(): void { this.#require().openDetails() }
-  closeDetails(): void { this.#require().closeDetails() }
 
   registerMainSurface(id: string): () => void {
     if (id === '' || this.#surfaceIds.has(id)) {
@@ -68,6 +72,16 @@ export class LayoutController implements ILayout {
   toggleMainSurface(id: string): void {
     if (!this.#surfaceIds.has(id)) throw new Error(`layout: main surface '${id}' is not registered`)
     this.#require().toggleMainSurface(id)
+  }
+
+  /** Report the right panel's track and fullscreen presentation. */
+  openRightbar(track: boolean, fullscreen: boolean): void {
+    this.#require().openRightbar(track, fullscreen)
+  }
+
+  /** Report the right panel as hidden: no track, no handle. */
+  closeRightbar(): void {
+    this.#require().closeRightbar()
   }
 
   #require(): PanelActions {

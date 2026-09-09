@@ -31,7 +31,10 @@ const SURFACE = 'taskboard'
 /** Required Client services. */
 export const inject = ['slots', 'locale', 'layout', 'sessions', 'uiSession', 'uiWorkspace', 'taskboard', 'connection']
 
-/** Register the Taskboard surface and sidebar launcher. */
+/**
+ * Register the Taskboard surface and sidebar launcher.
+ * @param ctx - Client context supplying task and navigation services.
+ */
 export function apply(ctx: Context): void {
   const taskboard = ctx.get('taskboard') as ITaskboard
   const sessions = ctx.get('sessions') as ISessions
