@@ -511,6 +511,10 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
   const webRuntimeConfig = composedRows.find(row => row.id === 'web-runtime')?.config as {
     surfaceContext?: boolean
   } | undefined
+  const taskboardConfig = composedRows.find(row => row.id === 'taskboard-controller')?.config as
+    Record<string, unknown> | undefined
+  const sqliteConfig = composedRows.find(row => row.id === 'storage-sqlite')?.config as
+    Record<string, unknown> | undefined
   const surfaceContext = webRuntimeConfig?.surfaceContext !== false
   const patches: PatchOptions[] = [
     ...basePatches,
@@ -537,6 +541,15 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     // to an absolute temp root (removed with the workspace at close) so tests
     // never write the user's harness home.
     { id: 'storage-json', config: { root: join(workspaceCwd, '.dsh-storages') } },
+    // Cross-port settings cases share a home, but each scaffold owns a separate task store.
+    {
+      id: 'storage-sqlite',
+      config: { ...sqliteConfig, path: join(workspaceCwd, '.dsh-storages', 'taskboard.db') },
+    },
+    {
+      id: 'taskboard-controller',
+      config: { ...taskboardConfig, lockPath: join(workspaceCwd, '.dsh-storages', 'locks', 'taskboard') },
+    },
     // Skill discovery is model-visible input. Pin every host-level root inside
     // the owned temp world so ~/.dsh, ~/.agents, and a bundled-root env setting
     // cannot change replay requests or conversation goldens. Project roots stay

@@ -1,52 +1,37 @@
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import Storage from '@deepseek-ai/dsh-storage'
-import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
-import TaskboardService from '@deepseek-ai/dsh-taskboard'
 import {
   TaskboardInputError, TaskboardMoveInvalidError, TaskboardRevisionConflictError, TaskboardSessionInvalidError,
   TaskboardTaskArchivedError, TaskboardTaskNotFoundError, TaskboardWorkspaceNotFoundError,
 } from '@deepseek-ai/dsh-taskboard'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
-import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
-import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
-import TaskboardController from '../src/index.ts'
+import { MemoryMediaPool } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
+import { cleanupControllerHarness, controllerHarness, initialRuntime, roots } from './controller-harness.ts'
 
-const roots: Context[] = []
-const signals: AbortController[] = []
-afterEach(async () => {
-  for (const signal of signals.splice(0)) signal.abort()
-  await Promise.all(roots.splice(0).map(ctx => ctx.fiber.dispose()))
-})
-
-async function harness(pool = new MemoryMediaPool()) {
-  const ctx = new Context()
-  roots.push(ctx)
-  await ctx.plugin(Storage)
-  ctx.storage.backend.register('memory', new MemoryStorageBackend(pool))
-  const facility = new DomainFacility(ctx, { backend: 'memory', routes: {} })
-  ctx.storage.mount('domain', facility)
-  ctx.provide('storageDomain', facility)
-  ctx.provide('sessionPersistence', { list: async () => [] } as never)
-  await ctx.plugin(WorkspaceRegistry)
-  await ctx.plugin(TaskboardService)
-  const dispose = (): void => {}
-  ctx.provide('typert', {
-    lookups: { configure: () => dispose }, contexts: { configureHost: () => dispose },
-  } as never)
-  const controller = new TaskboardController(ctx)
-  const workspace = await ctx.workspaceRegistry.create(process.cwd())
-  const follow = () => {
-    const signal = new AbortController()
-    signals.push(signal)
-    return controller.follow(signal.signal)[Symbol.asyncIterator]()
-  }
-  return { ctx, facility, controller, workspace, follow, pool }
-}
+afterEach(cleanupControllerHarness)
+const harness = (pool = new MemoryMediaPool()) => controllerHarness({ pool })
 
 describe('Taskboard archive feed', () => {
+  it('rejects manual Todo shortcuts through the Host API without changing the task', async () => {
+    const { ctx, controller, workspace } = await harness()
+    const { task } = await controller.create({ workspaceId: workspace.id, title: 'Run before completion' })
+    expect(task.status).toBe('todo')
+    expect(task.allowedManualStatuses).toEqual(['backlog'])
+    for (const status of ['in_progress', 'in_review', 'done'] as const) {
+      await expect(controller.move({ taskId: task.id, expectedRevision: task.revision, status }))
+        .rejects.toMatchObject({
+          code: 'taskboard/manual-status-not-allowed',
+          details: { taskId: task.id, currentStatus: 'todo', requestedStatus: status },
+        })
+      expect(ctx.taskboard.get(task.id)).toEqual(task)
+    }
+    const { task: deferred } = await controller.move({
+      taskId: task.id, expectedRevision: task.revision, status: 'backlog',
+    })
+    expect(deferred.status).toBe('backlog')
+  })
+
   it('maps owned business failures to Error instances with namespaced codes and typed details', async () => {
     const { ctx, controller, workspace } = await harness()
     const { task } = await controller.create({ workspaceId: workspace.id, title: 'Failure mapping' })
@@ -90,15 +75,15 @@ describe('Taskboard archive feed', () => {
     const stream = follow()
     const baseline = stream.next()
     const { task: archived } = await controller.archive({ taskId: task.id, expectedRevision: task.revision })
-    expect(await baseline).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [task] } } })
+    expect(await baseline).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [task], runtime: initialRuntime } } })
     expect(await stream.next()).toEqual({ done: false, value: { type: 'upsert', task: archived } })
     expect(archived.status).toBe('in_review')
     expect(typeof archived.archivedAt).toBe('string')
     expect(ctx.taskboard.list()).toEqual([])
-    await expect(controller.list({})).resolves.toEqual({ tasks: [archived] })
-    await expect(controller.list({ workspaceId: workspace.id })).resolves.toEqual({ tasks: [archived] })
+    await expect(controller.list({})).resolves.toEqual({ tasks: [archived], runtime: initialRuntime })
+    await expect(controller.list({ workspaceId: workspace.id })).resolves.toEqual({ tasks: [archived], runtime: initialRuntime })
     expect(await follow().next()).toEqual({
-      done: false, value: { type: 'baseline', value: { tasks: [archived] } },
+      done: false, value: { type: 'baseline', value: { tasks: [archived], runtime: initialRuntime } },
     })
   })
 
@@ -110,9 +95,9 @@ describe('Taskboard archive feed', () => {
     await first.ctx.fiber.dispose()
     roots.splice(roots.indexOf(first.ctx), 1)
     const reopened = await harness(pool)
-    await expect(reopened.controller.list({})).resolves.toEqual({ tasks: [archived] })
+    await expect(reopened.controller.list({})).resolves.toEqual({ tasks: [archived], runtime: initialRuntime })
     expect(await reopened.follow().next()).toEqual({
-      done: false, value: { type: 'baseline', value: { tasks: [archived] } },
+      done: false, value: { type: 'baseline', value: { tasks: [archived], runtime: initialRuntime } },
     })
   })
 
@@ -124,12 +109,12 @@ describe('Taskboard archive feed', () => {
     })
     await expect(controller.archive({ taskId: task.id, expectedRevision: task.revision }))
       .rejects.toMatchObject({ code: 'taskboard/revision-conflict' })
-    await expect(controller.list({})).resolves.toEqual({ tasks: [updated] })
+    await expect(controller.list({})).resolves.toEqual({ tasks: [updated], runtime: initialRuntime })
     const stream = follow()
     expect(await stream.next()).toMatchObject({ value: { type: 'baseline', value: { tasks: [updated] } } })
     const { task: archived } = await controller.archive({ taskId: updated.id, expectedRevision: updated.revision })
     expect(await stream.next()).toEqual({ done: false, value: { type: 'upsert', task: archived } })
-    await expect(controller.list({})).resolves.toEqual({ tasks: [archived] })
+    await expect(controller.list({})).resolves.toEqual({ tasks: [archived], runtime: initialRuntime })
   })
 
   it('removes both active and archived Workspace rows without affecting another Workspace', async () => {
@@ -147,10 +132,10 @@ describe('Taskboard archive feed', () => {
         done: false, value: { type: 'remove', taskId: row.id, revision: Number.MAX_SAFE_INTEGER },
       })
     }
-    await expect(controller.list({})).resolves.toEqual({ tasks: [retained] })
-    await expect(controller.list({ workspaceId: workspace.id })).resolves.toEqual({ tasks: [] })
+    await expect(controller.list({})).resolves.toEqual({ tasks: [retained], runtime: initialRuntime })
+    await expect(controller.list({ workspaceId: workspace.id })).resolves.toEqual({ tasks: [], runtime: initialRuntime })
     expect(await follow().next()).toEqual({
-      done: false, value: { type: 'baseline', value: { tasks: [retained] } },
+      done: false, value: { type: 'baseline', value: { tasks: [retained], runtime: initialRuntime } },
     })
     expect(ctx.taskboard.list(workspace.id, true)).toEqual([active, archived])
     await controller.update({ taskId: active.id, expectedRevision: active.revision, patch: { title: 'Late edit' } })
@@ -169,7 +154,7 @@ describe('Taskboard archive feed', () => {
     expect(await stream.next()).toEqual({
       done: false, value: { type: 'remove', taskId: task.id, revision: Number.MAX_SAFE_INTEGER },
     })
-    await expect(controller.list({})).resolves.toEqual({ tasks: [] })
+    await expect(controller.list({})).resolves.toEqual({ tasks: [], runtime: initialRuntime })
   })
 
   it.each([false, true])('publishes a delete receipt matching its feed tombstone and reconnects without the task (archived=%s)', async (archived) => {
@@ -181,16 +166,16 @@ describe('Taskboard archive feed', () => {
     const stream = b.follow()
     const baseline = stream.next()
     const receipt = await b.controller.delete({ taskId: current.id, expectedRevision: current.revision })
-    expect(await baseline).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [current] } } })
+    expect(await baseline).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [current], runtime: initialRuntime } } })
     expect(await stream.next()).toEqual({ done: false, value: { type: 'remove', ...receipt } })
     expect(receipt).toEqual({ taskId: current.id, revision: Number.MAX_SAFE_INTEGER })
-    await expect(b.controller.list({})).resolves.toEqual({ tasks: [] })
-    expect(await b.follow().next()).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [] } } })
+    await expect(b.controller.list({})).resolves.toEqual({ tasks: [], runtime: initialRuntime })
+    expect(await b.follow().next()).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [], runtime: initialRuntime } } })
     await b.ctx.fiber.dispose()
     roots.splice(roots.indexOf(b.ctx), 1)
     const reopened = await harness(b.pool)
-    await expect(reopened.controller.list({})).resolves.toEqual({ tasks: [] })
-    expect(await reopened.follow().next()).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [] } } })
+    await expect(reopened.controller.list({})).resolves.toEqual({ tasks: [], runtime: initialRuntime })
+    expect(await reopened.follow().next()).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [], runtime: initialRuntime } } })
     expect(reopened.ctx.workspaceRegistry.get(b.workspace.id)).toBeDefined()
   })
 
@@ -207,7 +192,7 @@ describe('Taskboard archive feed', () => {
     b.pool.failNextWrites = 1
     await expect(b.controller.delete({ taskId: edited.id, expectedRevision: edited.revision }))
       .rejects.toThrow('injected write failure')
-    await expect(b.controller.list({})).resolves.toEqual({ tasks: [edited] })
+    await expect(b.controller.list({})).resolves.toEqual({ tasks: [edited], runtime: initialRuntime })
     const changed = vi.fn()
     const next = stream.next()
     void next.then(changed)
@@ -217,6 +202,18 @@ describe('Taskboard archive feed', () => {
     expect(await next).toEqual({ done: false, value: { type: 'remove', ...receipt } })
     await expect(b.controller.delete({ taskId: edited.id, expectedRevision: edited.revision }))
       .rejects.toMatchObject({ code: 'taskboard/task-not-found', details: { taskId: edited.id } })
+  })
+
+  it('publishes one committed tombstone before the next task change, without a duplicate unary removal', async () => {
+    const b = await harness()
+    const { task } = await b.controller.create({ workspaceId: b.workspace.id, title: 'Delete once' })
+    const stream = b.follow()
+    await stream.next()
+    const receipt = await b.controller.delete({ taskId: task.id, expectedRevision: task.revision })
+    const { task: next } = await b.controller.create({ workspaceId: b.workspace.id, title: 'Next change' })
+    expect(await stream.next()).toEqual({ done: false, value: { type: 'remove', ...receipt } })
+    expect(await stream.next()).toEqual({ done: false, value: { type: 'upsert', task: next } })
+    await expect(b.controller.list({})).resolves.toEqual({ tasks: [next], runtime: initialRuntime })
   })
 
   it('rejects ordinary mutations and ignores Agency inspection for archived records', async () => {
@@ -229,12 +226,66 @@ describe('Taskboard archive feed', () => {
     await expect(controller.move({
       taskId: task.id, expectedRevision: archived.revision, status: 'done',
     })).rejects.toMatchObject({ code: 'taskboard/task-archived' })
-    await expect(controller.clearAgencyCopilot({
+    await expect(controller.disconnect({
       taskId: task.id, expectedRevision: archived.revision,
     })).rejects.toMatchObject({ code: 'taskboard/task-archived' })
     await expect(controller.inspectAgencyCopilot({
       taskIds: [task.id],
     }, new AbortController().signal)).resolves.toEqual({ observations: [] })
-    await expect(controller.list({})).resolves.toEqual({ tasks: [archived] })
+    await expect(controller.list({})).resolves.toEqual({ tasks: [archived], runtime: initialRuntime })
+  })
+
+  it('orders runtime changes behind the captured baseline and includes the latest state on reconnect', async () => {
+    const b = await harness()
+    const stream = b.follow()
+    const baseline = stream.next()
+    const next = {
+      ...initialRuntime,
+      settings: { enabled: true, announceToAgent: true, preventIdleSleep: true },
+      power: { ...initialRuntime.power, phase: 'active' as const, runningSessions: 2 },
+      scheduler: { lastTickAt: '2026-09-09T00:00:00.000Z' },
+    }
+    b.runtime.emit(next)
+    const { task } = await b.controller.create({ workspaceId: b.workspace.id, title: 'Queued after runtime' })
+    expect(await baseline).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [], runtime: initialRuntime } } })
+    expect(await stream.next()).toEqual({ done: false, value: { type: 'runtime', value: next } })
+    expect(await stream.next()).toEqual({ done: false, value: { type: 'upsert', task } })
+    expect(await b.controller.list({})).toEqual({ tasks: [task], runtime: next })
+    expect(await b.follow().next()).toEqual({ done: false, value: { type: 'baseline', value: { tasks: [task], runtime: next } } })
+    expect(b.runtime.run).not.toHaveBeenCalled()
+  })
+
+  it('unsubscribes runtime observations and completes waiting followers before Host disposal returns', async () => {
+    const b = await harness()
+    const stream = b.follow()
+    await stream.next()
+    const waiting = stream.next()
+    const late = b.runtime.subscribe.mock.calls[0]![0]
+    await b.ctx.fiber.dispose()
+    roots.splice(roots.indexOf(b.ctx), 1)
+    expect(await waiting).toMatchObject({ done: true })
+    expect(b.runtime.lifecycle).toEqual(['subscribe', 'unsubscribe', 'dispose'])
+    expect(b.runtime.unsubscribe).toHaveBeenCalledOnce()
+    expect(b.runtime.dispose).toHaveBeenCalledOnce()
+    expect(b.runtime.listeners.size).toBe(0)
+    b.runtime.emit({ ...initialRuntime, scheduler: { error: 'Late observation' } })
+    late({ ...initialRuntime, error: 'Observation queued before unsubscribe' })
+    expect(await stream.next()).toMatchObject({ done: true })
+  })
+
+  it('refuses cancelled generations and ends a slow generation rather than delivering an incomplete queue', async () => {
+    const b = await harness()
+    const cancelled = new AbortController()
+    cancelled.abort(new Error('Generation cancelled'))
+    await expect(b.controller.follow(cancelled.signal)[Symbol.asyncIterator]().next()).rejects.toThrow('Generation cancelled')
+    const stream = b.follow()
+    await stream.next()
+    for (let runningSessions = 1; runningSessions <= 1_026; runningSessions++) {
+      b.runtime.emit({ ...initialRuntime, power: { ...initialRuntime.power, runningSessions } })
+    }
+    expect(await stream.next()).toMatchObject({ done: true })
+    expect(await b.follow().next()).toMatchObject({
+      value: { type: 'baseline', value: { runtime: { power: { runningSessions: 1_026 } } } },
+    })
   })
 })

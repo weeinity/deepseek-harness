@@ -6,6 +6,7 @@ const CLIENT_FACE_INCLUDE: readonly string[] = []
 /** Packages exempted from automatic Client/Host treatment despite declaring `dsh.client`. */
 const CLIENT_FACE_EXCLUDE: readonly string[] = [
   '@deepseek-ai/dsh-api-session-controller',
+  '@deepseek-ai/dsh-api-taskboard-controller',
   '@deepseek-ai/dsh-api-workspace-controller',
 ]
 

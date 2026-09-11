@@ -2,31 +2,33 @@
 
 English | [中文](taskboard.zh.md)
 
-The Taskboard is DSH's durable Workspace issue board. It separates human planning status from live Session execution: tasks can exist before a Session, move through Backlog, Todo, In Progress, In Review, and Done, and optionally link to one Session. Running Sessions, Jobs, Subagents, and blocked Goals decorate cards but never complete them automatically.
+Taskboard keeps durable Workspace task definitions and their execution records. A task has at most one current conversation: a DSH Session or a Copilot CLI session. Repeated runs continue that conversation. New tasks start in Todo; execution and user attention update their board columns.
 
 Source: [`packages/workspace/taskboard/src/types.ts`](../../packages/workspace/taskboard/src/types.ts)
 
 ## Durable records
 
-Each task uses a stable UUID key, global human-facing ordinal, Workspace id, numeric rank scoped to its Workspace and status, positive revision, timestamps, title, description, labels, optional priority, optional native DSH Session id, an independent optional Agency Copilot CLI session UUID, and optional archive instant. Archive remains orthogonal to the five visible statuses. The `taskboard` storage domain uses one record per task and the Web profile routes that domain to the SQLite storage backend. The additive Copilot field keeps existing version-1 records readable.
+`TaskboardTask` contains the planning fields, saved run prompt, explicit execution choices, optional schedule and frozen handover, and bounded execution history. Its derived `allowedManualStatuses` supplies the permitted destinations to Clients; Todo permits only Backlog. `TaskConnection` discriminates DSH and Copilot identities. A different current identity requires explicit disconnect. Preserved unresolved connection choices block execution until the user selects one.
 
-Every mutation enters one Taskboard service queue. The exact revision is checked at that queue slot; writes validate the complete candidate with the durable Zod schema, while deletion removes the existing row. Observers receive `domain/changed` only after the operation commits. Deletion applies to active or archived records and leaves linked Sessions and terminals untouched. This compare-and-set guarantee is process-local; storage-domain's SQLite backend does not provide cross-process conditional writes.
+`TaskExecution` snapshots the prompt, settings, handover, Workspace, and conversation for one admitted request. Its pending, running, succeeded, failed, or cancelled outcome is stored separately from the task column. Admission moves the task to In Progress, waiting for user input moves it to In Review without settling the attempt, and resumed work returns it to In Progress. Successful settlement moves it to Done; failure or cancellation moves it to In Review. Provider receipts support recovery without prompt resubmission. Historical records retain their own conversation identities after the current connection changes.
+
+The [domain package](../../packages/workspace/taskboard/README.md) owns record validation, bounded retention, request deduplication, revision checks, and schedule admission. It publishes changes only after persistence commits. Archive is independent of planning status; restore disables scheduling. Neither task deletion nor disconnect deletes conversations.
 
 ## Browser transport and UI
 
-[Taskboard Controller](../../packages/api/taskboard-controller/README.md) exposes revision-checked Remote commands and a reconnect-safe stream. Each generation registers its follower, emits a complete baseline, then emits ordered task upserts and revisioned removals. Archives remain in the snapshot as read-only rows. The Client model retains newer task revisions and actual-deletion tombstones against delayed unary echoes and stream frames.
+[Taskboard Controller](../../packages/api/taskboard-controller/README.md) owns Host execution, cron evaluation, completion monitoring, and the reconnecting Remote stream. Baselines include active and archived tasks plus settings, scheduler, and power observations. The Client preserves newer task revisions and deletion tombstones against delayed responses.
 
 [ui-taskboard](../../packages/client/ui-taskboard/README.md) occupies the layout-owned keyed `main.surface` and contributes an additive sidebar footer row. AppFrame overlays center and details while keeping their geometry mounted; Conversation receives `active:false` so document-level attachment and transient portal behavior withdraws. Explicit Session navigation opens first and closes Taskboard second.
 
-New Task and task editing can associate an existing Copilot CLI session from the task Workspace. The Host validates a changed selection against local Agency data before committing the task content and link together. Association does not start execution or replace the native DSH Session link; the [UI guide](../../packages/client/ui-taskboard/README.md#associate-an-existing-copilot-cli-session) describes selection, refresh, and failure recovery.
+The [UI guide](../../packages/client/ui-taskboard/README.md) describes existing-conversation selection, Run and Run Again, execution history, editable copies, archives, handover, and settings. Conversation navigation is distinct from execution and never submits the saved prompt.
 
-On a loopback Web page, **Start with Copilot** asks the Host to generate and persist a fresh external UUID, then opens an interactive Copilot terminal at the task Workspace and submits the persisted title and description. **Open/Resume Copilot** observes Agency's bounded local session list, never duplicates an `in_use` session, and resumes an observed idle identity without resubmitting the task. The [controller](../../packages/api/taskboard-controller/README.md) owns prompt delivery and launch limits. This is a terminal handoff, not transcript import: native DSH Session state and Copilot terminal identity may coexist and neither automatically changes Taskboard planning status.
+The Host remains responsible after a browser disconnect. Kernel ownership prevents competing configured runners; provider-specific evidence determines execution outcomes. Scheduling skips missed or busy occurrences instead of accumulating retries. The controller reference owns permission, recovery, compatibility, and idle-sleep limitations.
 
 ## Operational limits
 
-The current query scans the in-memory domain table. Fractional numeric ranks may eventually exhaust one repeatedly bisected gap. Multi-process collaboration, indexed pagination, comments, attachments, transcript import, and a Host-owned native DSH start-work saga are deferred. Windows Terminal acceptance is best-effort; a later status refresh establishes whether Agency observed the Copilot process.
+Queries scan the in-memory domain table, and repeatedly bisected fractional-rank gaps can exhaust numeric precision. Multi-process collaboration, indexed pagination, comments, attachments, and Copilot transcript import are not provided. SQLite durability does not turn the domain's process-local revision check into SQL-level compare-and-set.
 
-Design record: [Native Workspace Taskboard Agent Note](../../.agents/notes/implemented/feature/2026-09-01-native-workspace-taskboard.md).
+Design records: [Native Workspace Taskboard](../../.agents/notes/implemented/feature/2026-09-01-native-workspace-taskboard.md) and [execution-driven columns](../../.agents/notes/implemented/feature/2026-09-09-taskboard-execution-driven-columns.md).
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -40,70 +42,154 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.taskboard` — `TaskboardService`
 
-Durable Taskboard command and query service.
+Durable commands; external provider dispatch belongs to the Host runner.
 
 ```ts cordis-catalog
 /**
- * List tasks in deterministic board order.
+ * List in deterministic board order.
  * @param workspaceId - Optional Workspace filter.
- * @param includeArchived - Include archived tasks when true.
- * @returns detached current tasks.
+ * @param includeArchived - Include archived records.
+ * @returns deeply detached current tasks.
  */
 list(workspaceId?: WorkspaceId, includeArchived: boolean = false): TaskboardTask[]
 
 /**
- * Read one task by identity.
- * @param taskId - Stable task identity.
+ * Read one task.
+ * @param taskId - Stable identity.
  * @returns detached task or undefined when absent.
  */
 get(taskId: TaskId): TaskboardTask | undefined
 
 /**
- * Create a durable task and optional Host-validated Agency link in one write.
- * @param input - Initial fields; the caller must validate an Agency identity against its Workspace.
- * @param signal - Cancellation checked at the serialized write slot, before durability begins.
- * @returns the committed task.
+ * Find a committed retry before provider resolution, even after its displayed history is pruned.
+ * @param input - Original manual request identity, expected revision, and initiator; changed caller fields reject.
+ * @returns the original execution identity and current task, or undefined for an absent or expired receipt.
+ */
+getRunRequest(input: TaskboardRunRequestLookupInput): TaskboardBeginExecutionValue | undefined
+
+/**
+ * Create a Todo task unless a column is explicit; an existing conversation commits in the same write.
+ * @param input - Initial choices; the Host validates Copilot membership before selecting a connection.
+ * @param signal - Cancellation checked before the durable write begins.
+ * @returns committed task.
  */
 create(input: TaskboardCreateInput, signal?: AbortSignal): Promise<TaskboardTask>
 
 /**
- * Update content and independent Session links in one revision-checked write.
- * @param input - Mutable fields; the caller must validate a newly selected Agency identity against the task Workspace.
- * @param signal - Cancellation checked at the serialized write slot, before durability begins.
- * @returns the committed task, or the unchanged task for a material no-op.
+ * Apply planning changes with CAS; open attempts forbid execution-input changes.
+ * @param input - Exact revision and patch; null clears handover or schedule.
+ * @param signal - Cancellation checked before durability begins.
+ * @returns committed task, unchanged for a material no-op.
  */
 update(input: TaskboardUpdateInput, signal?: AbortSignal): Promise<TaskboardTask>
 
 /**
- * Set or clear one Host-validated Agency Copilot terminal identity with revision CAS.
- * @param input - Task, exact revision, and the validated identity or null to clear.
- * @returns the committed task, or the unchanged task for a material no-op.
+ * Select the exclusive connection or one preserved legacy choice.
+ * @param input - Exact revision and identity; caller validates Copilot Workspace membership.
+ * @param signal - Cancellation checked before durability begins.
+ * @returns committed connected task.
  */
-setAgencyCopilotSession(input: TaskboardSetAgencyCopilotSessionInput): Promise<TaskboardTask>
+connect(input: TaskboardConnectInput, signal?: AbortSignal): Promise<TaskboardTask>
 
 /**
- * Move a task into a column and optionally before another task.
- * @param input - Exact revision and destination position.
- * @returns the committed task, or unchanged current task for a same-position move.
+ * Clear connection choices without touching provider conversations.
+ * @param taskId - Task identity.
+ * @param expectedRevision - Exact planning revision.
+ * @param signal - Cancellation checked before durability begins.
+ * @returns committed disconnected task.
+ */
+disconnect(taskId: TaskId, expectedRevision: number, signal?: AbortSignal): Promise<TaskboardTask>
+
+/**
+ * Record explicit approval of current permission and handover choices.
+ * @param taskId - Task identity.
+ * @param expectedRevision - Exact revision displayed to the approving user.
+ * @returns committed confirmation; open attempts reject.
+ */
+confirmPermissions(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
+
+/**
+ * Move or reorder with CAS; Todo permits only Backlog as a different manual column.
+ * @param input - Exact revision and destination.
+ * @returns committed task or unchanged same-position task.
  */
 move(input: TaskboardMoveInput): Promise<TaskboardTask>
 
 /**
- * Archive one task with revision CAS.
+ * Archive without altering planning status or provider conversations; disable scheduling.
  * @param taskId - Task identity.
- * @param expectedRevision - Exact current revision.
- * @returns the committed archived task; repeated exact-revision archive is unchanged.
+ * @param expectedRevision - Exact revision.
+ * @returns committed task or unchanged archived record.
  */
 archive(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
 
 /**
- * Permanently delete an active or archived task without changing its Workspace, Sessions, or terminals.
- * @param taskId - Task identity; a missing task rejects.
- * @param expectedRevision - Exact current revision, checked in the serialized mutation slot.
- * @param signal - Cancellation checked before the durable deletion begins; an in-flight deletion settles normally.
- * @returns a durable removal receipt with Number.MAX_SAFE_INTEGER as the tombstone revision.
+ * Restore archived planning state without enabling its schedule.
+ * @param taskId - Task identity.
+ * @param expectedRevision - Exact revision.
+ * @returns restored task or unchanged active record.
+ */
+restore(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
+
+/**
+ * Copy planning and execution choices with fresh identity, no history, and a disabled schedule.
+ * @param input - Source revision and optional replacement title.
+ * @param signal - Cancellation checked before durability begins.
+ * @returns new task; the original is never archived or modified.
+ */
+duplicate(input: TaskboardDuplicateInput, signal?: AbortSignal): Promise<TaskboardTask>
+
+/**
+ * Permanently delete a task without touching Workspace or provider conversations.
+ * @param taskId - Task identity.
+ * @param expectedRevision - Exact revision checked before deletion.
+ * @param signal - Cancellation checked before durability begins; submitted writes settle normally.
+ * @returns permanent removal tombstone; an open attempt rejects.
  */
 delete(taskId: TaskId, expectedRevision: number, signal?: AbortSignal): Promise<TaskboardDeleteValue>
+
+/**
+ * Persist pending admission, immutable inputs, and In Progress placement before external dispatch.
+ * @param input - Stable retry id, execution pins, and manual CAS or exact due occurrence.
+ * @param signal - Cancellation checked before durability begins.
+ * @returns original execution id on matching replay, even with a stale task revision.
+ */
+beginExecution(input: TaskboardBeginExecutionInput, signal?: AbortSignal): Promise<TaskboardBeginExecutionValue>
+
+/**
+ * Persist an open attempt's connection, monotonic receipt, or diagnostic without changing its status.
+ * @param input - Exact attempt and provider identity; the Host validates Copilot membership.
+ * @returns committed task; already committed identities cannot be replaced.
+ */
+attachExecution(input: TaskboardAttachExecutionInput): Promise<TaskboardTask>
+
+/**
+ * Observe running work; waiting for input places it in In Review, otherwise In Progress.
+ * @param input - Exact attempt, optional input-wait flag, and receipt enrichment; the start timestamp is immutable.
+ * @returns committed task, unchanged for a repeated observation; terminal attempts reject.
+ */
+advanceExecution(input: TaskboardAdvanceExecutionInput): Promise<TaskboardTask>
+
+/**
+ * Persist an open diagnostic without provider lookup or a pending/running transition.
+ * @param input - Exact attempt and diagnostic, or null to clear it.
+ * @returns committed task; terminal attempts reject and unchanged diagnostics are no-ops.
+ */
+recordExecutionError(input: TaskboardRecordExecutionErrorInput): Promise<TaskboardTask>
+
+/**
+ * Settle one exact attempt into Done on success or In Review on failure/cancellation.
+ * @param input - Terminal outcome; runtime settlement does not use planning CAS.
+ * @returns committed task with the terminal diagnostic; matching repeats preserve subsequent human column changes.
+ */
+settleExecution(input: TaskboardSettleExecutionInput): Promise<TaskboardTask>
+
+/**
+ * Advance a due busy/missed occurrence without opening an attempt.
+ * @param input - Exact current occurrence and Host-calculated successor.
+ * @returns committed task; stale or not-yet-due occurrences reject.
+ */
+rollForwardSchedule(input: TaskboardRollForwardScheduleInput): Promise<TaskboardTask>
 ```
 
 Types: [WorkspaceId](workspace.md)
@@ -114,97 +200,147 @@ Source: [`packages/workspace/taskboard/src/index.ts`](../../packages/workspace/t
 
 ### `ctx.taskboardController` — `TaskboardController`
 
-Host service backing the generated `ctx.remote.taskboard` namespace. Business failures throw RemoteError with `taskboard/*` codes and typed details.
+Host owner of revision-checked planning and execution commands.
 
 ```ts cordis-catalog
-/** Return active and archived tasks belonging to registered Workspaces.
+/**
+ * Read active and archived tasks in registered Workspaces.
  * @param request - Optional Workspace filter.
- * @returns matching tasks; archived rows retain their status and archivedAt.
+ * @returns the current task and Host runtime baseline.
  */
 @Remote('list') list(request: TaskboardListRequest): Promise<TaskboardListValue>
 
-/** Create content and an optional existing Agency link in one durable write.
- * @param request - Initial task fields; selected Agency identities must be discoverable in the Workspace.
- * @param signal - Caller cancellation before the durable write begins.
- * @returns committed task; selection never launches Copilot or changes planning status.
+/**
+ * Create a task and an optional validated existing connection atomically.
+ * @param request - Saved task inputs; association never submits a prompt.
+ * @param signal - Cancellation before the durable write.
+ * @returns the committed task.
  */
-@Remote('create') async create( request: TaskboardCreateRequest, signal?: AbortSignal, ): Promise<TaskboardTaskValue>
+@Remote('create') async create(request: TaskboardCreateRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>
 
-/** Update task content or linkage with revision CAS.
- * @param request - Exact revision and field patch; only changed Agency identities require discovery.
- * @param signal - Caller cancellation before the durable write begins.
- * @returns content and links committed together without launching Copilot or changing planning status.
+/**
+ * Save planning and execution inputs without changing the current connection.
+ * @param request - Exact revision and explicit field patch.
+ * @param signal - Cancellation before the durable write.
+ * @returns the committed task; open-attempt restrictions are enforced by the domain.
  */
-@Remote('update') async update( request: TaskboardUpdateRequest, signal?: AbortSignal, ): Promise<TaskboardTaskValue>
+@Remote('update') async update(request: TaskboardUpdateRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>
 
-/** Move a task with revision CAS.
- * @param request - Exact revision and destination.
- * @returns committed task.
+/**
+ * Select one existing conversation, including resolution of preserved legacy choices.
+ * @param request - Exact task revision and selected connection.
+ * @param signal - Cancellation of discovery or pre-commit work.
+ * @returns the committed task; neither provider is activated by association.
+ */
+@Remote('connect') async connect(request: TaskboardConnectRequest, signal: AbortSignal): Promise<TaskboardTaskValue>
+
+/**
+ * Remove the task connection without stopping or deleting the conversation.
+ * @param request - Exact task revision.
+ * @param signal - Cancellation before durability.
+ * @returns the committed task; open attempts prevent disconnect.
+ */
+@Remote('disconnect') async disconnect(request: TaskboardDisconnectRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>
+
+/**
+ * Admit one request and await prompt acknowledgement, not agent completion.
+ * @param request - Exact task revision and stable manual retry identity.
+ * @param signal - Caller cancellation only before durable admission.
+ * @returns the durable execution identity and current task.
+ */
+@Remote('run') async run(request: TaskboardRunRequest, signal: AbortSignal): Promise<TaskboardRunValue>
+
+/**
+ * Move a task between manual planning columns.
+ * @param request - Exact task revision and destination.
+ * @returns the committed task.
  */
 @Remote('move') async move(request: TaskboardMoveRequest): Promise<TaskboardTaskValue>
 
-/** Archive a task with revision CAS.
- * @param request - Exact revision archive request.
- * @returns committed archived task.
+/**
+ * Archive a task and disable its schedule without changing its conversation.
+ * @param request - Exact task revision.
+ * @returns the committed archived task.
  */
 @Remote('archive') async archive(request: TaskboardArchiveRequest): Promise<TaskboardTaskValue>
 
 /**
- * Delete an active or archived task, serialized with Agency operations, without changing linked Sessions or terminals.
- * @param request - Task identity and exact current revision; stale or missing tasks reject without retry.
- * @param signal - Cancellation before durable deletion begins; an in-flight deletion settles normally.
- * @returns the committed task removal and its authoritative tombstone revision.
+ * Restore a task with its history retained and schedule disabled.
+ * @param request - Exact archived revision.
+ * @returns the restored task.
+ */
+@Remote('restore') async restore(request: TaskboardRestoreRequest): Promise<TaskboardTaskValue>
+
+/**
+ * Copy saved task inputs without copying its connection, history, or permission confirmation.
+ * @param request - Exact source revision and optional edited title.
+ * @param signal - Cancellation before creation.
+ * @returns the new task; the source is not archived implicitly.
+ */
+@Remote('duplicate') async duplicate(request: TaskboardDuplicateRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>
+
+/**
+ * Confirm the task's current explicit permission and handover choices.
+ * @param request - Exact revision being confirmed.
+ * @returns the committed confirmation; later relevant edits invalidate it.
+ */
+@Remote('confirmPermissions') async confirmPermissions(request: TaskboardConfirmPermissionsRequest): Promise<TaskboardTaskValue>
+
+/**
+ * Delete a task without deleting its provider conversations.
+ * @param request - Exact task revision.
+ * @param signal - Cancellation before the durable deletion.
+ * @returns the committed removal tombstone; open attempts prevent deletion.
  */
 @Remote('delete') async delete(request: TaskboardDeleteRequest, signal?: AbortSignal): Promise<TaskboardDeleteValue>
 
 /**
- * Report whether this Host deployment permits native Agency Copilot launch.
- * @returns true only for a loopback-bound Web server outside SSH.
+ * List the current execution choices without activating a conversation.
+ * @returns preset, permission, and model choices, with explicit catalog failures.
+ */
+@Remote('executionOptions') async executionOptions(): Promise<TaskboardExecutionOptionsValue>
+
+/**
+ * Persist Taskboard user switches through the ordinary settings service.
+ * @param request - Explicit changes to enabled, announcement, or idle-sleep protection.
+ * @returns the applied Host runtime observation.
+ */
+@Remote('updateSettings') updateSettings(request: TaskboardUpdateSettingsRequest): Promise<TaskboardRuntimeState>
+
+/**
+ * Report deployment availability for native Copilot execution and navigation.
+ * @returns the local execution and terminal-handoff capability.
  */
 @Remote('agencyCopilotCapability') agencyCopilotCapability(): TaskboardAgencyCopilotCapabilityValue
 
 /**
- * Discover existing local Copilot sessions matching a registered Workspace's canonical folder.
- * @param request - Registered Workspace whose sessions are selectable.
- * @param signal - Caller cancellation for discovery and folder resolution.
- * @returns safe session metadata and bounded-scan truncation; discovery failures reject explicitly.
+ * Discover local Copilot conversations without activating them.
+ * @param request - Workspace whose canonical folder must match.
+ * @param signal - Cancellation of bounded discovery.
+ * @returns matching metadata and whether discovery was truncated.
  */
 @Remote('listAgencyCopilotSessions') async listAgencyCopilotSessions( request: TaskboardListAgencyCopilotSessionsRequest, signal: AbortSignal, ): Promise<TaskboardListAgencyCopilotSessionsValue>
 
 /**
- * Start a fresh local Agency Copilot terminal and persist its generated identity first.
- * @param request - Task identity and exact current revision.
- * @param signal - Caller cancellation before commit or terminal handoff acceptance.
- * @returns the committed linked task and accepted-launch receipt.
- */
-@Remote('startAgencyCopilot') async startAgencyCopilot( request: TaskboardStartAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardStartAgencyCopilotValue>
-
-/**
- * Clear one task's Agency Copilot identity without touching its terminal process.
- * @param request - Task identity and exact current revision.
- * @returns the committed task without an Agency Copilot link.
- */
-@Remote('clearAgencyCopilot') async clearAgencyCopilot(request: TaskboardClearAgencyCopilotRequest): Promise<TaskboardTaskValue>
-
-/**
- * Open a linked Copilot identity: report active, resume idle, or retry an identity not yet materialized.
- * @param request - Task whose durable Copilot identity is addressed.
- * @param signal - Caller cancellation for status discovery and terminal handoff.
- * @returns whether Copilot was already running or a launch handoff was accepted.
+ * Open a current or historical Copilot conversation without submitting a prompt.
+ * @param request - Task and optional retained execution selecting the stored identity.
+ * @param signal - Caller cancellation of the handoff wait.
+ * @returns an existing-running or accepted-resume outcome; missing history is never recreated.
  */
 @Remote('openAgencyCopilot') async openAgencyCopilot( request: TaskboardOpenAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardOpenAgencyCopilotValue>
 
 /**
- * Inspect current Agency status for linked tasks without launching or mutating them.
- * @param request - Bounded task identities whose linked Copilot status is requested.
- * @param signal - Caller cancellation for bounded Agency status discovery.
- * @returns transient observations for the currently linked requested tasks.
+ * Inspect current Copilot connections without changing task planning or execution outcomes.
+ * @param request - Bounded task identities.
+ * @param signal - Cancellation of discovery.
+ * @returns transient observations tied to their exact connection identities.
  */
 @Remote('inspectAgencyCopilot') async inspectAgencyCopilot( request: TaskboardInspectAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardInspectAgencyCopilotValue>
 
-/** Stream active and archived tasks followed by ordered upserts and removals.
- * @param signal - Generation cancellation.
- * @returns a registered-Workspace baseline followed by task changes, including archive upserts.
+/**
+ * Follow tasks and runtime observations from a complete reconnect baseline.
+ * @param signal - Follow generation cancellation.
+ * @returns ordered task, removal, and Host runtime frames.
  */
 @Remote({ mode: 'stream' }) follow(signal: AbortSignal): AsyncIterable<TaskboardFollowFrame>
 ```

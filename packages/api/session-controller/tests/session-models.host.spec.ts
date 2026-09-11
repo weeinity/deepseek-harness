@@ -595,6 +595,33 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
+  it('records a Session-local selection without changing the Host default when saving is disabled', async () => {
+    const { ctx, sessionId } = await harness()
+    const stored = { provider: 'deepseek-official', model: 'deepseek-chat' }
+    const saveDefaultModelSelection = vi.fn()
+    const remote = createSessionTestRemote(ctx, {
+      defaultModelSelection: () => stored,
+      saveDefaultModelSelection,
+      cwd: process.cwd(),
+    })
+    try {
+      const selection = expectValue(await remote.selectModel({
+        sessionId, provider: 'deepseek-official', model: 'deepseek-reasoner',
+        reasoningEffort: 'max', saveDefault: false,
+      }))
+      expect(selection.selected).toEqual({
+        provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max',
+      })
+      expect(currentSelection(ctx, sessionId)).toEqual(selection.selected)
+      expect(ctx.sessions.get(sessionId)?.snapshotEvents().findLast(event => event.type === 'model/selection')?.data)
+        .toEqual(selection.selected)
+      expect(saveDefaultModelSelection).not.toHaveBeenCalled()
+      expect(ctx.agentDefaultModel.currentSelection()).toEqual(stored)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('refuses a prompt no adapter can route, and reports it on the directory', async () => {
     const { ctx, sessionId } = await harness()
     const remote = createSessionTestRemote(ctx, {

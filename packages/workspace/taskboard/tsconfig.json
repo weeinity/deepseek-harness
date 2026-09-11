@@ -4,8 +4,10 @@
   "include": ["src"],
   "references": [
     { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
     { "path": "../../util/brand" },
-    { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../../preset/agent-presets" },
+    { "path": "../../llm/llm" },
     { "path": "../../core/session" },
     { "path": "../../storage/storage-domain" },
     { "path": "../workspace" }

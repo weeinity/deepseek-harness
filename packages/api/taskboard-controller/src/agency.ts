@@ -100,16 +100,12 @@ export class AgencyCopilotHost {
   nativeLaunchSupported(): boolean { return this.platform === 'win32' }
 
   /**
-   * Resolve the fixed Agency and Windows Terminal executables before a durable Start commit.
-   * @param signal - Caller cancellation for executable resolution.
+   * Supply the SDK runtime with the same process-origin data home as Agency.
+   * @returns a detached environment without project credentials or Agency bootstrap.
    */
-  async preflight(signal: AbortSignal): Promise<void> {
-    try { await this.launchExecutables(signal) }
-    catch (error: unknown) {
-      if (signal.aborted) throw signal.reason
-      if (error instanceof AgencyCopilotLaunchError) throw error
-      throw new AgencyCopilotLaunchError('Agency Copilot executables are unavailable')
-    }
+  copilotSdkEnvironment(): Record<string, string> {
+    if (!this.nativeLaunchSupported()) throw new AgencyCopilotUnavailableError('Native Copilot execution requires Windows')
+    return { ...this.environment }
   }
 
   /**
@@ -156,33 +152,6 @@ export class AgencyCopilotHost {
       if (wanted?.size === 0 || cursor === undefined) break
     }
     return { sessions, complete: cursor === undefined }
-  }
-
-  /**
-   * Launch a fresh generated Agency Copilot identity and submit its initial task in a visible terminal.
-   * @param workspacePath - Canonical task Workspace path supplied by the Host.
-   * @param sessionId - Host-generated durable Copilot identity.
-   * @param prompt - Persisted task content submitted once through interactive mode, with normal tool approvals.
-   * @param signal - Caller cancellation before broker acceptance.
-   * @returns a broker-acceptance receipt, not confirmation that Copilot executed the prompt.
-   */
-  launchNew(
-    workspacePath: string,
-    sessionId: AgencyCopilotSessionIdValue,
-    prompt: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    return this.launch(workspacePath, ['copilot', '--session-id', sessionId, '--interactive', prompt], signal)
-  }
-
-  /**
-   * Best-effort handoff for an existing idle Agency Copilot identity.
-   * @param workspacePath - Canonical task Workspace path supplied by the Host.
-   * @param sessionId - Host-generated or validated existing durable Copilot identity.
-   * @param signal - Caller cancellation before broker acceptance.
-   */
-  resume(workspacePath: string, sessionId: AgencyCopilotSessionIdValue, signal: AbortSignal): Promise<void> {
-    return this.launch(workspacePath, ['copilot', '--resume=' + sessionId], signal)
   }
 
   private subprocess(): SubprocessRuntime {
@@ -238,9 +207,6 @@ export class AgencyCopilotHost {
 
   private async launchExecutables(signal: AbortSignal): Promise<{ agency: string; terminal: string }> {
     signal.throwIfAborted()
-    if (!this.nativeLaunchSupported()) {
-      throw new AgencyCopilotLaunchError('Agency Copilot terminal launch requires Windows')
-    }
     const subprocess = this.subprocess()
     const [agency, terminal] = await Promise.all([
       subprocess.resolveExecutable('agency.exe', this.environment, signal),
@@ -289,7 +255,13 @@ export class AgencyCopilotHost {
     return candidate
   }
 
-  private async launch(workspacePath: string, agencyArgs: readonly string[], signal: AbortSignal): Promise<void> {
+  /**
+   * Open an existing idle conversation without submitting input.
+   * @param workspacePath - Canonical task Workspace path supplied by the Host.
+   * @param sessionId - Validated existing Copilot conversation identity.
+   * @param signal - Caller cancellation before broker acceptance.
+   */
+  async resume(workspacePath: string, sessionId: AgencyCopilotSessionIdValue, signal: AbortSignal): Promise<void> {
     signal.throwIfAborted()
     if (this.platform !== 'win32') throw new AgencyCopilotLaunchError('Agency Copilot terminal launch requires Windows')
     try {
@@ -298,12 +270,12 @@ export class AgencyCopilotHost {
       const args = [
         '--window', 'new', 'new-tab', '--startingDirectory', workspacePath,
         '--title', 'Agency Copilot', '--suppressApplicationTitle',
-        ...[agency, ...agencyArgs].map(windowsTerminalCommandArgument),
+        ...[agency, 'copilot', '--resume=' + sessionId].map(windowsTerminalCommandArgument),
       ]
       // Windows Terminal parses semicolon-separated commands even without a shell.
       const escapedArgs = args.map(value => value.replaceAll(';', '\\;'))
       if ([terminal, ...escapedArgs].map(quoteArg).join(' ').length >= 32_767) {
-        throw new AgencyCopilotLaunchError('Task prompt exceeds the Windows command-line limit; shorten the task title or description')
+        throw new AgencyCopilotLaunchError('Agency terminal command exceeds the Windows command-line limit')
       }
       await launchAccepted(this.spawnBroker, terminal, escapedArgs, this.environment)
     } catch (error: unknown) {

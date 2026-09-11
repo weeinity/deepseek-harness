@@ -235,20 +235,65 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-api-taskboard-controller`
 
-需要：`typert` · `taskboard` · `workspaceRegistry`
+需要：`typert` · `taskboard` · `workspaceRegistry` · `sessionController` · `sessionPersistence` · `sessions` · `agents` · `agentPresets` · `permissionPresets` · `settings` · `systemPrompt`
 
 ```ts config-catalog
-/** Deployment policy for native Agency Copilot terminal handoff. */
-export interface Config {
-  /**
-   * Permit native Start/Open for a loopback-only Web deployment; Windows and non-SSH checks still apply.
-   * Discovery and linking remain independent.
-   */
+/** Deployment policy for Taskboard execution, scheduling, and native integrations. */
+export interface Config extends Partial<TaskboardHostConfig> {
+  /** Permit local Copilot execution and terminal handoff in a loopback-only deployment. */
   readonly agencyCopilotLaunch?: boolean
+  /** Suppress repeated terminal opens for this interval after an accepted handoff. */
+  readonly agencyOpenCooldownMs?: number
+  /** Deadline for native discovery and terminal handoff. */
+  readonly agencyOpenTimeoutMs?: number
+  /** Maximum persisted Copilot events read per recovery page. */
+  readonly copilotRecoveryPageSize?: number
+  /** Maximum pages read for one recovery observation. */
+  readonly copilotRecoveryMaxPages?: number
+}
+
+/** Fully resolved Host policy; configuration defaults belong to the Controller. */
+export interface TaskboardHostConfig {
+  /** Admit manual runs and scheduled occurrences. */
+  readonly enabled: boolean
+  /** Include the Taskboard usage section in subsequent model requests. */
+  readonly announceToAgent: boolean
+  /** Request idle-sleep protection while work or armed schedules exist. */
+  readonly preventIdleSleep: boolean
+  /** Absolute private directory containing the permanent ownership file. */
+  readonly lockPath: string
+  /** POSIX lock-path identity observation interval. */
+  readonly lockUpdateMs: number
+  /** Bounded reopen attempts if a POSIX lock inode changes during acquisition. */
+  readonly lockMaxAcquireAttempts: number
+  /** Initial timezone offered to new schedules. */
+  readonly timeZone: string
+  /** Execution and linked-conversation attention observation interval. */
+  readonly pollIntervalMs: number
+  /** Due-schedule observation interval. */
+  readonly schedulerIntervalMs: number
+  /** A longer clock gap skips missed occurrences instead of dispatching them. */
+  readonly schedulerRecoveryGapMs: number
+  /** Deadline for one provider operation. */
+  readonly operationTimeoutMs: number
+  /** Deadline for OS acknowledgement of an idle-sleep assertion. */
+  readonly powerReadinessTimeoutMs: number
+  /** Graceful helper-exit deadline. */
+  readonly powerShutdownTimeoutMs: number
+  /** Forced helper-exit deadline. */
+  readonly powerKillTimeoutMs: number
+  /** Delay between bounded inhibitor acquisition retries. */
+  readonly powerRetryDelayMs: number
+  /** Maximum retries during one uninterrupted demand interval. */
+  readonly powerMaxRetries: number
+  /** Maximum complete retained helper diagnostic size. */
+  readonly powerMaxDiagnosticBytes: number
+  /** macOS assertion observation interval within the readiness deadline. */
+  readonly powerAssertionPollMs: number
 }
 ```
 
-来源：[`packages/api/taskboard-controller/src/index.ts:37`](../packages/api/taskboard-controller/src/index.ts)
+来源：[`packages/api/taskboard-controller/src/index.ts:51`](../packages/api/taskboard-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-workspace-files"></a>
 
@@ -2628,6 +2673,24 @@ export interface Config {
 
 来源：[`packages/core/system-prompt/src/index.ts:242`](../packages/core/system-prompt/src/index.ts)
 
+<a id="deepseek-aidsh-taskboard"></a>
+
+## `@deepseek-ai/dsh-taskboard`
+
+需要：`storageDomain` · `workspaceRegistry`
+
+```ts config-catalog
+/** Retention bounds, independently configurable for display and retry protection. */
+export interface Config {
+  /** Maximum settled attempts retained per task; open attempts are never pruned. */
+  executionHistoryLimit?: number
+  /** Maximum request receipts retained per task, including every open attempt's receipt. */
+  requestDeduplicationLimit?: number
+}
+```
+
+来源：[`packages/workspace/taskboard/src/index.ts:71`](../packages/workspace/taskboard/src/index.ts)
+
 <a id="deepseek-aidsh-terminal-bash"></a>
 
 ## `@deepseek-ai/dsh-terminal-bash`
@@ -3521,7 +3584,6 @@ export interface Config {
 - `@deepseek-ai/dsh-storage`（[`packages/storage/storage/src/index.ts`](../packages/storage/storage/src/index.ts)）
 - `@deepseek-ai/dsh-subagent`（[`packages/subagent/subagent/src/index.ts`](../packages/subagent/subagent/src/index.ts)）
 - `@deepseek-ai/dsh-subprocess-local`（[`packages/subprocess/subprocess-local/src/index.ts`](../packages/subprocess/subprocess-local/src/index.ts)）
-- `@deepseek-ai/dsh-taskboard` — 需要 `storageDomain` · `workspaceRegistry`（[`packages/workspace/taskboard/src/index.ts`](../packages/workspace/taskboard/src/index.ts)）
 - `@deepseek-ai/dsh-terminal`（[`packages/terminal/terminal/src/index.ts`](../packages/terminal/terminal/src/index.ts)）
 - `@deepseek-ai/dsh-tool-ask-user` — 需要 `tools` · `userInteraction`（[`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts)）
 - `@deepseek-ai/dsh-tool-call-timeout-policy` — 需要 `tools`（[`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts)）

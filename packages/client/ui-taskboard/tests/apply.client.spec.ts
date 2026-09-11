@@ -2,39 +2,25 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import type { ITaskboard, TaskboardRunValue, TaskExecutionId, TaskRunRequestId } from '@deepseek-ai/dsh-api-taskboard-controller/client'
 import { apply, inject } from '../src/client/index.ts'
 import type { TaskboardLauncherInjected, TaskboardSurfaceInjected } from '../src/client/contract.ts'
-import type { AgencyCopilotSessionId, TaskboardTask } from '@deepseek-ai/dsh-api-taskboard-controller/client'
-
-function taskFixture(): TaskboardTask {
-  return {
-    id: 'task' as TaskboardTask['id'], revision: 4, ordinal: 1,
-    workspaceId: 'workspace' as TaskboardTask['workspaceId'],
-    title: 'Linked', description: '', status: 'todo', rank: 0, labels: [],
-    createdAt: '', updatedAt: '',
-  }
-}
+import { copilot, dsh, options, runtime, task } from './fixtures.client.ts'
 
 async function bench() {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
-  const subscribe = () => () => {}
-  const snapshot = {
-    tasks: [], state: 'idle' as const, phase: 'ready' as const, error: null,
-    agencyByTask: {}, agencyState: 'idle' as const, agencyError: null,
-  }
   const taskboard = {
-    list: { getSnapshot: () => snapshot, subscribe },
+    list: { getSnapshot: () => ({ tasks: [], runtime, state: 'idle', phase: 'ready', error: null, agencyByTask: {}, agencyState: 'idle', agencyError: null }), subscribe: () => () => {} },
     create: vi.fn(), update: vi.fn(), move: vi.fn(), archive: vi.fn(), delete: vi.fn(),
-    agencyCopilotCapability: vi.fn(async () => true), startAgencyCopilot: vi.fn(),
-    listAgencyCopilotSessions: vi.fn(),
-    openAgencyCopilot: vi.fn(), clearAgencyCopilot: vi.fn(), inspectAgencyCopilot: vi.fn(),
+    run: vi.fn<ITaskboard['run']>(async () => ({ task: task({ connection: dsh }), executionId: 'run' as TaskExecutionId })),
+    connect: vi.fn(), disconnect: vi.fn(), restore: vi.fn(), confirmPermissions: vi.fn(),
+    executionOptions: vi.fn(async () => options), updateSettings: vi.fn(async () => runtime),
+    agencyCopilotCapability: vi.fn(async () => true), listAgencyCopilotSessions: vi.fn(),
+    openAgencyCopilot: vi.fn(), inspectAgencyCopilot: vi.fn(),
   }
-  const sessions = { create: vi.fn(), open: vi.fn() }
-  const registerMainSurface = vi.fn(() => vi.fn())
-  const toggleMainSurface = vi.fn()
-  const closeMainSurface = vi.fn()
-  const layout = { registerMainSurface, toggleMainSurface, closeMainSurface }
+  const sessions = { create: vi.fn(), open: vi.fn(), binding: vi.fn() }
+  const layout = { registerMainSurface: vi.fn(() => vi.fn()), toggleMainSurface: vi.fn(), closeMainSurface: vi.fn() }
   ctx.provide('locale', new LocaleRuntime(ctx))
   ctx.provide('taskboard', taskboard as never)
   ctx.provide('sessions', sessions as never)
@@ -44,118 +30,154 @@ async function bench() {
   ctx.provide('connection', { isLoopback: true } as never)
   const slots = ctx.get('slots') as SlotRegistry
   slots.register({ name: 'root', children: {
-    'main.surface': { kind: 'keyed', scope: 'root' },
-    'sidebar.footer.action': { kind: 'list', scope: 'root' },
+    'main.surface': { kind: 'keyed', scope: 'root' }, 'sidebar.footer.action': { kind: 'list', scope: 'root' },
   } } as never, () => null)
-  return { ctx, layout, sessions, slots, taskboard }
+  const fiber = ctx.plugin({ inject: [...inject], apply })
+  await fiber.await()
+  const face = (slots.entries('main.surface')[0]!.inject as unknown as () => TaskboardSurfaceInjected)()
+  return { ctx, taskboard, sessions, layout, slots, fiber, face }
 }
 
 describe('ui-taskboard apply', () => {
-  it('declares its activation barriers', () => {
-    expect(inject).toEqual(['slots', 'locale', 'layout', 'sessions', 'uiSession', 'uiWorkspace', 'taskboard', 'connection'])
-  })
-
-  it('registers a keyed main surface before its layout identity and a narrow launcher face', async () => {
+  it('registers a root board and an always-accessible launcher, and disposes every registration', async () => {
     const b = await bench()
-    const fiber = b.ctx.plugin({ inject: [...inject], apply })
-    await fiber.await()
-    expect(b.layout.registerMainSurface).toHaveBeenCalledWith('taskboard')
-    const surface = b.slots.entries('main.surface')[0]!
-    const launcher = b.slots.entries('sidebar.footer.action')[0]!
-    expect(surface.options.key).toBe('taskboard')
-    expect(launcher.options).toMatchObject({ id: 'taskboard', order: 10 })
-    const surfaceFace = (surface.inject as unknown as () => TaskboardSurfaceInjected)()
-    const launcherFace = (launcher.inject as unknown as () => TaskboardLauncherInjected)()
-    expect(Object.keys(surfaceFace).sort()).toEqual([
-      'agencyCopilotCapability', 'archiveTask', 'clearAgencyCopilot', 'closeSurface', 'createTask', 'deleteTask', 'hooks', 'isLoopback', 'listAgencyCopilotSessions', 'moveTask',
-      'openAgencyCopilot', 'openSession', 'refreshAgencyCopilot', 'startAgencyCopilot', 'startWork', 'updateTask',
-    ])
-    expect(Object.keys(launcherFace).sort()).toEqual(['hooks', 'toggleSurface'])
-    launcherFace.toggleSurface()
-    expect(b.layout.toggleMainSurface).toHaveBeenCalledWith('taskboard')
-    await fiber.dispose()
-    expect(b.slots.entries('main.surface')).toEqual([])
-    expect(b.slots.entries('sidebar.footer.action')).toEqual([])
-    expect(b.layout.registerMainSurface.mock.results[0]?.value).toHaveBeenCalledOnce()
-  })
-
-  it('forwards existing-session discovery and atomic task writes without opening a session', async () => {
-    const b = await bench()
-    const fiber = b.ctx.plugin({ inject: [...inject], apply })
     try {
-      await fiber.await()
-      const surface = b.slots.entries('main.surface')[0]!
-      const face = (surface.inject as unknown as () => TaskboardSurfaceInjected)()
-      const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-      const task: TaskboardTask = { ...taskFixture(), agencyCopilotSessionId: sessionId }
-      const catalog = { sessions: [{ sessionId, status: 'idle' }], truncated: false }
-      b.taskboard.listAgencyCopilotSessions.mockResolvedValue(catalog)
-      b.taskboard.create.mockResolvedValue(task)
-      await expect(face.listAgencyCopilotSessions(task.workspaceId)).resolves.toBe(catalog)
-      expect(b.taskboard.listAgencyCopilotSessions).toHaveBeenCalledExactlyOnceWith(task.workspaceId)
-      const creation = { workspaceId: task.workspaceId, title: task.title, agencyCopilotSessionId: sessionId }
-      await expect(face.createTask(creation)).resolves.toBe(task)
-      expect(b.taskboard.create).toHaveBeenCalledExactlyOnceWith(creation)
-      await face.updateTask(task, { title: 'Edited', agencyCopilotSessionId: null })
-      expect(b.taskboard.update).toHaveBeenCalledExactlyOnceWith({
-        taskId: task.id, expectedRevision: task.revision, patch: { title: 'Edited', agencyCopilotSessionId: null },
-      })
-      await face.deleteTask(task)
-      expect(b.taskboard.delete).toHaveBeenCalledExactlyOnceWith(task.id, task.revision)
-      expect(b.taskboard.startAgencyCopilot).not.toHaveBeenCalled()
-      expect(b.taskboard.openAgencyCopilot).not.toHaveBeenCalled()
+      expect(inject).toEqual(['slots', 'locale', 'layout', 'sessions', 'uiSession', 'uiWorkspace', 'taskboard', 'connection'])
+      const launcher = (b.slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => TaskboardLauncherInjected)()
+      expect(Object.keys(launcher).sort()).toEqual(['hooks', 'toggleSurface'])
+      launcher.toggleSurface()
+      expect(b.layout.toggleMainSurface).toHaveBeenCalledWith('taskboard')
+      await b.fiber.dispose()
+      expect(b.slots.entries('main.surface')).toEqual([])
+      expect(b.slots.entries('sidebar.footer.action')).toEqual([])
+      expect(b.layout.registerMainSurface.mock.results[0]?.value).toHaveBeenCalledOnce()
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('dispatches Run and Run Again only through the Host with the saved revision and retry identity', async () => {
+    const b = await bench()
+    try {
+      const row = task({ connection: dsh })
+      const requestId = 'request' as TaskRunRequestId
+      await b.face.startWork(row, requestId)
+      await b.face.startWork(row, requestId)
+      expect(b.taskboard.run).toHaveBeenNthCalledWith(1, { taskId: row.id, expectedRevision: row.revision, requestId })
+      expect(b.taskboard.run).toHaveBeenNthCalledWith(2, { taskId: row.id, expectedRevision: row.revision, requestId })
       expect(b.sessions.create).not.toHaveBeenCalled()
-      expect(b.sessions.open).not.toHaveBeenCalled()
-    } finally {
-      await fiber.dispose()
-      await b.ctx.fiber.dispose()
-    }
-  })
-
-  it('opens the linked Session before returning from Taskboard after a successful start', async () => {
-    const b = await bench()
-    const fiber = b.ctx.plugin({ inject: [...inject], apply })
-    try {
-      await fiber.await()
-      const face = (b.slots.entries('main.surface')[0]!.inject as unknown as () => TaskboardSurfaceInjected)()
-      const task = taskFixture()
-      const sessionId = 'created-session' as NonNullable<TaskboardTask['sessionId']>
-      b.sessions.create.mockResolvedValue(sessionId)
-      b.taskboard.update.mockResolvedValue({ ...task, revision: 5, sessionId })
-      await face.startWork(task)
-      expect(b.sessions.create).toHaveBeenCalledWith({ workspaceId: task.workspaceId })
-      expect(b.taskboard.update).toHaveBeenCalledWith({
-        taskId: task.id, expectedRevision: 4, patch: { sessionId },
-      })
-      expect(b.taskboard.move).toHaveBeenCalledWith({
-        taskId: task.id, expectedRevision: 5, status: 'in_progress',
-      })
-      expect(b.sessions.open).toHaveBeenCalledWith(sessionId)
-      expect(b.layout.closeMainSurface).toHaveBeenCalledOnce()
-      expect(b.sessions.open.mock.invocationCallOrder[0]).toBeLessThan(
-        b.layout.closeMainSurface.mock.invocationCallOrder[0]!,
-      )
-    } finally {
-      await fiber.dispose()
-      await b.ctx.fiber.dispose()
-    }
-  })
-
-  it('retains Taskboard selection when starting work cannot commit the task link', async () => {
-    const b = await bench()
-    const fiber = b.ctx.plugin({ inject: [...inject], apply })
-    try {
-      await fiber.await()
-      const face = (b.slots.entries('main.surface')[0]!.inject as unknown as () => TaskboardSurfaceInjected)()
-      b.sessions.create.mockResolvedValue('created-session')
-      b.taskboard.update.mockRejectedValue(new Error('task revision changed'))
-      await expect(face.startWork(taskFixture())).rejects.toThrow('task revision changed')
+      expect(b.sessions.binding).not.toHaveBeenCalled()
+      expect(b.sessions.open).toHaveBeenNthCalledWith(1, dsh.sessionId)
+      expect(b.sessions.open).toHaveBeenNthCalledWith(2, dsh.sessionId)
       expect(b.taskboard.move).not.toHaveBeenCalled()
+      expect(b.layout.closeMainSurface).toHaveBeenCalledTimes(2)
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('opens DSH only after successful Host dispatch acknowledgement, never for the pending reservation', async () => {
+    const b = await bench()
+    const acknowledgement = Promise.withResolvers<TaskboardRunValue>()
+    const result = { task: task({ connection: dsh }), executionId: 'run' as TaskExecutionId }
+    b.taskboard.run.mockReturnValue(acknowledgement.promise)
+    const pending = b.face.startWork(task(), 'request' as TaskRunRequestId)
+    try {
       expect(b.sessions.open).not.toHaveBeenCalled()
       expect(b.layout.closeMainSurface).not.toHaveBeenCalled()
+      acknowledgement.resolve(result)
+      await pending
+      expect(b.sessions.open).toHaveBeenCalledExactlyOnceWith(dsh.sessionId)
+      expect(b.sessions.create).not.toHaveBeenCalled()
+      expect(b.sessions.binding).not.toHaveBeenCalled()
     } finally {
-      await fiber.dispose()
+      acknowledgement.resolve(result)
+      await pending
       await b.ctx.fiber.dispose()
     }
+  })
+
+  it('keeps Copilot dispatch separate from terminal navigation', async () => {
+    const b = await bench()
+    try {
+      b.taskboard.run.mockResolvedValue({ task: task({ connection: copilot, executionSettings: { kind: 'copilot' } }),
+        executionId: 'run' as TaskExecutionId })
+      await b.face.startWork(task({ executionSettings: { kind: 'copilot' } }), 'request' as TaskRunRequestId)
+      expect(b.sessions.open).not.toHaveBeenCalled()
+      expect(b.taskboard.openAgencyCopilot).not.toHaveBeenCalled()
+      expect(b.layout.closeMainSurface).not.toHaveBeenCalled()
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('propagates admission failure without navigation or a separate status command', async () => {
+    const b = await bench()
+    try {
+      b.taskboard.run.mockRejectedValue(new Error('Connected Session missing'))
+      await expect(b.face.startWork(task(), 'request' as TaskRunRequestId)).rejects.toThrow('Connected Session missing')
+      expect(b.sessions.create).not.toHaveBeenCalled()
+      expect(b.sessions.open).not.toHaveBeenCalled()
+      expect(b.taskboard.move).not.toHaveBeenCalled()
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('creates, connects, disconnects and opens without submitting work', async () => {
+    const b = await bench()
+    try {
+      const row = task()
+      const creation = { workspaceId: row.workspaceId, title: row.title, connection: copilot }
+      await b.face.createTask(creation)
+      expect(b.taskboard.create).toHaveBeenCalledExactlyOnceWith(creation)
+      await b.face.connectTask(row, copilot, { kind: 'copilot' })
+      expect(b.taskboard.connect).toHaveBeenCalledExactlyOnceWith({ taskId: row.id, expectedRevision: row.revision, connection: copilot, executionSettings: { kind: 'copilot' } })
+      await b.face.connectTask(row, dsh)
+      expect(b.taskboard.connect).toHaveBeenLastCalledWith({ taskId: row.id, expectedRevision: row.revision, connection: dsh })
+      await b.face.disconnectTask(row)
+      expect(b.taskboard.disconnect).toHaveBeenCalledWith({ taskId: row.id, expectedRevision: row.revision })
+      b.face.openSession(dsh.sessionId)
+      expect(b.sessions.open).toHaveBeenCalledExactlyOnceWith(dsh.sessionId)
+      await b.face.openAgencyCopilot(row)
+      expect(b.taskboard.openAgencyCopilot).toHaveBeenCalledExactlyOnceWith(row.id, undefined)
+      await b.face.openAgencyCopilot(row, 'history' as TaskExecutionId)
+      expect(b.taskboard.openAgencyCopilot).toHaveBeenNthCalledWith(2, row.id, 'history')
+      expect(b.taskboard.run).not.toHaveBeenCalled()
+      expect(b.sessions.create).not.toHaveBeenCalled()
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('forwards authoritative options, confirmation, settings and revision-checked manual mutations', async () => {
+    const b = await bench()
+    try {
+      const row = task({ status: 'in_progress' })
+      await expect(b.face.executionOptions()).resolves.toBe(options)
+      await b.face.updateSettings({ enabled: false })
+      expect(b.taskboard.updateSettings).toHaveBeenCalledExactlyOnceWith({ patch: { enabled: false } })
+      await b.face.confirmPermissions(row)
+      await b.face.restoreTask(row)
+      await b.face.updateTask(row, { prompt: 'Separate prompt' })
+      await b.face.moveTask(row, 'in_review')
+      await b.face.moveTask(row, 'in_review', row.id)
+      await b.face.agencyCopilotCapability()
+      await b.face.listAgencyCopilotSessions(row.workspaceId)
+      b.face.closeSurface()
+      await b.face.archiveTask(row)
+      await b.face.deleteTask(row)
+      expect(b.taskboard.confirmPermissions).toHaveBeenCalledWith({ taskId: row.id, expectedRevision: row.revision })
+      expect(b.taskboard.restore).toHaveBeenCalledWith({ taskId: row.id, expectedRevision: row.revision })
+      expect(b.taskboard.update).toHaveBeenCalledWith({ taskId: row.id, expectedRevision: row.revision, patch: { prompt: 'Separate prompt' } })
+      expect(b.taskboard.move).toHaveBeenCalledWith({ taskId: row.id, expectedRevision: row.revision, status: 'in_review' })
+      expect(b.taskboard.archive).toHaveBeenCalledWith(row.id, row.revision)
+      expect(b.taskboard.delete).toHaveBeenCalledWith(row.id, row.revision)
+      expect(b.taskboard.move).toHaveBeenLastCalledWith({ taskId: row.id, expectedRevision: row.revision, status: 'in_review', beforeTaskId: row.id })
+      expect(b.taskboard.agencyCopilotCapability).toHaveBeenCalledOnce()
+      expect(b.taskboard.listAgencyCopilotSessions).toHaveBeenCalledWith(row.workspaceId)
+      expect(b.layout.closeMainSurface).toHaveBeenCalledOnce()
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('inspects only exclusively connected Copilot tasks', async () => {
+    const b = await bench()
+    try {
+      const linked = task({ connection: copilot, executionSettings: { kind: 'copilot' } })
+      await b.face.refreshAgencyCopilot([task(), task({ connection: dsh }), linked, linked])
+      expect(b.taskboard.inspectAgencyCopilot).toHaveBeenCalledExactlyOnceWith([linked.id])
+      await b.face.refreshAgencyCopilot([])
+      expect(b.taskboard.inspectAgencyCopilot).toHaveBeenCalledOnce()
+    } finally { await b.ctx.fiber.dispose() }
   })
 })

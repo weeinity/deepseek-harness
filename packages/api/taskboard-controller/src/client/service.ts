@@ -1,12 +1,14 @@
 /** React-free Client Taskboard service and command facade. */
 import { Service, type Context } from '@deepseek-ai/cordis'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
-import type { TaskboardTask, TaskId } from '@deepseek-ai/dsh-taskboard/types'
+import type { TaskboardTask, TaskExecutionId, TaskId } from '@deepseek-ai/dsh-taskboard/types'
 import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type {
   TaskboardCreateRequest, TaskboardListAgencyCopilotSessionsValue, TaskboardMoveRequest, TaskboardOpenAgencyCopilotValue,
-  TaskboardUpdateRequest,
+  TaskboardUpdateRequest, TaskboardConnectRequest, TaskboardConfirmPermissionsRequest, TaskboardDisconnectRequest,
+  TaskboardDuplicateRequest, TaskboardExecutionOptionsValue, TaskboardRestoreRequest, TaskboardRunRequest, TaskboardRunValue,
+  TaskboardRuntimeState, TaskboardUpdateSettingsRequest,
 } from '../types.ts'
 import type { ClientTaskboardModel, TaskboardSnapshot } from './model.ts'
 
@@ -29,12 +31,12 @@ export interface ITaskboard {
   readonly list: ObservableSnapshot<TaskboardSnapshot>
   /**
    * Create a durable task.
-   * @param request - Initial task fields and optional existing Agency link.
+   * @param request - Initial task fields and optional validated existing connection.
    * @returns the committed task.
    */
   create(request: TaskboardCreateRequest): Promise<TaskboardTask>
   /**
-   * Update task content or linkage with revision CAS.
+   * Update task content with revision CAS; connection changes use dedicated commands.
    * @param request - Task identity, exact current revision, and field patch.
    * @returns the committed task.
    */
@@ -70,25 +72,52 @@ export interface ITaskboard {
    */
   listAgencyCopilotSessions(workspaceId: WorkspaceId): Promise<TaskboardListAgencyCopilotSessionsValue>
   /**
-   * Start a fresh Host-generated Agency Copilot terminal for a task.
-   * @param taskId - Task identity to link and launch.
-   * @param expectedRevision - Exact current revision.
-   * @returns the committed linked task after an accepted terminal handoff.
+   * Dispatch one attempt; settled runs retain their exact connection for Run Again.
+   * @param request - Saved revision and caller-owned retry identity.
+   * @returns committed task and durable execution identity after dispatch acknowledgement, not model completion.
    */
-  startAgencyCopilot(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
+  run(request: TaskboardRunRequest): Promise<TaskboardRunValue>
+  /** Associate without submitting work.
+   * @param request - Exact revision and validated conversation choice.
+   * @returns committed task.
+   */
+  connect(request: TaskboardConnectRequest): Promise<TaskboardTask>
+  /** Disconnect without deleting the conversation.
+   * @param request - Exact saved revision.
+   * @returns committed task.
+   */
+  disconnect(request: TaskboardDisconnectRequest): Promise<TaskboardTask>
+  /** Restore an archived task with scheduling disabled.
+   * @param request - Exact archived revision.
+   * @returns committed task.
+   */
+  restore(request: TaskboardRestoreRequest): Promise<TaskboardTask>
+  /** Duplicate saved fields without connection, history, or permission confirmation.
+   * @param request - Exact source revision.
+   * @returns independent committed task.
+   */
+  duplicate(request: TaskboardDuplicateRequest): Promise<TaskboardTask>
+  /** Confirm saved permission and handover inputs.
+   * @param request - Exact saved revision.
+   * @returns committed task.
+   */
+  confirmPermissions(request: TaskboardConfirmPermissionsRequest): Promise<TaskboardTask>
+  /** Load authoritative presets, permissions, and models.
+   * @returns Host catalog and capability information.
+   */
+  executionOptions(): Promise<TaskboardExecutionOptionsValue>
+  /** Persist switches; the follow feed publishes ordered runtime state.
+   * @param request - Explicit switches to change.
+   * @returns committed Host runtime state.
+   */
+  updateSettings(request: TaskboardUpdateSettingsRequest): Promise<TaskboardRuntimeState>
   /**
    * Open or resume a task's linked Agency Copilot terminal.
    * @param taskId - Task whose linked Agency identity is addressed.
+   * @param executionId - Retained attempt whose connection is opened instead of the current one.
    * @returns the terminal handoff outcome or current running state.
    */
-  openAgencyCopilot(taskId: TaskId): Promise<TaskboardOpenAgencyCopilotValue['outcome']>
-  /**
-   * Clear the durable Agency Copilot link without touching the terminal.
-   * @param taskId - Task whose Agency link is cleared.
-   * @param expectedRevision - Exact current revision.
-   * @returns the committed task without its Agency link.
-   */
-  clearAgencyCopilot(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
+  openAgencyCopilot(taskId: TaskId, executionId?: TaskExecutionId): Promise<TaskboardOpenAgencyCopilotValue['outcome']>
   /**
    * Refresh transient Agency status for linked tasks.
    * @param taskIds - Task identities whose linked Agency status is requested.
@@ -149,22 +178,58 @@ export class TaskboardClientController extends Service implements ITaskboard {
     return result.value
   }
 
-  async startAgencyCopilot(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask> {
-    const result = await this.model.startAgencyCopilot({ taskId, expectedRevision })
-    if (!result.ok) throw new TaskboardCommandError('start Agency Copilot', result.error)
+  async run(request: TaskboardRunRequest): Promise<TaskboardRunValue> {
+    const result = await this.model.run(request)
+    if (!result.ok) throw new TaskboardCommandError('run', result.error)
+    return result.value
+  }
+
+  async connect(request: TaskboardConnectRequest): Promise<TaskboardTask> {
+    const result = await this.model.connect(request)
+    if (!result.ok) throw new TaskboardCommandError('connect', result.error)
     return result.value.task
   }
 
-  async openAgencyCopilot(taskId: TaskId): Promise<TaskboardOpenAgencyCopilotValue['outcome']> {
-    const result = await this.model.openAgencyCopilot({ taskId })
+  async disconnect(request: TaskboardDisconnectRequest): Promise<TaskboardTask> {
+    const result = await this.model.disconnect(request)
+    if (!result.ok) throw new TaskboardCommandError('disconnect', result.error)
+    return result.value.task
+  }
+
+  async restore(request: TaskboardRestoreRequest): Promise<TaskboardTask> {
+    const result = await this.model.restore(request)
+    if (!result.ok) throw new TaskboardCommandError('restore', result.error)
+    return result.value.task
+  }
+
+  async duplicate(request: TaskboardDuplicateRequest): Promise<TaskboardTask> {
+    const result = await this.model.duplicate(request)
+    if (!result.ok) throw new TaskboardCommandError('duplicate', result.error)
+    return result.value.task
+  }
+
+  async confirmPermissions(request: TaskboardConfirmPermissionsRequest): Promise<TaskboardTask> {
+    const result = await this.model.confirmPermissions(request)
+    if (!result.ok) throw new TaskboardCommandError('confirm permissions', result.error)
+    return result.value.task
+  }
+
+  async executionOptions(): Promise<TaskboardExecutionOptionsValue> {
+    const result = await this.model.executionOptions()
+    if (!result.ok) throw new TaskboardCommandError('execution options', result.error)
+    return result.value
+  }
+
+  async updateSettings(request: TaskboardUpdateSettingsRequest): Promise<TaskboardRuntimeState> {
+    const result = await this.model.updateSettings(request)
+    if (!result.ok) throw new TaskboardCommandError('update settings', result.error)
+    return result.value
+  }
+
+  async openAgencyCopilot(taskId: TaskId, executionId?: TaskExecutionId): Promise<TaskboardOpenAgencyCopilotValue['outcome']> {
+    const result = await this.model.openAgencyCopilot({ taskId, ...(executionId === undefined ? {} : { executionId }) })
     if (!result.ok) throw new TaskboardCommandError('open Agency Copilot', result.error)
     return result.value.outcome
-  }
-
-  async clearAgencyCopilot(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask> {
-    const result = await this.model.clearAgencyCopilot({ taskId, expectedRevision })
-    if (!result.ok) throw new TaskboardCommandError('clear Agency Copilot', result.error)
-    return result.value.task
   }
 
   async inspectAgencyCopilot(taskIds: readonly TaskId[]): Promise<void> {

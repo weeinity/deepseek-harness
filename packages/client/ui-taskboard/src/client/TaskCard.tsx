@@ -25,11 +25,12 @@ export interface TaskCardProps {
 /**
  * Render one keyboard-openable, draggable task card.
  * @param props - Durable task, live activity, and card interactions.
- * @returns the task summary with independent planning and execution status.
+ * @returns the task summary with its workflow status and execution activity.
  */
 export function TaskCard(props: TaskCardProps) {
   const activity = taskActivity(props.task, props.sessions)
   const archived = props.task.archivedAt !== undefined
+  const lastExecution = props.task.executions.at(-1)
   const openOnKey = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
@@ -71,10 +72,13 @@ export function TaskCard(props: TaskCardProps) {
         <span className={css.statusBadge} data-status={props.task.status}>{statusLabel(props.t, props.task.status)}</span>
         {activity.blocked ? <span className={css.blocked}>{props.t('blocked')}</span>
           : activity.running && <span className={css.running}><span className={css.pulse} />{props.t('live')}</span>}
-        {props.task.agencyCopilotSessionId !== undefined && (
+        {props.task.connection?.kind === 'copilot' && (
           <span className={!archived && props.agencyStatus === 'in_use' ? css.running : css.linked}>
             {archived ? props.t('copilotLinked') : agencyStatusLabel(props.agencyStatus, props.t)}
           </span>
+        )}
+        {lastExecution !== undefined && (
+          <span>{props.t(`execution.${lastExecution.status}`)}</span>
         )}
       </div>
       <div className={css.cardFooter}>
@@ -82,8 +86,8 @@ export function TaskCard(props: TaskCardProps) {
           {props.t('updatedAt', { time: taskTimeLabel(props.t, props.task.updatedAt, props.now) })}
         </time>
         <span className={css.cardSpacer} />
-        {props.task.sessionId === undefined ? <span>{props.t('noSession')}</span>
-          : <span className={css.linked}><IconLinkOutline14 size={12} />{String(props.task.sessionId).slice(0, 6)}</span>}
+        {props.task.connection === undefined ? <span>{props.t(props.task.unresolvedConnections === undefined ? 'noSession' : 'legacyChoice')}</span>
+          : <span className={css.linked}><IconLinkOutline14 size={12} />{String(props.task.connection.sessionId).slice(0, 6)}</span>}
         {activity.jobs > 0 && <span>{props.t('jobs', { count: activity.jobs })}</span>}
       </div>
     </article>

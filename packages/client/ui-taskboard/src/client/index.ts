@@ -62,27 +62,28 @@ export function apply(ctx: Context): void {
     },
     archiveTask: async (task) => { await taskboard.archive(task.id, task.revision) },
     deleteTask: async (task) => { await taskboard.delete(task.id, task.revision) },
-    startWork: async (task) => {
-      const sessionId = await sessions.create({ workspaceId: task.workspaceId })
-      const linked = await updateTask(task, { sessionId })
-      if (linked.status !== 'in_progress') {
-        await taskboard.move({
-          taskId: linked.id,
-          expectedRevision: linked.revision,
-          status: 'in_progress',
-        })
-      }
-      openSession(sessionId)
+    startWork: async (task, requestId) => {
+      const result = await taskboard.run({ taskId: task.id, expectedRevision: task.revision, requestId })
+      if (result.task.connection?.kind === 'dsh') openSession(result.task.connection.sessionId)
     },
+    connectTask: async (task, selected, executionSettings) => {
+      await taskboard.connect({
+        taskId: task.id, expectedRevision: task.revision, connection: selected,
+        ...(executionSettings === undefined ? {} : { executionSettings }),
+      })
+    },
+    disconnectTask: async (task) => { await taskboard.disconnect({ taskId: task.id, expectedRevision: task.revision }) },
+    restoreTask: async (task) => { await taskboard.restore({ taskId: task.id, expectedRevision: task.revision }) },
+    confirmPermissions: async (task) => { await taskboard.confirmPermissions({ taskId: task.id, expectedRevision: task.revision }) },
+    executionOptions: () => taskboard.executionOptions(),
+    updateSettings: patch => taskboard.updateSettings({ patch }),
     openSession,
     agencyCopilotCapability: () => taskboard.agencyCopilotCapability(),
     listAgencyCopilotSessions: workspaceId => taskboard.listAgencyCopilotSessions(workspaceId),
-    startAgencyCopilot: async (task) => { await taskboard.startAgencyCopilot(task.id, task.revision) },
-    openAgencyCopilot: task => taskboard.openAgencyCopilot(task.id),
-    clearAgencyCopilot: async (task) => { await taskboard.clearAgencyCopilot(task.id, task.revision) },
+    openAgencyCopilot: (task, executionId) => taskboard.openAgencyCopilot(task.id, executionId),
     refreshAgencyCopilot: async (tasks) => {
       const taskIds = [...new Set(tasks.flatMap(task =>
-        task.agencyCopilotSessionId === undefined ? [] : [task.id]))]
+        task.connection?.kind === 'copilot' ? [task.id] : []))]
       for (let offset = 0; offset < taskIds.length; offset += 100) {
         await taskboard.inspectAgencyCopilot(taskIds.slice(offset, offset + 100))
       }

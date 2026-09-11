@@ -101,4 +101,18 @@ describe('CopilotSessionPicker', () => {
     expect(screen.getByRole<HTMLSelectElement>('combobox').disabled).toBe(true)
     expect(screen.getByRole<HTMLButtonElement>('button', { name: en.copilotSessionsRefresh }).disabled).toBe(true)
   })
+
+  it('ignores a failed retired discovery and renders opaque errors from the active request', async () => {
+    const value = props()
+    const retired = Promise.withResolvers<TaskboardListAgencyCopilotSessionsValue>()
+    vi.mocked(value.listSessions).mockReturnValueOnce(retired.promise).mockRejectedValueOnce('Connection unavailable')
+    const view = render(<CopilotSessionPicker {...value} />)
+    try {
+      view.rerender(<CopilotSessionPicker {...value} workspaceId={'next-workspace' as Props['workspaceId']} />)
+      await screen.findByText('Could not load Copilot sessions: Connection unavailable')
+      await act(async () => { retired.reject(new Error('Retired discovery failed')) })
+      expect(screen.queryByText(/Retired discovery failed/)).toBeNull()
+      expect(screen.getByRole('alert').textContent).toContain('Connection unavailable')
+    } finally { await act(async () => { retired.resolve(available) }) }
+  })
 })

@@ -3,14 +3,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { IconPlusOutline16, IconSearchOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  TaskboardTask, TaskId, TaskStatus,
+  TaskboardCreateRequest, TaskboardExecutionOptionsValue, TaskboardTask, TaskId, TaskStatus,
 } from '@deepseek-ai/dsh-api-taskboard-controller/client'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { TaskboardSurfaceProps } from './contract.ts'
 import { NewTaskDialog } from './NewTaskDialog.tsx'
 import { TaskCard } from './TaskCard.tsx'
 import { TaskDetailsDialog } from './TaskDetailsDialog.tsx'
-import { statusLabel, taskActivity, TASK_STATUSES } from './view.ts'
+import { TaskboardSettings } from './TaskboardSettings.tsx'
+import { statusLabel, taskActivity, taskboardErrorText, TASK_STATUSES } from './view.ts'
 import css from './Taskboard.module.css'
 
 const TASK_DRAG_MIME = 'application/x-dsh-taskboard-task'
@@ -37,6 +38,11 @@ export function Taskboard(props: TaskboardSurfaceProps) {
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
   const [hostCopilotLaunch, setHostCopilotLaunch] = useState(false)
+  const [options, setOptions] = useState<TaskboardExecutionOptionsValue>()
+  const [optionsError, setOptionsError] = useState<string>()
+  const [optionsRefresh, setOptionsRefresh] = useState(0)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [copy, setCopy] = useState<{ source: TaskboardTask; initial: TaskboardCreateRequest }>()
   const rootRef = useRef<HTMLDivElement>(null)
 
   const matchingTasks = useMemo(() => {
@@ -50,11 +56,11 @@ export function Taskboard(props: TaskboardSurfaceProps) {
   const now = Date.now()
   const selected = taskboard.tasks.find(task => task.id === selectedId)
   const runningDsh = new Set(tasks.flatMap(task =>
-    task.sessionId !== undefined && taskActivity(task, sessions).running ? [task.sessionId] : [],
+    task.connection?.kind === 'dsh' && taskActivity(task, sessions).running ? [task.connection.sessionId] : [],
   ))
   const runningCopilot = new Set(tasks.flatMap(task =>
-    task.agencyCopilotSessionId !== undefined && taskboard.agencyByTask[task.id]?.status === 'in_use'
-      ? [task.agencyCopilotSessionId]
+    task.connection?.kind === 'copilot' && taskboard.agencyByTask[task.id]?.status === 'in_use'
+      ? [task.connection.sessionId]
       : [],
   ))
   const running = runningDsh.size + runningCopilot.size
@@ -65,13 +71,22 @@ export function Taskboard(props: TaskboardSurfaceProps) {
   const creationWorkspace = workspaceFilter === 'all'
     ? currentWorkspace ?? workspaces.items[0]?.workspaceId
     : workspaceFilter
-  const agencyTasks = taskboard.tasks.filter(task => task.archivedAt === undefined && task.agencyCopilotSessionId !== undefined)
-  const agencyTaskKey = agencyTasks.map(task => `${task.id}:${task.agencyCopilotSessionId}`).join('|')
+  const agencyTasks = taskboard.tasks.filter(task => task.archivedAt === undefined && task.connection?.kind === 'copilot')
+  const agencyTaskKey = agencyTasks.map(task => `${task.id}:${task.connection?.sessionId}`).join('|')
 
   useEffect(() => {
     if (selectedId !== undefined && selected === undefined) setSelectedId(undefined)
   }, [selected, selectedId])
   useEffect(() => { rootRef.current?.focus() }, [])
+  useEffect(() => {
+    let active = true
+    setOptionsError(undefined)
+    props.executionOptions().then(
+      (value) => { if (active) setOptions(value) },
+      (reason: unknown) => { if (active) setOptionsError(reason instanceof Error ? reason.message : String(reason)) },
+    )
+    return () => { active = false }
+  }, [props.executionOptions, optionsRefresh])
   useEffect(() => {
     let active = true
     props.agencyCopilotCapability().then(
@@ -91,7 +106,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
     try {
       await operation()
     } catch (reason) {
-      setError(props.t('error', { message: reason instanceof Error ? reason.message : String(reason) }))
+      setError(props.t('error', { message: taskboardErrorText(reason, props.t) }))
     }
   }
   useEffect(() => {
@@ -111,6 +126,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
       : undefined
     setDraggedId(undefined)
     if (!dragEnabled || task === undefined || (task.status === status && task.id === beforeTaskId)) return
+    if (task.status !== status && !task.allowedManualStatuses.includes(status)) return
     const anchor = beforeTaskId === undefined ? undefined : taskboard.tasks.find(candidate => candidate.id === beforeTaskId)
     if (anchor !== undefined && anchor.workspaceId !== task.workspaceId) return
     void attempt(() => props.moveTask(task, status, beforeTaskId))
@@ -171,6 +187,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
             ))}
           </select>
           <button type="button" className={css.secondaryButton} onClick={props.closeSurface}>{props.t('close')}</button>
+          <button type="button" className={css.secondaryButton} onClick={() =>{  setSettingsOpen(true) }}>{props.t('settings')}</button>
           <button type="button" className={showArchived ? css.primaryButton : css.secondaryButton} onClick={() => {
             setShowArchived(!showArchived)
             setSelectedId(undefined)
@@ -179,73 +196,88 @@ export function Taskboard(props: TaskboardSurfaceProps) {
           <button
             type="button"
             className={css.primaryButton}
-            disabled={creationWorkspace === undefined}
+            disabled={creationWorkspace === undefined || taskboard.runtime?.settings.enabled !== true || options === undefined}
             onClick={() => {
               setError(undefined)
               setNotice(undefined)
-              setNewTaskStatus('backlog')
+              setNewTaskStatus('todo')
             }}
           ><IconPlusOutline16 />{props.t('newTask')}</button>
         </div>
       </header>
       {error !== undefined && <div className={css.errorBanner}>{error}</div>}
       {notice !== undefined && <div className={css.noticeBanner}>{notice}</div>}
-      {sourceError !== null ? <div className={css.errorBanner} role="alert">{sourceError.message}</div>
-        : taskboard.phase === 'pending' || workspaces.phase === 'pending' ? <div className={css.centerMessage} role="status">{props.t('loading')}</div>
-          : workspaces.items.length === 0 ? <div className={css.centerMessage}>{props.t('noWorkspace')}</div>
-            : showArchived ? (
-              <div className={css.archiveViewport}>
-                <section className={css.archivePanel} aria-label={props.t('archiveTitle')}>
-                  <div className={css.archiveHeader}>
-                    <h2>{props.t('archiveTitle')}</h2>
-                    <span className={css.count}>{tasks.length}</span>
-                  </div>
-                  <div className={css.archiveList}>{tasks.map(renderCard)}</div>
-                  {tasks.length === 0 && <div className={css.empty}>{props.t('archiveEmpty')}</div>}
-                </section>
-              </div>
-            ) : (
-              <div className={css.boardViewport}>
-                <div className={css.board}>
-                  {TASK_STATUSES.map((status) => {
-                    const columnTasks = tasks.filter(task => task.status === status)
-                    return (
-                      <section key={status} className={css.column} data-status={status}>
-                        <div className={css.columnHeader}>
-                          <span className={css.statusDot} />
-                          <strong>{statusLabel(props.t, status)}</strong>
-                          <span className={css.count}>{columnTasks.length}</span>
-                        </div>
-                        <div
-                          className={css.cards}
-                          onDragOver={(event) => { event.preventDefault() }}
-                          onDrop={(event) => { event.preventDefault(); drop(status, event) }}
-                        >
-                          {columnTasks.map(renderCard)}
-                          {columnTasks.length === 0 && <div className={css.empty}>{props.t('empty')}</div>}
-                        </div>
-                      </section>
-                    )
-                  })}
+      {taskboard.runtime?.error !== undefined && <div className={css.errorBanner} role="alert">
+        {props.t('runtimeError', { message: taskboard.runtime.error })}
+      </div>}
+      {optionsError !== undefined && <div className={css.errorBanner} role="alert">
+        {props.t('optionsError', { message: optionsError })}
+        <button type="button" className={css.secondaryButton} onClick={() =>{  setOptionsRefresh(value => value + 1) }}>{props.t('optionsRetry')}</button>
+      </div>}
+      {sourceError !== null ? <div className={css.errorBanner} role="alert">{taskboardErrorText(sourceError, props.t)}</div>
+        : taskboard.phase === 'pending' || workspaces.phase === 'pending' || taskboard.runtime === undefined
+          ? <div className={css.centerMessage} role="status">{props.t('loading')}</div>
+          : !taskboard.runtime.settings.enabled ? <div className={css.centerMessage}>{props.t('boardDisabled')}</div>
+            : workspaces.items.length === 0 ? <div className={css.centerMessage}>{props.t('noWorkspace')}</div>
+              : showArchived ? (
+                <div className={css.archiveViewport}>
+                  <section className={css.archivePanel} aria-label={props.t('archiveTitle')}>
+                    <div className={css.archiveHeader}>
+                      <h2>{props.t('archiveTitle')}</h2>
+                      <span className={css.count}>{tasks.length}</span>
+                    </div>
+                    <div className={css.archiveList}>{tasks.map(renderCard)}</div>
+                    {tasks.length === 0 && <div className={css.empty}>{props.t('archiveEmpty')}</div>}
+                  </section>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className={css.boardViewport}>
+                  <div className={css.board}>
+                    {TASK_STATUSES.map((status) => {
+                      const columnTasks = tasks.filter(task => task.status === status)
+                      return (
+                        <section key={status} className={css.column} data-status={status}>
+                          <div className={css.columnHeader}>
+                            <span className={css.statusDot} />
+                            <strong>{statusLabel(props.t, status)}</strong>
+                            <span className={css.count}>{columnTasks.length}</span>
+                          </div>
+                          <div
+                            className={css.cards}
+                            onDragOver={(event) => { event.preventDefault() }}
+                            onDrop={(event) => { event.preventDefault(); drop(status, event) }}
+                          >
+                            {columnTasks.map(renderCard)}
+                            {columnTasks.length === 0 && <div className={css.empty}>{props.t('empty')}</div>}
+                          </div>
+                        </section>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+      {settingsOpen && <TaskboardSettings runtime={taskboard.runtime} updateSettings={props.updateSettings}
+        t={props.t} onClose={() =>{  setSettingsOpen(false) }} />}
       {newTaskStatus !== undefined && creationWorkspace !== undefined && (
         <NewTaskDialog
           key={`${creationWorkspace}:${newTaskStatus}`}
           workspaceId={creationWorkspace}
           workspaces={workspaces}
+          sessions={sessions}
+          options={options}
           status={newTaskStatus}
           t={props.t}
-          error={error}
           listAgencyCopilotSessions={props.listAgencyCopilotSessions}
-          onCancel={() => { setNewTaskStatus(undefined) }}
-          onCreate={request => attempt(async () => {
-            const created = await props.createTask(request)
+          {...(copy === undefined ? {} : { initial: copy.initial, sourceTask: copy.source })}
+          onCancel={() => { setNewTaskStatus(undefined); setCopy(undefined) }}
+          onCreate={props.createTask}
+          onArchiveOriginal={props.archiveTask}
+          onCreated={(created, closeAfterSave) => {
             setNewTaskStatus(undefined)
+            setCopy(undefined)
             setShowArchived(false)
-            setSelectedId(created.id)
-          })}
+            setSelectedId(closeAfterSave ? undefined : created.id)
+          }}
         />
       )}
       {selected !== undefined && (
@@ -260,41 +292,52 @@ export function Taskboard(props: TaskboardSurfaceProps) {
           now={now}
           error={error}
           notice={notice}
+          options={options}
           listAgencyCopilotSessions={props.listAgencyCopilotSessions}
-          onClose={() => { setSelectedId(undefined) }}
-          onSave={(title, description, priority, labels, agencyCopilotSessionId) => attempt(() => props.updateTask(selected, {
-            title,
-            description,
-            priority: priority ?? null,
-            labels,
-            ...(agencyCopilotSessionId === undefined ? {} : { agencyCopilotSessionId }),
-          }))}
-          onMove={status => attempt(() => props.moveTask(selected, status))}
-          onArchive={() => attempt(async () => {
+          onClose={() => { setSelectedId(id => id === selected.id ? undefined : id) }}
+          onSave={(patch, expectedRevision) => props.updateTask({ ...selected, revision: expectedRevision }, patch)}
+          onMove={status => props.moveTask(selected, status)}
+          onArchive={async () => {
             await props.archiveTask(selected)
             setSelectedId(undefined)
-          })}
-          onDelete={() => attempt(async () => {
+          }}
+          onDelete={async () => {
             await props.deleteTask(selected)
             setSelectedId(undefined)
-          })}
-          onStart={() => attempt(() => props.startWork(selected))}
-          onOpenSession={() => {
-            if (selected.sessionId !== undefined) props.openSession(selected.sessionId)
           }}
-          onStartAgencyCopilot={() => attempt(async () => {
-            await props.startAgencyCopilot(selected)
-            setNotice(props.t('copilotStartAccepted'))
-          })}
-          onOpenAgencyCopilot={() => attempt(async () => {
-            const outcome = await props.openAgencyCopilot(selected)
-            setNotice(outcome === 'launch-pending'
-              ? props.t('copilotLaunchPending')
-              : outcome === 'already-running' ? props.t('copilotAlreadyRunning')
-                : outcome === 'resume-accepted' ? props.t('copilotResumeAccepted') : props.t('copilotRetryAccepted'))
-          })}
-          onClearAgencyCopilot={() => attempt(() => props.clearAgencyCopilot(selected))}
-          onRefreshAgencyCopilot={() => attempt(() => props.refreshAgencyCopilot([selected]))}
+          onRestore={async () => {
+            await props.restoreTask(selected)
+            setSelectedId(undefined)
+          }}
+          onDuplicate={(patch) => {
+            const schedule = patch.schedule === null ? undefined : patch.schedule ?? selected.schedule
+            const handover = patch.handover ?? undefined
+            setCopy({ source: selected, initial: {
+              workspaceId: patch.workspaceId, title: patch.title,
+              description: patch.description, prompt: patch.prompt,
+              executionSettings: patch.executionSettings, labels: patch.labels,
+              ...(patch.priority == null ? {} : { priority: patch.priority }),
+              ...(schedule === undefined ? {} : { schedule: { cron: schedule.cron, timeZone: schedule.timeZone, enabled: false } }),
+              ...(handover === undefined ? {} : { handover }),
+            } })
+            setNewTaskStatus(selected.status)
+            setSelectedId(undefined)
+          }}
+          onStart={requestId => props.startWork(selected, requestId)}
+          onConnect={(connection, settings) => props.connectTask(selected, connection, settings)}
+          onDisconnect={() => props.disconnectTask(selected)}
+          onConfirmPermissions={() => props.confirmPermissions(selected)}
+          onOpenSession={props.openSession}
+          onOpenAgencyCopilot={async (executionId) => {
+            const outcome = await props.openAgencyCopilot(selected, executionId)
+            const messages = {
+              'launch-pending': 'copilotLaunchPending',
+              'already-running': 'copilotAlreadyRunning',
+              'resume-accepted': 'copilotResumeAccepted',
+            } as const
+            setNotice(props.t(messages[outcome]))
+          }}
+          onRefreshAgencyCopilot={() => props.refreshAgencyCopilot([selected])}
         />
       )}
     </div>

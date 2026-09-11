@@ -6,12 +6,12 @@ import type { RemoteFailure, RemoteResult, TypertClientRemote } from '@deepseek-
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   AgencyCopilotObservation, TaskboardAgencyCopilotCapabilityValue, TaskboardArchiveRequest, TaskboardBaseline,
-  TaskboardClearAgencyCopilotRequest,
+  TaskboardConnectRequest, TaskboardConfirmPermissionsRequest, TaskboardDisconnectRequest, TaskboardDuplicateRequest,
   TaskboardCreateRequest, TaskboardDeleteRequest, TaskboardInspectAgencyCopilotRequest, TaskboardInspectAgencyCopilotValue,
   TaskboardListAgencyCopilotSessionsRequest, TaskboardListAgencyCopilotSessionsValue,
   TaskboardMoveRequest, TaskboardOpenAgencyCopilotRequest, TaskboardOpenAgencyCopilotValue,
-  TaskboardStartAgencyCopilotRequest, TaskboardStartAgencyCopilotValue, TaskboardTaskValue,
-  TaskboardUpdateRequest,
+  TaskboardExecutionOptionsValue, TaskboardRestoreRequest, TaskboardRunRequest, TaskboardRunValue, TaskboardRuntimeState,
+  TaskboardTaskValue, TaskboardUpdateRequest, TaskboardUpdateSettingsRequest,
 } from '../types.ts'
 
 /** Complete generated Taskboard Remote namespace. */
@@ -26,6 +26,8 @@ export interface TaskboardSnapshot {
   readonly state: 'idle' | 'loading' | 'error'
   readonly phase: TaskboardListPhase
   readonly error: RemoteFailure | null
+  /** Undefined until a Host baseline arrives; never inferred from browser defaults. */
+  readonly runtime: TaskboardRuntimeState | undefined
   /** Transient Agency status keyed by task; absent means not inspected yet. */
   readonly agencyByTask: Readonly<Partial<Record<TaskId, AgencyCopilotObservation>>>
   readonly agencyState: 'idle' | 'loading' | 'error'
@@ -37,6 +39,7 @@ export interface TaskboardFollowSink {
   replaceBaseline(value: TaskboardBaseline): void
   upsertTask(task: TaskboardTask): void
   removeTask(taskId: TaskId, revision: number): void
+  replaceRuntime(value: TaskboardRuntimeState): void
 }
 
 /** Owns Client Taskboard projection, unary echoes, and subscriptions. */
@@ -45,6 +48,7 @@ export class ClientTaskboardModel implements TaskboardFollowSink {
   private state: TaskboardSnapshot['state'] = 'loading'
   private phase: TaskboardListPhase = 'pending'
   private error: RemoteFailure | null = null
+  private runtime: TaskboardRuntimeState | undefined
   private readonly agencyObservations = new Map<TaskId, AgencyCopilotObservation>()
   private readonly agencyRequestTokens = new Map<TaskId, number>()
   private agencyState: TaskboardSnapshot['agencyState'] = 'idle'
@@ -130,25 +134,78 @@ export class ClientTaskboardModel implements TaskboardFollowSink {
   }
 
   /**
-   * Start a fresh Host-generated Agency Copilot identity and install the committed task echo.
-   * @param request - Exact task revision to link and launch.
-   * @returns generated Remote result carrying the committed task.
+   * Dispatch work and install the Host's acknowledged task and attempt.
+   * @param request - Exact saved revision and stable retry identity.
+   * @returns generated dispatch acknowledgement, not model completion.
    */
-  async startAgencyCopilot(request: TaskboardStartAgencyCopilotRequest): Promise<RemoteResult<TaskboardStartAgencyCopilotValue>> {
-    const result = await this.remote.startAgencyCopilot(request)
+  async run(request: TaskboardRunRequest): Promise<RemoteResult<TaskboardRunValue>> {
+    const result = await this.remote.run(request)
     if (result.ok) this.upsertTask(result.value.task)
     return result
   }
 
   /**
-   * Clear one Agency Copilot link and install the committed task echo.
-   * @param request - Exact linked task revision to clear.
-   * @returns generated Remote result carrying the committed task.
+   * Associate an existing conversation without submitting work.
+   * @param request - Revision-checked connection selection.
+   * @returns committed task result.
    */
-  async clearAgencyCopilot(request: TaskboardClearAgencyCopilotRequest): Promise<RemoteResult<TaskboardTaskValue>> {
-    const result = await this.remote.clearAgencyCopilot(request)
+  async connect(request: TaskboardConnectRequest): Promise<RemoteResult<TaskboardTaskValue>> {
+    const result = await this.remote.connect(request)
     if (result.ok) this.upsertTask(result.value.task)
     return result
+  }
+
+  /** Disconnect the current conversation.
+   * @param request - Exact saved revision.
+   * @returns committed task result.
+   */
+  async disconnect(request: TaskboardDisconnectRequest): Promise<RemoteResult<TaskboardTaskValue>> {
+    const result = await this.remote.disconnect(request)
+    if (result.ok) this.upsertTask(result.value.task)
+    return result
+  }
+
+  /** Restore an archived task.
+   * @param request - Exact archived revision.
+   * @returns committed task result with its schedule disabled.
+   */
+  async restore(request: TaskboardRestoreRequest): Promise<RemoteResult<TaskboardTaskValue>> {
+    const result = await this.remote.restore(request)
+    if (result.ok) this.upsertTask(result.value.task)
+    return result
+  }
+
+  /** Duplicate saved task fields.
+   * @param request - Exact source revision.
+   * @returns independent committed task result.
+   */
+  async duplicate(request: TaskboardDuplicateRequest): Promise<RemoteResult<TaskboardTaskValue>> {
+    const result = await this.remote.duplicate(request)
+    if (result.ok) this.upsertTask(result.value.task)
+    return result
+  }
+
+  /** Confirm saved permission and handover inputs.
+   * @param request - Exact saved revision.
+   * @returns committed task result.
+   */
+  async confirmPermissions(request: TaskboardConfirmPermissionsRequest): Promise<RemoteResult<TaskboardTaskValue>> {
+    const result = await this.remote.confirmPermissions(request)
+    if (result.ok) this.upsertTask(result.value.task)
+    return result
+  }
+
+  /** Load authoritative presets, permissions, models, and execution availability.
+   * @returns Host option catalog.
+   */
+  executionOptions(): Promise<RemoteResult<TaskboardExecutionOptionsValue>> { return this.remote.executionOptions() }
+
+  /** Persist switches; follow frames supply ordered runtime state.
+   * @param request - Explicit setting changes.
+   * @returns committed Host runtime state.
+   */
+  updateSettings(request: TaskboardUpdateSettingsRequest): Promise<RemoteResult<TaskboardRuntimeState>> {
+    return this.remote.updateSettings(request)
   }
 
   /**
@@ -192,7 +249,8 @@ export class ClientTaskboardModel implements TaskboardFollowSink {
     for (const observation of result.value.observations) {
       if (this.agencyRequestTokens.get(observation.taskId) !== generation) continue
       const task = this.tasks.find(candidate => candidate.id === observation.taskId)
-      if (task?.archivedAt === undefined && task?.agencyCopilotSessionId === observation.sessionId) {
+      if (task?.archivedAt === undefined && task?.connection?.kind === 'copilot'
+        && task.connection.sessionId === observation.sessionId) {
         this.agencyObservations.set(observation.taskId, observation)
       }
     }
@@ -215,6 +273,7 @@ export class ClientTaskboardModel implements TaskboardFollowSink {
       if (baselineTask !== undefined && task.revision > baselineTask.revision) byId.set(task.id, task)
     }
     this.tasks = [...byId.values()].sort(compareTasks)
+    this.runtime = baseline.runtime
     this.pruneAgencyObservations()
     this.state = 'idle'
     this.phase = 'ready'
@@ -238,9 +297,19 @@ export class ClientTaskboardModel implements TaskboardFollowSink {
       .sort(compareTasks)
     const observation = this.agencyObservations.get(task.id)
     if (observation !== undefined
-      && (task.archivedAt !== undefined || observation.sessionId !== task.agencyCopilotSessionId)) {
+      && (task.archivedAt !== undefined || task.connection?.kind !== 'copilot'
+        || observation.sessionId !== task.connection.sessionId)) {
       this.agencyObservations.delete(task.id)
     }
+    this.invalidate()
+  }
+
+  /** Replace ordered Host runtime observations.
+   * @param value - Complete settings, scheduler, and power state.
+   */
+  replaceRuntime(value: TaskboardRuntimeState): void {
+    if (this.runtime === value) return
+    this.runtime = value
     this.invalidate()
   }
 
@@ -295,7 +364,7 @@ export class ClientTaskboardModel implements TaskboardFollowSink {
 
   private buildSnapshot(): TaskboardSnapshot {
     return {
-      tasks: this.tasks, state: this.state, phase: this.phase, error: this.error,
+      tasks: this.tasks, state: this.state, phase: this.phase, error: this.error, runtime: this.runtime,
       agencyByTask: Object.fromEntries(this.agencyObservations),
       agencyState: this.agencyState, agencyError: this.agencyError,
     }
@@ -304,7 +373,7 @@ export class ClientTaskboardModel implements TaskboardFollowSink {
   private pruneAgencyObservations(): void {
     const live = new Map(this.tasks
       .filter(task => task.archivedAt === undefined)
-      .map(task => [task.id, task.agencyCopilotSessionId]))
+      .map(task => [task.id, task.connection?.kind === 'copilot' ? task.connection.sessionId : undefined]))
     for (const [taskId, observation] of this.agencyObservations) {
       if (live.get(taskId) !== observation.sessionId) this.agencyObservations.delete(taskId)
     }

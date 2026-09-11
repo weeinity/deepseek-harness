@@ -1,6 +1,6 @@
-# Agent Note：原生 Workspace 任务看板模式
+# Agent Note: 原生 Workspace 任务看板模式
 
-状态：已实现
+Status: implemented
 
 [English](2026-09-01-native-workspace-taskboard.md) | 中文
 
@@ -12,21 +12,23 @@ DSH 已有持久 Workspace、Session 与实时 Goal、Job、Subagent 状态，�
 
 ## 决策
 
-发布原生 Workspace 五列任务看板，分三层：`dsh-taskboard` 经 storage-domain 拥有带修订检查的持久记录；`dsh-api-taskboard-controller` 暴露命令与可重连 baseline/increment 流；`dsh-client-ui-taskboard` 渲染看板与 Session 关联。
+发布原生 Workspace 五列任务看板，分三层：`dsh-taskboard` 经 storage-domain 拥有带修订检查的持久记录；`dsh-api-taskboard-controller` 暴露命令与可重连 baseline/increment 流；`dsh-client-ui-taskboard` 渲染看板。[执行与唯一对话决策](2026-09-09-taskboard-execution-and-conversations.zh.md) 取代本说明中的独立关联与终端拥有启动策略；本说明仍负责展示和计划的设计理由。
 
-Web profile 挂载 SQLite 作为第二存储后端，仅把 `taskboard` domain 路由到它；基础 profile 保持 JSON 默认。任务记录包含稳定 UUID、Workspace、显式 `backlog|todo|in_progress|in_review|done` 状态、rank、正修订号、时间戳、可选优先级与标签、可选原生 DSH Session id，以及独立可选的 Agency Copilot CLI UUID。归档与状态正交。
+Web profile 挂载 SQLite 作为第二存储后端，仅把 `taskboard` domain 路由到它；基础 profile 保持 JSON 默认。计划记录包含稳定 UUID、Workspace、显式 `backlog|todo|in_progress|in_review|done` 状态、rank、正修订号、时间戳、可选优先级与标签。归档与状态正交。
 
 AppFrame 拥有 root-scoped keyed `main.surface`，选择值位于 root layout store。活跃 entry 横跨 center 与 details grid track，Sidebar 不被覆盖。Conversation 与 Details 以原尺寸保持挂载，但变为不可见、inert 且不可访问。AppFrame 向 Conversation 传入 `active:false`，让附件 document listener 与 body portal 草稿预览关闭而不是越过任务看板。
 
-侧栏入口注册在 `sidebar.footer.action`。Session 导航先打开 Session 再关闭 Taskboard，非法 id 会保留看板。开始原生 DSH 工作时创建 Workspace Session、以 CAS 关联、把返回修订移动到 In Progress，再打开 Session。独立地，loopback-only **使用 Copilot 开始**由宿主生成并以 CAS 关联 UUID，再在不可变 Workspace path 中把固定 `agency copilot --session-id <uuid> --interactive <task>` 选项交给 Windows Terminal。持久保存的标题和描述组成初始用户提示词。打开/恢复会扫描有界 Agency JSON，避免重复启动 `in_use` 标识，并对已观察为 idle 的状态使用 `--resume=<uuid>` 而不再次提交提示词。只有确认标识不存在时，才允许携带任务内容重试新建启动。浏览器不提供 executable、argv、cwd 或环境；新建启动不接受调用方生成的 UUID。
+侧栏入口注册在 `sidebar.footer.action`。Session 导航先打开 Session 再关闭 Taskboard，非法 id 会保留看板。Run 等待宿主确认调度后才导航。未保存的执行输入会阻止调度，而不是静默发送旧内容；打开关联对话绝不重新提交指令。
 
-新建任务与任务编辑也支持关联现有的本地 Copilot CLI 会话。宿主发现有界的 Agency 记录，并按任务工作区的规范路径筛选。更改后的选择会先根据当前 Agency 数据验证，再在修订 CAS 下把内容与关联一起提交。这既防止任意跨工作区关联，也防止关联失败后留下孤立任务。未更改的关联不需要发现，因此离线时仍可编辑普通任务信息。关联与执行彼此独立：它不会打开或恢复终端、重新提交指令、改变计划状态，也不会替换原生 DSH Session 关联。
+新建任务与任务编辑支持关联现有对话。宿主在提交更改后的选择前验证 Workspace 归属。创建可同时保存内容和经过验证的关联，防止关联验证失败后留下孤立任务。普通计划信息编辑不需要 provider 发现。
 
-任务文本经过 Windows Terminal 的分号解析器和命令行重建后仍保持为数据。adapter 复用共享 Win32 参数引用，并补偿 Terminal 添加的外层引号。过长命令行会显式失败而不是截断任务。Copilot 负责外部用户消息日志，并保留正常交互式工具审批；DSH 不把任务注入无关的原生 Session。
+原生终端导航使用宿主推导的标识和已注册 Workspace 路径。浏览器不提供 executable、argv、cwd 或环境。adapter 在经过 Windows Terminal 分号解析器和命令行重建时，保留固定恢复参数与共享 Win32 引用规则。
 
-实时 Session、Goal、Job 与 Subagent 事实只装饰卡片，绝不改变持久状态。Agent 完成可以建议 In Review，但不能静默标记 Done。
+**已被取代的状态策略：** 实时 Session、Goal、Job 与 Subagent 事实只装饰卡片，绝不改变持久状态。Agent 完成可以建议 In Review，但不能静默标记 Done。[执行驱动的列状态](2026-09-09-taskboard-execution-driven-columns.zh.md) 对关联的 Taskboard 执行取代此规则；无关实时事实仍只用于装饰。
 
-创建任务与选择卡片打开同一个居中详情对话框。活动与已归档记录共享 controller snapshot；`archivedAt` 决定记录进入全宽归档列表而非活动列。归档是 upsert 而非删除，因此刷新可以恢复记录及其原始状态。Client 保留较新的任务修订，避免延迟回显或 baseline 回退；实际任务或 Workspace 移除则保留删除 tombstone。归档详情允许删除和现有 DSH Session 导航，但不允许编辑或 Copilot 启动。controller 丢弃已归档任务的 Agency 观察结果，包括延迟返回的检查结果。
+新建任务在保存或保存并关闭成功前保留本地草稿。保存后继续使用与选择卡片相同的居中详情对话框；保存并关闭则返回看板。取消丢弃未保存的创建草稿，不执行写入。归档和删除仅适用于已保存任务。关闭等待持久化完成，使被拒绝的保存及其草稿保持可见；延迟完成的保存不能关闭另一项已选任务。
+
+活动与已归档记录共享 controller snapshot；`archivedAt` 决定记录进入全宽归档列表而非活动列。归档是 upsert 而非删除，因此刷新可以恢复记录及其原始状态。Client 保留较新的任务修订，避免延迟回显或 baseline 回退；实际任务或 Workspace 移除则保留删除 tombstone。归档详情允许恢复、删除和对话导航，但不允许执行或内容编辑。controller 丢弃已归档任务的 Agency 观察结果，包括延迟返回的检查结果。
 
 确认删除只移除经过修订检查的 Taskboard 记录。会话关联不转移所有权：关联的 DSH Session、现有 Copilot CLI 会话和用户终端在任务删除后仍然保留。宿主将删除与 Agency 交接串行化；Client 仅在成功后应用权威移除结果，防止延迟任务回显重新创建已删除卡片。删除被拒绝时，任务保持可见，允许显式重试。
 
@@ -44,7 +46,7 @@ AppFrame 拥有 root-scoped keyed `main.surface`，选择值位于 root layout s
 
 **打开空白 CLI 或每次恢复都重新提交。** 空白 CLI 不会开始任务。重新提交可能重复已经完成的变更，因此现有会话仍由用户控制。
 
-**使用非交互式提示词模式。** 它在完成后退出，不能保留终端供后续工作使用。
+**把原生 Session 创建当作任务执行。** 创建只提供可寻址的 Session。prompt API 负责输入接纳、用户消息记录与 Agent 执行；Taskboard 使用该 API，而不是复制循环或根据空 Session 推断成功。
 
 **只在浏览器状态中保留归档卡片。** 页面刷新会丢失归档列表。同一个权威任务 feed 同时承载活动与归档记录，由展示层筛选，不创建另一份业务状态 store。
 
@@ -54,13 +56,15 @@ AppFrame 拥有 root-scoped keyed `main.surface`，选择值位于 root layout s
 
 ## 测试
 
-Domain 测试覆盖排序、修订竞争、独立 DSH/Copilot 关联、Session membership、归档与重启；controller 测试覆盖 baseline-first stream、失败映射、有界无 shell Agency 解析、精确 Windows Terminal argv、先持久提交后启动顺序与陈旧 upsert tombstone；Client 测试覆盖 Agency 状态隔离、注册生命周期、入口状态、CRUD 错误、拖动/状态移动与关联 Session 导航；layout 与浏览器测试覆盖 Conversation 几何、草稿/滚动状态、portal 暂停、焦点、不执行真实 native launch 的 Copilot 控件与 Web composition。
+计划测试覆盖排序、修订竞争、Workspace 归属、归档和重启。controller 与 Client 测试保留 baseline-first stream、失败可见性、延迟响应防护、注册生命周期、拖动/状态移动和对话导航。布局与浏览器测试覆盖 Conversation 几何、草稿、滚动状态、portal 暂停、焦点、不启动真实终端的原生打开控件，以及 Web composition。
 
-归档 feed 测试覆盖重新打开的宿主投影、归档 upsert 和 Workspace 移除。Client 测试验证归档在陈旧更新与重连后仍然保留、延迟 Agency 观察结果被丢弃，以及计划状态与实时活动保持独立。任务看板组件测试覆盖创建后自动打开详情、双语归档筛选、只读归档详情，以及模态框内的操作反馈。
+归档 feed 测试覆盖重新打开的宿主投影、归档 upsert 和 Workspace 移除。Client 测试验证归档在陈旧更新与重连后仍然保留、延迟 Agency 观察结果被丢弃，以及计划状态与实时活动保持独立。任务看板组件测试覆盖未保存草稿的取消、两种保存选择、等待中与失败的保存、任务移除后延迟完成的保存、双语归档筛选、只读归档详情，以及模态框内的操作反馈。
 
-现有会话关联测试覆盖按工作区筛选的发现、切换工作区后的陈旧结果、明确的发现失败与重试、原子创建/编辑/清除、独立 DSH 关联，以及重新加载后的持久性。组件与组装 fixture 用例选择现有 CLI 会话而不启动新会话。
+现有对话测试覆盖按 Workspace 筛选的发现、Workspace 更改后的陈旧选择、可见发现失败、带关联的原子创建、明确断开，以及重新加载后的持久性。组件与组装用例选择对话而不开始工作。
 
 删除测试覆盖活动与已归档记录、删除记录之外的会话关联保留、修订冲突、移除帧、延迟回显和宿主重新打开后的状态。UI 测试覆盖双语确认、取消后保留草稿、失败与重试和重复提交防护；组装场景删除活动与已归档任务。
+
+执行与恢复覆盖遵循[执行决策](2026-09-09-taskboard-execution-and-conversations.zh.md#testing)。[Taskboard 启动场景](../../../../snapshots/web/taskboard-start-work/)保留组装 Web 路径和借用的真实响应流，支持无密钥回放。
 
 ## 后果
 

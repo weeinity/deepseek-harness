@@ -1,20 +1,23 @@
 /** Browser-safe Taskboard Remote request, result, and stream vocabulary. */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
-  AgencyCopilotSessionId, TaskboardCreateInput, TaskboardMoveInput, TaskboardTask,
-  TaskboardUpdateInput, TaskId,
+  AgencyCopilotSessionId, TaskboardConnectInput, TaskboardCreateInput, TaskboardDuplicateInput,
+  TaskboardMoveInput, TaskboardTask, TaskboardUpdateInput, TaskConnection, TaskExecutionId, TaskId, TaskRunRequestId, TaskStatus,
 } from '@deepseek-ai/dsh-taskboard/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { TaskboardRuntimeState, TaskboardSettings } from './runtime-types.ts'
 
 export type {
   TaskboardCreateInput, TaskboardDeleteValue, TaskboardMoveInput, TaskboardTask, TaskboardUpdateInput,
-  AgencyCopilotSessionId, TaskboardUpdatePatch, TaskId, TaskPriority, TaskStatus,
+  AgencyCopilotSessionId, TaskboardUpdatePatch, TaskConnection, TaskExecution, TaskExecutionId,
+  TaskExecutionSettings, TaskHandover, TaskId, TaskPriority, TaskRunRequestId, TaskSchedule, TaskScheduleInput, TaskStatus,
 } from '@deepseek-ai/dsh-taskboard/types'
+export type { TaskboardPowerState, TaskboardRuntimeState, TaskboardSettings } from './runtime-types.ts'
 
 /** Optional Workspace filter for a current Taskboard snapshot. */
 export interface TaskboardListRequest { readonly workspaceId?: WorkspaceId }
-/** Active and archived tasks matching a list request in registered Workspaces. */
-export interface TaskboardListValue { readonly tasks: readonly TaskboardTask[] }
+/** Requested tasks with authoritative Host runtime. */
+export type TaskboardListValue = TaskboardBaseline
 /** Durable create request. */
 export type TaskboardCreateRequest = TaskboardCreateInput
 /** Durable create or mutation response. */
@@ -27,6 +30,35 @@ export type TaskboardMoveRequest = TaskboardMoveInput
 export interface TaskboardArchiveRequest { readonly taskId: TaskId; readonly expectedRevision: number }
 /** Permanently delete an active or archived task at its exact current revision. */
 export interface TaskboardDeleteRequest { readonly taskId: TaskId; readonly expectedRevision: number }
+/** Admit work with a caller-owned identity that is safe to retry after a transport failure. */
+export interface TaskboardRunRequest {
+  readonly taskId: TaskId
+  readonly expectedRevision: number
+  readonly requestId: TaskRunRequestId
+  readonly initiator?: TaskConnection
+}
+/** Dispatch acknowledgement and its durable attempt identity; model completion remains asynchronous. */
+export interface TaskboardRunValue { readonly task: TaskboardTask; readonly executionId: TaskExecutionId }
+/** Select one validated existing conversation without submitting work. */
+export type TaskboardConnectRequest = TaskboardConnectInput
+/** Disconnect without deleting or submitting to the current conversation. */
+export interface TaskboardDisconnectRequest { readonly taskId: TaskId; readonly expectedRevision: number }
+/** Restore an archived task with its schedule disabled. */
+export interface TaskboardRestoreRequest { readonly taskId: TaskId; readonly expectedRevision: number }
+/** Confirm the saved execution permission and handover choices. */
+export interface TaskboardConfirmPermissionsRequest { readonly taskId: TaskId; readonly expectedRevision: number }
+/** Create an independent copy without connection, history, or permission confirmation. */
+export type TaskboardDuplicateRequest = TaskboardDuplicateInput
+/** Authoritative selectable execution options; an empty model catalog offers no inferred options. */
+export interface TaskboardExecutionOptionsValue {
+  readonly presets: readonly { readonly id: string; readonly name: string; readonly broken?: string; readonly isDefault: boolean }[]
+  readonly permissions: readonly { readonly name: string }[]
+  readonly models: readonly { readonly provider: string; readonly model: string; readonly name: string }[]
+  readonly timeZone: string
+  readonly copilotAvailable: boolean
+}
+/** Persist only explicitly edited Taskboard switches. */
+export interface TaskboardUpdateSettingsRequest { readonly patch: Partial<TaskboardSettings> }
 
 /** Whether this Host deployment permits local desktop Copilot launch. */
 export interface TaskboardAgencyCopilotCapabilityValue { readonly launch: boolean }
@@ -43,19 +75,17 @@ export interface TaskboardListAgencyCopilotSessionsValue {
   readonly sessions: readonly AgencyCopilotSessionOption[]
   readonly truncated: boolean
 }
-/** Start a fresh Agency Copilot terminal for one exact task revision. */
-export interface TaskboardStartAgencyCopilotRequest { readonly taskId: TaskId; readonly expectedRevision: number }
-/** Clear a task's independent Agency Copilot identity with revision CAS. */
-export interface TaskboardClearAgencyCopilotRequest { readonly taskId: TaskId; readonly expectedRevision: number }
-/** Open or resume the already-linked Agency Copilot terminal. */
-export interface TaskboardOpenAgencyCopilotRequest { readonly taskId: TaskId }
+/** Navigate a current or retained historical Agency conversation without submitting work or recreating a missing conversation. */
+export interface TaskboardOpenAgencyCopilotRequest {
+  readonly taskId: TaskId
+  /** Address a retained execution's connection instead of the current connection. */
+  readonly executionId?: TaskExecutionId
+}
 /** Inspect transient Agency state for linked tasks without launching a process. */
 export interface TaskboardInspectAgencyCopilotRequest { readonly taskIds: readonly TaskId[] }
-/** Host-accepted fresh Copilot launch and committed task link. */
-export interface TaskboardStartAgencyCopilotValue { readonly task: TaskboardTask; readonly launch: 'accepted' }
 /** Best-effort terminal handoff outcome for a linked Copilot identity. */
 export interface TaskboardOpenAgencyCopilotValue {
-  readonly outcome: 'launch-pending' | 'already-running' | 'resume-accepted' | 'create-retry-accepted'
+  readonly outcome: 'launch-pending' | 'already-running' | 'resume-accepted'
 }
 /** Transient Agency status; durable task planning status remains independent. */
 export type AgencyCopilotObservationStatus = 'unknown' | 'missing' | 'workspace_mismatch' | 'idle' | 'in_use'
@@ -72,6 +102,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** Task content or the selected Agency identity is invalid. */
     'taskboard/bad-request': Record<never, never>
+    /** Execution admission, schedule, connection, or permission validation failed. */
+    'taskboard/execution-error': { readonly taskId?: TaskId; readonly code: string }
     /** The requested task does not exist. */
     'taskboard/task-not-found': { readonly taskId: TaskId }
     /** The task is archived and cannot accept this operation. */
@@ -84,6 +116,12 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'taskboard/session-invalid': { readonly workspaceId: WorkspaceId; readonly sessionId: SessionId }
     /** The task's destination cannot use the requested anchor. */
     'taskboard/move-invalid': { readonly beforeTaskId: TaskId }
+    /** The task's current status does not permit the requested manual destination. */
+    'taskboard/manual-status-not-allowed': {
+      readonly taskId: TaskId
+      readonly currentStatus: TaskStatus
+      readonly requestedStatus: TaskStatus
+    }
     /** Agency discovery is unavailable or incomplete. */
     'taskboard/agency-unavailable': Record<never, never>
     /** This Host deployment does not permit native Agency launch. */
@@ -100,11 +138,12 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 /** Complete reconnect baseline of active and archived tasks in registered Workspaces. */
-export interface TaskboardBaseline { readonly tasks: readonly TaskboardTask[] }
+export interface TaskboardBaseline { readonly tasks: readonly TaskboardTask[]; readonly runtime: TaskboardRuntimeState }
 /** One ordered task change; archives upsert, task or Workspace deletions remove. */
 export type TaskboardFollowIncrement =
   | { readonly type: 'upsert'; readonly task: TaskboardTask }
   | { readonly type: 'remove'; readonly taskId: TaskId; readonly revision: number }
+  | { readonly type: 'runtime'; readonly value: TaskboardRuntimeState }
 /** Taskboard state stream; every generation begins with a complete baseline. */
 export type TaskboardFollowFrame =
   | { readonly type: 'baseline'; readonly value: TaskboardBaseline }

@@ -97,29 +97,38 @@ export class SqliteStorageBackend implements StorageBackend {
 
   private async materializeUnit(descriptor: KvUnitDescriptor): Promise<SqliteKvUnit> {
     const db = await this.ready
-    const row = db.prepare('SELECT version FROM units WHERE name = ?').get(descriptor.name) as
-      | { version: number }
-      | undefined
-    if (row === undefined) {
-      db.prepare('INSERT INTO units (name, version) VALUES (?, ?)').run(descriptor.name, descriptor.version)
-    } else if (row.version !== descriptor.version) {
-      throw new StorageError(
-        'version-mismatch',
-        `kv unit '${descriptor.name}' is stamped version ${row.version} on the medium, incompatible with descriptor version ${descriptor.version}`,
-      )
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const row = db.prepare('SELECT version FROM units WHERE name = ?').get(descriptor.name) as
+        | { version: number }
+        | undefined
+      if (row !== undefined && row.version !== descriptor.version
+        && !(descriptor.layout === 'per-record' && row.version < descriptor.version
+          && descriptor.compatibleVersions?.includes(row.version))) {
+        throw new StorageError(
+          'version-mismatch',
+          `kv unit '${descriptor.name}' is stamped version ${row.version} on the medium, incompatible with descriptor version ${descriptor.version}`,
+        )
+      }
+      for (const table of descriptor.tables) {
+        // Both segments passed UNIT_NAME_RE, so the identifier is safe in DDL.
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS "${recordTableName(descriptor.name, table)}" (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          ) STRICT
+        `)
+      }
+      const unit = new SqliteKvUnit(db, descriptor, () => { this.units.delete(descriptor.name) })
+      db.prepare(
+        'INSERT INTO units (name, version) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET version = excluded.version',
+      ).run(descriptor.name, descriptor.version)
+      db.exec('COMMIT')
+      return unit
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
     }
-    for (const table of descriptor.tables) {
-      // Both segments passed UNIT_NAME_RE, so the identifier is safe in DDL.
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS "${recordTableName(descriptor.name, table)}" (
-          key   TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        ) STRICT
-      `)
-    }
-    return new SqliteKvUnit(db, descriptor, () => {
-      this.units.delete(descriptor.name)
-    })
   }
 
   /**

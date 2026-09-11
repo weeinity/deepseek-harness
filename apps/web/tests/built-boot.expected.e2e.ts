@@ -93,7 +93,7 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
   fireEvent.change(within(newTask).getByRole('combobox', { name: 'Copilot CLI session (optional)' }), {
     target: { value: '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' },
   })
-  fireEvent.click(within(newTask).getByRole('button', { name: 'Create' }))
+  fireEvent.click(within(newTask).getByRole('button', { name: 'Save' }))
   await waitFor(() => { expect(screen.queryByRole('dialog', { name: 'New task' })).toBeNull() })
   const createdTask = screen.getByRole('dialog', { name: 'Task details' })
   within(createdTask).getByText('13e59df5-bd3a-46e6-bfd5-b61e22ff0491')

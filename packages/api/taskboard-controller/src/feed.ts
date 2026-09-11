@@ -4,6 +4,7 @@ import type { DomainChanged } from '@deepseek-ai/dsh-storage-domain'
 import { TaskId, taskboardTaskView, taskRecord } from '@deepseek-ai/dsh-taskboard'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { TaskboardBaseline, TaskboardFollowFrame } from './types.ts'
+import type { TaskboardRuntimeState } from './runtime-types.ts'
 
 const MAX_PENDING_FRAMES = 1024
 
@@ -11,8 +12,11 @@ const MAX_PENDING_FRAMES = 1024
 export class TaskboardFeed {
   private readonly followers = new Set<TaskboardFollower>()
 
-  /** @param ctx - Host context containing the authoritative Taskboard service. */
-  constructor(private readonly ctx: Context) {
+  /**
+   * @param ctx - Host context containing the authoritative Taskboard service.
+   * @param runtime - Current immutable Host runtime observation.
+   */
+  constructor(private readonly ctx: Context, private readonly runtime: () => TaskboardRuntimeState) {
     ctx.on('domain/changed', (change: DomainChanged) => { this.changed(change) })
     ctx.effect(() => () => {
       for (const follower of this.followers) follower.close()
@@ -28,7 +32,16 @@ export class TaskboardFeed {
     return {
       tasks: this.ctx.taskboard.list(workspaceId, true)
         .filter(task => this.ctx.workspaceRegistry.get(task.workspaceId) !== undefined),
+      runtime: this.runtime(),
     }
+  }
+
+  /**
+   * Publish a committed Host runtime observation to active followers.
+   * @param value - Immutable settings, scheduler, and power state.
+   */
+  runtimeChanged(value: TaskboardRuntimeState): void {
+    this.publish({ type: 'runtime', value })
   }
 
   /**
@@ -50,6 +63,7 @@ export class TaskboardFeed {
   }
 
   private changed(change: DomainChanged): void {
+    if (this.followers.size === 0) return
     if (change.domain === 'workspace' && change.table === 'workspaces' && change.operation === 'deleted') {
       for (const task of this.ctx.taskboard.list(WorkspaceId(change.key), true)) {
         this.publish({ type: 'remove', taskId: task.id, revision: Number.MAX_SAFE_INTEGER })
@@ -108,12 +122,11 @@ class TaskboardFollower {
     return new Promise((resolve) => {
       const finish = (): void => {
         signal.removeEventListener('abort', finish)
-        if (this.waiting === finish) this.waiting = undefined
+        this.waiting = undefined
         resolve()
       }
       this.waiting = finish
       signal.addEventListener('abort', finish, { once: true })
-      if (signal.aborted || this.closed || this.frames.length > 0) finish()
     })
   }
 }

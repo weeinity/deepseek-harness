@@ -1,5 +1,5 @@
 ---
-description: "Native Web Taskboard: a durable five-column Workspace board linked to DSH Sessions and live execution state."
+description: "Manage Workspace tasks, exclusive DSH or Copilot connections, saved execution inputs, schedules, and run history in the native Web Taskboard."
 kind: "package-reference"
 ---
 
@@ -9,86 +9,111 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package renders the native Taskboard mode in the DSH Web GUI. It contributes a sidebar footer launcher and a full-height main surface while the standard sidebar remains available. Cards come from the Host-authoritative Taskboard Client service, retain durable Workspace status and ordering, and may link to a DSH Session. Running Sessions, background jobs, and blocked Goals decorate cards without changing their durable status.
+Organize Workspace tasks across five workflow columns and run their saved prompts through DSH or Copilot. Each task keeps one current conversation, durable execution history, optional scheduling, and reviewed handover context. Run Again continues that conversation until you explicitly disconnect. Priorities, labels, archives, and editable copies support planning alongside execution.
 
 ## Table of Contents
 
 - [Use this package](#use-this-package)
-- [Associate an existing Copilot CLI session](#associate-an-existing-copilot-cli-session)
-- [Start a task with Agency Copilot](#start-a-task-with-agency-copilot)
+- [Run a task](#start-a-task-in-dsh)
+- [Connect an existing conversation](#associate-an-existing-copilot-cli-session)
+- [Execution options and scheduling](#start-a-task-with-agency-copilot)
 - [Understand the implementation](#understand-the-implementation)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
 
+-----
+
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the Taskboard domain, Taskboard Controller, and this client plugin in the Web profile. Open **Taskboard** from the sidebar and use **New task** in the board header. The compact creation dialog asks for a required Title, optional Description, Workspace, and optional Copilot CLI session; **Create** saves the task and opens its centered details dialog. Clicking a card opens the same details dialog, with editable title, description, priority, and labels, linked Sessions, status controls, Archive, and Delete. Workspace remains read-only after creation.
+Open **Taskboard** from the sidebar in a Web composition containing the [Taskboard controller](../../api/taskboard-controller/README.md). **New task** opens an unsaved draft with title, description, Workspace, priority, labels, separate run prompt, execution settings, and an optional existing connection. **Save and Close** saves in **Todo** and closes the dialog; **Save** saves and continues editing. Neither starts work. **Cancel** discards the creation draft without changing the board. Clicking a card opens its details.
 
-Cards show a description preview, update time, and the explicit Backlog, Todo, In Progress, In Review, or Done status. Live DSH activity and the latest Agency observation appear separately; an idle Copilot terminal does not mark the task Done. Dragging or the details status controls changes the planning status.
+Admitted runs move tasks to In Progress. Success moves them to Done; failure, cancellation, or waiting for user input moves them to In Review. Resumed execution returns them to In Progress. Manual moves use the Host's permitted choices: Todo can move only to Backlog, but still supports same-column reordering. Save draft edits before using status controls. Manual-status refusals show localized current and requested columns.
 
-Select **Archive** in task details to remove the card from the active board. **Archived (count)** opens a full-width list with the same search and Workspace filters; **Back to board** returns to the columns without clearing those filters. Archived details are read-only and retain navigation to an existing DSH Session. The archive comes from durable Host records and survives refresh.
+Questions in a linked DSH chat also move its task to In Review when you continue the chat outside Run. Use **Open session** to answer. The [Host monitor](../../api/taskboard-controller/README.md#execution-and-connections) follows resumption and completion without adding execution history or linking unrelated chats.
 
-Select **Delete** in active or archived task details, then confirm to permanently remove the Taskboard record. Linked DSH and Copilot sessions and running terminals remain untouched. Before submitting, **Cancel**, Close, or Escape returns to the unchanged draft; a failed deletion keeps the confirmation open with an error and permits an explicit retry.
+**Archive** and **Delete** appear only for saved tasks, never in creation drafts. **Archive** moves a task into the filtered archive list. Archived tasks are read-only; **Restore** returns them to the board with scheduling disabled. **Delete** requires confirmation and removes only the task record, not its conversations.
 
-The board uses Dashi Taskboard's local-first issue-board interaction as a product reference. This implementation is native DSH code and does not vendor upstream source. Dashi Taskboard is Apache-2.0 licensed: <https://github.com/chuspeeism/dashi-taskboard>.
+Draft saves use the revision captured when editing begins. Incoming changes cannot silently authorize an older draft; after a revision conflict, reopen the task or preserve your edits with **Edit as copy**.
+
+Creation and details dialogs cannot be dismissed while a command is pending. **Save and Close** precedes **Save** and closes only after a successful save. Failed commands retain the draft and error for retry.
+
+**Duplicate task** opens an editable new-task draft in the source task's column, without connection, execution history, or permission confirmation. Unsaved edits can become a copy through **Edit as copy**. Optional source archival is a separate awaited operation: if it fails, the created copy remains and the dialog offers retry without creating another copy.
+
+**Taskboard settings** remains reachable through the sidebar launcher and board header even when Taskboard is disabled. Its three Host-owned switches control Taskboard availability, agent announcements, and idle-sleep protection. Power status, scheduler errors, and execution-monitor errors come from the Host; no browser defaults replace a missing runtime snapshot.
+
+The visual board uses Dashi Taskboard as a product reference without vendoring its source. Dashi Taskboard is Apache-2.0 licensed: <https://github.com/chuspeeism/dashi-taskboard>.
+
+-----
+
+<a id="start-a-task-in-dsh"></a>
+## Run a task
+
+Choose DSH or Copilot, save the execution inputs, and select **Run**. A blank run prompt uses the title and nonblank description, separated by a blank line; an explicit prompt overrides both. **Run Again** remains available after an attempt settles and continues the same connected conversation until **Disconnect**. Unsaved inputs, unresolved connection choices, or an open attempt block another run.
+
+The Host owns admission and dispatch. A successful DSH dispatch acknowledgement opens Chat without waiting for model completion; failures leave the dialog visible. Details display pending, running, succeeded, failed, and cancelled attempts newest first, including timestamps, saved input, errors, and individual conversation links. Pending conversation reservations cannot be opened. A missing connected DSH Session produces an explicit failure rather than replacement.
+
+-----
 
 <a id="associate-an-existing-copilot-cli-session"></a>
-## Associate an existing Copilot CLI session
+## Connect an existing conversation
 
-In **New task**, choose the Workspace, select an existing **Copilot CLI session (optional)**, and select **Create**. The picker shows local sessions from that Workspace with their summaries, identity prefixes, and current ownership status. Changing the Workspace clears the selection. **Refresh session list** repeats discovery; unavailable or incomplete discovery is shown explicitly.
+A disconnected task exposes one provider picker. DSH choices come from the selected Workspace; Copilot discovery lists matching local sessions and reports unavailable or incomplete scans. **Connect** associates the selected conversation without running it. Current connections are read-only; use **Disconnect** before replacing one. A task retaining two legacy choices requires an explicit selection.
 
-To change a saved association, open the task, select another Copilot CLI session, and select **Save**. Choose **No session linked** and save to clear it. Task content and the selected link are saved together; Host validation failures retain the draft and show an error inside the dialog. An existing link remains visible when discovery is unavailable, and unchanged links do not prevent metadata edits.
+**Open session** navigates to DSH Chat. **Open/Resume Copilot** requests the existing Agency terminal handoff. Neither action sends the task prompt or recreates a missing conversation; failures remain visible. History links retain their own conversations after disconnection, reconnection, or archival. An already-running Copilot outcome reports that no additional terminal opened, including when execution is headless. Copilot terminal navigation is available only when the Client and Host permit local launch; run availability comes from the Host execution catalog.
 
-Associations survive reload and remain independent of the native DSH Session link. Selecting, saving, or clearing an existing association does not launch a terminal, resend task instructions, or change the planning status. Save a changed selection before using the terminal actions below.
+-----
 
 <a id="start-a-task-with-agency-copilot"></a>
-## Start a task with Agency Copilot
+## Execution options and scheduling
 
-1. Register the repository directory as a DSH Workspace and create the task under that Workspace. The Copilot terminal always starts in the task Workspace; tasks cannot be reassigned implicitly.
-2. Open the task card and select **Start with Copilot** under **Agency Copilot terminal**. The Host generates a new UUID, stores it independently of any DSH Session link, and launches an interactive Copilot terminal with the task title and description submitted as its first message. Normal Agency Workspace configuration and tool approvals apply.
-3. The task moves to **In Progress** after the link and launch handoff succeed. Closing DSH does not intentionally own or stop the user terminal.
-4. Use **Refresh status** to observe **Copilot running**, **Ready to resume**, or a diagnostic state. **Copilot running** means the CLI has acquired the session, not that a model request is active. **Open/Resume Copilot** resumes an idle session without resubmitting the task; an already-running identity is never duplicated.
-5. **Unlink** removes only the Taskboard identity. It never terminates Copilot. Native **Start work/Open session** remains a separate DSH conversation flow and may coexist on the same task.
+The board loads the Host's preset, permission, and model catalog. Broken presets remain visible but cannot be selected. Copilot accepts an explicit model ID rather than invented catalog entries. Connected tasks and unresolved legacy choices lock Workspace, provider, and preset selection. Open attempts lock execution-input editing. Title, description, labels, and priority stay editable; permitted status changes do not alter the frozen attempt.
 
-The launch controls are enabled only on the local DSH page. The browser never supplies executable paths, command arguments, environment values, or working directories. Existing-session selection supplies an identity for Host validation; fresh launch always uses a Host-generated UUID.
+Scheduling offers a five-field cron expression, time zone, enabled switch, and daily-at-nine, hourly, ten-minute, and Monday-at-nine presets. The Host validates expressions and supplies next-run and last-trigger timestamps. Invalid input remains in the draft with the server's error.
+
+Frozen handover context contains goal, progress, next action, references, source conversation, and freeze time. Unrelated edits preserve it. Review the saved permission and handover, select the explicit review checkbox, and confirm before running with elevated permissions. A newer task revision invalidates an unsent review.
+
+-----
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-The plugin fills the layout-owned keyed `main.surface` cell `taskboard` and the additive `sidebar.footer.action` row. The two registrations share the Client Taskboard observable but receive separate minimal inject faces. View-only state—filter, search, selected task, and dialog drafts—stays local to React. Business tasks remain in the controller's React-free Client model.
+<details>
+<summary>Implementation internals — click to expand</summary>
 
-Opening Taskboard obscures rather than unmounts Conversation and the right sidebar. AppFrame preserves their panel preferences and passes `active:false` to suspend document-level attachment behavior and right-sidebar portals. Explicit Session navigation opens the Session first, then closes Taskboard.
+The plugin contributes the layout-owned `main.surface` Taskboard entry and a sidebar footer launcher. Both consume the controller's identity-stable observable through framework-bound hooks. Session and Workspace data use the standard framework hooks; dialog drafts and filters stay component-local.
 
-No runtime invariant companion is published: this plugin renders the Controller's authoritative task snapshot and owns only local viewing state; it has no independent event stream to reconcile.
+Only the Host Run command submits work. Client callbacks keep association, terminal navigation, and planning mutations separate. Host task updates determine column placement; the projected `allowedManualStatuses` determines manual controls. The [controller](../../api/taskboard-controller/README.md) owns the Remote projection and revision ordering; the [domain](../../workspace/taskboard/README.md) owns persistence and execution rules.
+
+No runtime invariant companion is published: this presentation plugin has no independent event stream or durable state to reconcile.
+
+</details>
 
 <a id="model-experience"></a>
 ## Model Experience
 
-### Taskboard presentation
+### Task execution requests
 
 #### What the model sees
 
-Nothing. The `main.surface` plugin renders Taskboard state for a human and registers no tool, prompt, or model-visible Session event.
+With a saved run prompt such as `Run these instructions`, **Run** asks the Host to dispatch that text. The [controller](../../api/taskboard-controller/README.md#model-experience) owns model-input assembly. Viewing, connecting, disconnecting, opening conversations, and editing planning state do not submit model input.
 
 #### Token effect
 
-Zero direct tokens on every request.
+Board rendering adds no tokens. Host-dispatched prompts and handover context consume ordinary input tokens.
 
 #### KV Cache effect
 
-None; browser presentation state never enters a provider request.
+Viewing Taskboard does not change conversation history. Run Again addresses the same conversation; the provider owns request caching.
 
 ## Known Limitations and Deferred Work
 <a id="known-limitations-and-deferred-work"></a>
 
-- Taskboard status is explicit; live Session, Job, Goal, and Subagent state never completes a task automatically.
-- Dragging supports column and before-card placement; keyboard reordering is deferred.
-- Comments, attachments, GitHub/Linear sync, and multi-user cloud collaboration are deferred.
-- Copilot launch/resume is a visible Windows Terminal handoff, not transcript import or browser control; status refresh observes Agency's local session store.
-- Archived tasks cannot be restored, edited, or run from this view. Scheduling, permission selectors, and per-run execution history are not part of the native Taskboard.
-- Focus enters the board on open; a complete focus trap and launcher restoration remain follow-up accessibility work.
+- Keyboard card reordering, comments, attachments, GitHub/Linear synchronization, and multi-user cloud collaboration are deferred.
+- Copilot terminal navigation is a local Agency handoff, not a browser transcript viewer.
+- Archiving an original after copying is deliberately non-atomic; failures require a separate retry.
+- Full-board focus trapping and launcher-focus restoration remain accessibility follow-up work.
 
 <a id="dev-note"></a>
 ### Dev Note

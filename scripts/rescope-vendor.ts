@@ -109,6 +109,8 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'docs/subsystems/extensions.md', upstream: ['cordis'] },
   { file: 'docs/subsystems/extensions.zh.md', upstream: ['cordis'] },
   { file: 'packages/api/remotes/src/remote-events.ts', upstream: ['cordis'] },
+  { file: 'packages/api/taskboard-controller/src/runtime/dsh.ts', upstream: ['cordis'] },
+  { file: 'packages/api/taskboard-controller/tests/dsh-execution.host.spec.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-client-runner/src/client/index.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-client-runner/src/client/runtime.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-client-runner/tests/orchestrator.client.spec.ts', upstream: ['cordis'] },

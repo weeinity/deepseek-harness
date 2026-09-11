@@ -10,6 +10,7 @@
     { "path": "../connection/tsconfig.client.json" },
     { "path": "../../core/session" },
     { "path": "../../goal/goal" },
+    { "path": "../../util/crypto" },
     { "path": "../locale" },
     { "path": "../ui-layout" },
     { "path": "../ui-primitives" },

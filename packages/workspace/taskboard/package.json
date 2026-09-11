@@ -14,25 +14,28 @@
   "exports": {
     ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
     "./types": { "types": "./lib/types/types.d.ts", "default": "./lib/types/types.js" },
-    "./invariant": { "types": "./lib/types/invariant.d.ts", "default": "./lib/invariant.js" },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
-  "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.js", "lib/types/**/*.d.ts"],
+  "files": ["lib/index.js", "lib/types/**/*.js", "lib/types/**/*.d.ts"],
   "license": "MIT",
-  "dependencies": { "zod": "^4.4.3" },
+  "dependencies": { "croner": "^10.0.1", "zod": "^4.4.3" },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:^",
+    "@deepseek-ai/dsh-agent-presets": "workspace:^",
     "@deepseek-ai/dsh-brand": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-storage-domain": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:^",
+    "@deepseek-ai/dsh-agent-presets": "workspace:^",
     "@deepseek-ai/dsh-brand": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-storage-domain": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^"

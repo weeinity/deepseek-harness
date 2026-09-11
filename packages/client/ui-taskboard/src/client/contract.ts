@@ -1,9 +1,10 @@
 /** Taskboard surface and launcher prop contracts. */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
-  AgencyCopilotSessionId, TaskboardCreateRequest, TaskboardListAgencyCopilotSessionsValue,
-  TaskboardOpenAgencyCopilotValue, TaskboardSnapshot, TaskboardTask,
-  TaskboardUpdatePatch, TaskId, TaskStatus,
+  TaskboardCreateRequest, TaskboardListAgencyCopilotSessionsValue, TaskboardConnectRequest,
+  TaskboardExecutionOptionsValue, TaskboardOpenAgencyCopilotValue, TaskboardSnapshot, TaskboardTask,
+  TaskboardUpdatePatch, TaskExecutionId, TaskExecutionSettings, TaskHandover, TaskId, TaskRunRequestId, TaskSchedule, TaskStatus,
+  TaskboardSettings, TaskboardRuntimeState,
 } from '@deepseek-ai/dsh-api-taskboard-controller/client'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {
@@ -21,13 +22,23 @@ export interface TaskboardSurfaceInjected {
   moveTask(task: TaskboardTask, status: TaskStatus, beforeTaskId?: TaskId): Promise<void>
   archiveTask(task: TaskboardTask): Promise<void>
   deleteTask(task: TaskboardTask): Promise<void>
-  startWork(task: TaskboardTask): Promise<void>
+  /**
+   * Dispatch saved execution inputs, project Host workflow updates, then open an acknowledged DSH Session.
+   * @param task - Current saved revision.
+   * @param requestId - Stable retry identity for this user action.
+   * @returns completion after dispatch acknowledgement and DSH navigation, not model completion.
+   */
+  startWork(task: TaskboardTask, requestId: TaskRunRequestId): Promise<void>
+  connectTask(task: TaskboardTask, connection: TaskboardConnectRequest['connection'], executionSettings?: TaskExecutionSettings): Promise<void>
+  disconnectTask(task: TaskboardTask): Promise<void>
+  restoreTask(task: TaskboardTask): Promise<void>
+  confirmPermissions(task: TaskboardTask): Promise<void>
+  executionOptions(): Promise<TaskboardExecutionOptionsValue>
+  updateSettings(patch: Partial<TaskboardSettings>): Promise<TaskboardRuntimeState>
   openSession(sessionId: SessionId): void
   agencyCopilotCapability(): Promise<boolean>
   listAgencyCopilotSessions(workspaceId: WorkspaceId): Promise<TaskboardListAgencyCopilotSessionsValue>
-  startAgencyCopilot(task: TaskboardTask): Promise<void>
-  openAgencyCopilot(task: TaskboardTask): Promise<TaskboardOpenAgencyCopilotValue['outcome']>
-  clearAgencyCopilot(task: TaskboardTask): Promise<void>
+  openAgencyCopilot(task: TaskboardTask, executionId?: TaskExecutionId): Promise<TaskboardOpenAgencyCopilotValue['outcome']>
   refreshAgencyCopilot(tasks: readonly TaskboardTask[]): Promise<void>
   readonly isLoopback: boolean
   closeSurface(): void
@@ -45,10 +56,10 @@ export type TaskboardSurfaceProps =
 /** Full sidebar launcher props bound by the renderer. */
 export type TaskboardLauncherProps =
   PropsRuntime<'sidebar.footer.action'> & PropsLocale<'taskboard'> & InjectFace<TaskboardLauncherInjected>
-/** New-task component input. */
-export interface NewTaskDraft {
-  workspaceId: WorkspaceId
-  title: string
-  description: string
-  agencyCopilotSessionId?: AgencyCopilotSessionId
+/** Component-local editable execution inputs; persistence uses explicit optional-field semantics. */
+export interface ExecutionDraft {
+  readonly prompt: string
+  readonly executionSettings: TaskExecutionSettings
+  readonly schedule: TaskSchedule | undefined
+  readonly handover: TaskHandover | undefined
 }

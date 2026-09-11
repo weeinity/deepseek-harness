@@ -1,526 +1,581 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteStream, RemoteStreamCarrierError, type RemoteStreamOptions } from '@deepseek-ai/dsh-api-gateway/client'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {
-  AgencyCopilotSessionId, TaskboardCreateRequest, TaskboardDeleteValue, TaskboardInspectAgencyCopilotValue, TaskboardTask,
-  TaskboardTaskValue, TaskId, TaskStatus,
+  AgencyCopilotSessionId, TaskboardInspectAgencyCopilotValue, TaskboardListValue, TaskboardRuntimeState, TaskboardTask,
+  TaskboardTaskValue, TaskConnection, TaskExecutionId, TaskId, TaskRunRequestId, TaskboardFollowFrame,
 } from '../src/types.ts'
 import { ClientTaskboardModel } from '../src/client/model.ts'
 import { TaskboardClientController, TaskboardCommandError } from '../src/client/service.ts'
+import { apply, createTaskboardStateStream, type TaskboardRemote } from '../src/client/index.ts'
 
-const id = (value: string): TaskId => value as TaskId
-function task(value: string, status: TaskStatus, rank: number, revision = 1): TaskboardTask {
+const runtime: TaskboardRuntimeState = {
+  settings: { enabled: true, announceToAgent: false, preventIdleSleep: false }, timeZone: 'UTC',
+  power: { phase: 'disabled', platform: 'test', runningSessions: 0, enabledSchedules: 0, sessionStateKnown: true }, scheduler: {},
+}
+const connection: TaskConnection = { kind: 'copilot', sessionId: 'copilot-one' as AgencyCopilotSessionId }
+const id = (value: string) => value as TaskId
+function task(overrides: Partial<TaskboardTask> = {}): TaskboardTask {
+  const status = overrides.status ?? 'todo'
+  const statuses: readonly TaskboardTask['status'][] = ['backlog', 'todo', 'in_progress', 'in_review', 'done']
   return {
-    id: id(value), revision, ordinal: Number(value.slice(1)), workspaceId: 'w1' as TaskboardTask['workspaceId'],
-    title: value, description: '', status, rank, labels: [],
-    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    id: id('t1'), revision: 1, ordinal: 1, workspaceId: 'workspace' as TaskboardTask['workspaceId'], title: 'Task',
+    description: '', prompt: '', executionSettings: { kind: 'dsh' }, executions: [],
+    status: 'todo', rank: 0, labels: [], createdAt: '2026-01-01', updatedAt: '2026-01-01', ...overrides,
+    allowedManualStatuses: status === 'todo' ? ['backlog'] : statuses.filter(candidate => candidate !== status),
   }
 }
-function ok(value: TaskboardTask): RemoteResult<TaskboardTaskValue> { return { ok: true, value: { task: value } } }
+const baseline = (tasks: readonly TaskboardTask[]): TaskboardListValue => ({ tasks, runtime })
+const ok = (row: TaskboardTask): RemoteResult<TaskboardTaskValue> => ({ ok: true, value: { task: row } })
 function remote() {
   return {
-    create: vi.fn((request: TaskboardCreateRequest) => Promise.resolve(ok(task('t9', request.status ?? 'backlog', 0)))),
-    update: vi.fn(), move: vi.fn(), archive: vi.fn(), delete: vi.fn(), agencyCopilotCapability: vi.fn(),
-    startAgencyCopilot: vi.fn(), clearAgencyCopilot: vi.fn(), openAgencyCopilot: vi.fn(), inspectAgencyCopilot: vi.fn(),
-    listAgencyCopilotSessions: vi.fn(),
+    list: vi.fn(), create: vi.fn(), update: vi.fn(), move: vi.fn(), archive: vi.fn(), delete: vi.fn(), run: vi.fn(),
+    connect: vi.fn(), disconnect: vi.fn(), duplicate: vi.fn(), restore: vi.fn(), confirmPermissions: vi.fn(),
+    executionOptions: vi.fn(), updateSettings: vi.fn(), agencyCopilotCapability: vi.fn(),
+    listAgencyCopilotSessions: vi.fn(), openAgencyCopilot: vi.fn(), inspectAgencyCopilot: vi.fn(),
     async *follow(): AsyncGenerator<never> {},
   }
 }
 
-describe('ClientTaskboardModel', () => {
-  it('forwards Workspace session discovery through the service without changing task state', async () => {
-    const wire = remote()
-    const value = {
-      sessions: [{ sessionId: '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId, summary: 'Existing', status: 'in_use' }],
-      truncated: true,
-    }
-    wire.listAgencyCopilotSessions.mockResolvedValue({ ok: true, value })
-    const ctx = new Context()
-    try {
-      const model = new ClientTaskboardModel(wire as never)
-      const controller = new TaskboardClientController(ctx, model)
-      const initial = task('t1', 'todo', 0)
-      model.replaceBaseline({ tasks: [initial] })
-      const before = controller.list.getSnapshot()
-      await expect(controller.listAgencyCopilotSessions(initial.workspaceId)).resolves.toBe(value)
-      expect(wire.listAgencyCopilotSessions).toHaveBeenCalledExactlyOnceWith({ workspaceId: initial.workspaceId })
-      expect(controller.list.getSnapshot()).toBe(before)
-    } finally { await ctx.fiber.dispose() }
-  })
+function streamRemote(generations: readonly {
+  frames: readonly TaskboardFollowFrame[]
+  error?: Error
+  hold?: boolean
+}[]) {
+  const signals: AbortSignal[] = []
+  const namespace: TaskboardRemote = {
+    ...remote(),
+    async *follow(signal = new AbortController().signal) {
+      const generation = generations[signals.length]
+      signals.push(signal)
+      if (generation === undefined) throw new Error('Unexpected follow generation')
+      for (const frame of generation.frames) yield frame
+      if (generation.error !== undefined) throw generation.error
+      if (generation.hold) await new Promise<undefined>((resolve) => {
+        if (signal.aborted) resolve(undefined)
+        else signal.addEventListener('abort', () => { resolve(undefined) }, { once: true })
+      })
+    },
+  }
+  return {
+    signals,
+    client: {
+      taskboard: namespace,
+      $stream: <Item>(options: RemoteStreamOptions<Item>) => new RemoteStream({
+        generation: { getSnapshot: () => ({ id: 1, host: { home: 'Q:\\fixture' } }), subscribe: () => () => {} },
+      }, options),
+    },
+  }
+}
 
-  it.each(['remote-failure', 'rejected-fetch'] as const)('surfaces %s during session discovery', async (kind) => {
-    const wire = remote()
-    const failure = new RemoteError('taskboard/agency-unavailable', 'Agency is offline', {})
-    const rejected = new TypeError('Failed to fetch')
-    if (kind === 'remote-failure') wire.listAgencyCopilotSessions.mockResolvedValue({ ok: false, error: failure })
-    else wire.listAgencyCopilotSessions.mockRejectedValue(rejected)
-    const ctx = new Context()
-    try {
-      const model = new ClientTaskboardModel(wire as never)
-      const controller = new TaskboardClientController(ctx, model)
-      const before = controller.list.getSnapshot()
-      const request = controller.listAgencyCopilotSessions(task('t1', 'todo', 0).workspaceId)
-      if (kind === 'remote-failure') {
-        await expect(request).rejects.toBeInstanceOf(TaskboardCommandError)
-        await expect(request).rejects.toMatchObject({ operation: 'list Agency Copilot sessions', failure })
-      } else await expect(request).rejects.toBe(rejected)
-      expect(controller.list.getSnapshot()).toBe(before)
-    } finally { await ctx.fiber.dispose() }
-  })
-
-  it('forwards existing-session create and edit fields intact and installs atomic echoes', async () => {
-    const wire = remote()
-    const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-    const initial = { ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionId }
-    const cleared = { ...task('t1', 'todo', 0, 2), title: 'Edited' }
-    wire.create.mockResolvedValue(ok(initial))
-    wire.update.mockResolvedValue(ok(cleared))
-    const ctx = new Context()
-    try {
-      const model = new ClientTaskboardModel(wire as never)
-      const controller = new TaskboardClientController(ctx, model)
-      const creating = { workspaceId: initial.workspaceId, title: initial.title, agencyCopilotSessionId: sessionId }
-      await expect(controller.create(creating)).resolves.toEqual(initial)
-      expect(wire.create).toHaveBeenCalledExactlyOnceWith(creating)
-      expect(controller.list.getSnapshot().tasks).toEqual([initial])
-      const updating = {
-        taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Edited', agencyCopilotSessionId: null },
+describe('Taskboard Client follow lifecycle', () => {
+  it.each(['succeeded', 'failed', 'cancelled'] as const)(
+    'projects Host workflow and manual destinations through follow frames ending in %s',
+    async (outcome) => {
+      const row = task({ connection, executionSettings: { kind: 'copilot' } })
+      const running: TaskboardTask['executions'][number] = {
+        id: 'run' as TaskExecutionId, requestId: 'request' as TaskRunRequestId,
+        trigger: 'manual', status: 'running', requestedAt: '2026-01-01T01:00:00Z', startedAt: '2026-01-01T01:01:00Z',
+        workspaceId: row.workspaceId, createsConnection: false, connection, prompt: 'Saved', executionSettings: row.executionSettings,
       }
-      await expect(controller.update(updating)).resolves.toEqual(cleared)
-      expect(wire.update).toHaveBeenCalledExactlyOnceWith(updating)
-      expect(controller.list.getSnapshot().tasks).toEqual([cleared])
-    } finally { await ctx.fiber.dispose() }
-  })
-
-  it('sorts baselines and every upsert by status/rank/ordinal/id', () => {
-    const model = new ClientTaskboardModel(remote() as never)
-    model.replaceBaseline({ tasks: [task('t3', 'done', 0), task('t2', 'todo', 1024), task('t1', 'todo', 0)] })
-    expect(model.getSnapshot().tasks.map(row => row.id)).toEqual(['t1', 't2', 't3'])
-    model.upsertTask(task('t2', 'backlog', 0, 2))
-    expect(model.getSnapshot().tasks.map(row => row.id)).toEqual(['t2', 't1', 't3'])
-  })
-
-  it('retains a newer unary echo across a stale reconnect baseline until stream catch-up', async () => {
-    const wire = remote()
-    const updated = { ...task('t1', 'todo', 0, 2), title: 'new' }
-    wire.update.mockResolvedValue(ok(updated))
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [task('t1', 'todo', 0, 1)] })
-    await model.update({ taskId: id('t1'), expectedRevision: 1, patch: { title: 'new' } })
-    model.replaceBaseline({ tasks: [task('t1', 'todo', 0, 1)] })
-    expect(model.getSnapshot().tasks[0]).toMatchObject({ revision: 2, title: 'new' })
-    model.upsertTask(updated)
-    model.replaceBaseline({ tasks: [updated] })
-    expect(model.getSnapshot().tasks[0]).toMatchObject({ revision: 2, title: 'new' })
-  })
-
-  it('treats an absent complete baseline as authoritative over an older unary echo', async () => {
-    const wire = remote()
-    const updated = { ...task('t1', 'todo', 0, 2), title: 'locally edited' }
-    wire.update.mockResolvedValue(ok(updated))
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [task('t1', 'todo', 0, 1)] })
-    await model.update({ taskId: id('t1'), expectedRevision: 1, patch: { title: 'locally edited' } })
-    model.replaceBaseline({ tasks: [] })
-    expect(model.getSnapshot().tasks).toEqual([])
-  })
-
-  it('retains the committed archive echo against delayed older stream upserts and baselines', async () => {
-    const wire = remote()
-    const archived = { ...task('t1', 'todo', 0, 2), archivedAt: '2026-01-02T00:00:00.000Z' }
-    wire.archive.mockResolvedValue(ok(archived))
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [task('t1', 'todo', 0, 1)] })
-    await model.archive({ taskId: id('t1'), expectedRevision: 1 })
-    expect(model.getSnapshot().tasks).toEqual([archived])
-    model.upsertTask(task('t1', 'todo', 0, 1))
-    model.replaceBaseline({ tasks: [task('t1', 'todo', 0, 1)] })
-    expect(model.getSnapshot().tasks).toEqual([archived])
-  })
-
-  it.each(['remote-failure', 'rejected-fetch'] as const)(
-    'preserves the task on %s and archives only after an explicit successful retry',
-    async (failureMode) => {
-      const wire = remote()
-      const initial = task('t1', 'done', 0)
-      const archived = { ...initial, revision: 2, archivedAt: '2026-01-02T00:00:00.000Z' }
-      const failure = new RemoteError('gateway/internal', 'Failed to fetch', {})
-      const rejected = new TypeError('Failed to fetch')
-      if (failureMode === 'remote-failure') wire.archive.mockResolvedValueOnce({ ok: false, error: failure })
-      else wire.archive.mockRejectedValueOnce(rejected)
-      wire.archive.mockResolvedValueOnce(ok(archived))
-      const ctx = new Context()
+      const active = task({ ...row, revision: 2, status: 'in_progress', executions: [running] })
+      const waiting = task({ ...active, revision: 3, status: 'in_review' })
+      const resumed = task({ ...active, revision: 4 })
+      const settled = task({ ...active, revision: 5, status: outcome === 'succeeded' ? 'done' : 'in_review',
+        executions: [{ ...running, status: outcome, endedAt: '2026-01-01T01:02:00Z' }] })
+      const updates = [active, waiting, resumed, settled]
+      const wire = streamRemote([{ frames: [
+        { type: 'baseline', value: baseline([row]) }, ...updates.map(task => ({ type: 'upsert' as const, task })),
+      ], hold: true }])
+      const model = new ClientTaskboardModel(wire.client.taskboard)
+      const observed: (TaskboardTask | undefined)[] = []
+      const failed = vi.fn()
+      const control = createTaskboardStateStream(wire.client, { failed, accept: {
+        replaceBaseline: (value) => { model.replaceBaseline(value) },
+        upsertTask: (task) => { model.upsertTask(task); observed.push(model.getSnapshot().tasks[0]) },
+        removeTask: (id, revision) => { model.removeTask(id, revision) },
+        replaceRuntime: (value) => { model.replaceRuntime(value) },
+      } })
+      control.start()
       try {
-        const model = new ClientTaskboardModel(wire as never)
-        const controller = new TaskboardClientController(ctx, model)
-        model.replaceBaseline({ tasks: [initial] })
-        const before = controller.list.getSnapshot()
-        const archiving = controller.archive(initial.id, initial.revision)
-        if (failureMode === 'remote-failure') {
-          await expect(archiving).rejects.toBeInstanceOf(TaskboardCommandError)
-          await expect(archiving).rejects.toMatchObject({ operation: 'archive', failure })
-        } else {
-          await expect(archiving).rejects.toBe(rejected)
-        }
-        expect(controller.list.getSnapshot()).toBe(before)
-        expect(wire.archive).toHaveBeenCalledExactlyOnceWith({ taskId: initial.id, expectedRevision: 1 })
-        await controller.archive(initial.id, initial.revision)
-        expect(wire.archive).toHaveBeenCalledTimes(2)
-        expect(controller.list.getSnapshot().tasks).toEqual([archived])
-      } finally {
-        await ctx.fiber.dispose()
-      }
+        await vi.waitFor(() => { expect(observed).toEqual(updates) })
+        expect(observed.map(task => task?.status)).toEqual(['in_progress', 'in_review', 'in_progress', settled.status])
+        expect(model.getSnapshot().tasks[0]?.allowedManualStatuses).toBe(settled.allowedManualStatuses)
+        expect(failed).not.toHaveBeenCalled()
+      } finally { await control.dispose() }
+      expect(wire.signals.every(signal => signal.aborted)).toBe(true)
     },
   )
 
-  it('does not reactivate an archived stream row when a stale mutation settles before a stale baseline', async () => {
-    const wire = remote()
-    const delayed = Promise.withResolvers<RemoteResult<TaskboardTaskValue>>()
-    wire.update.mockReturnValue(delayed.promise)
-    const model = new ClientTaskboardModel(wire as never)
-    const initial = task('t1', 'todo', 0)
-    const updated = { ...initial, title: 'Edited', revision: 2 }
-    const archived = { ...updated, revision: 3, archivedAt: '2026-01-02T00:00:00.000Z' }
-    model.replaceBaseline({ tasks: [initial] })
-    const updating = model.update({ taskId: initial.id, expectedRevision: 1, patch: { title: 'Edited' } })
-    model.upsertTask(archived)
-    delayed.resolve(ok(updated))
-    await updating
-    model.handleCarrierFailure()
-    model.replaceBaseline({ tasks: [initial] })
-    expect(model.getSnapshot().tasks).toEqual([archived])
-    model.upsertTask(updated)
-    expect(model.getSnapshot().tasks).toEqual([archived])
+  it('installs the real Client service, applies every increment, and drains its stream on disposal', async () => {
+    const row = task()
+    const next = { ...runtime, settings: { ...runtime.settings, enabled: false } }
+    const wire = streamRemote([{ frames: [
+      { type: 'baseline', value: baseline([]) }, { type: 'upsert', task: row },
+      { type: 'runtime', value: next }, { type: 'remove', taskId: row.id, revision: 2 },
+    ], hold: true }])
+    const ctx = new Context()
+    ctx.provide('remote', wire.client)
+    try {
+      apply(ctx)
+      await vi.waitFor(() => { expect(ctx.taskboard.list.getSnapshot().runtime).toBe(next) })
+      await vi.waitFor(() => { expect(ctx.taskboard.list.getSnapshot().tasks).toEqual([]) })
+      expect(ctx.taskboard).toBeInstanceOf(TaskboardClientController)
+      expect(ctx.taskboard.list.getSnapshot().phase).toBe('ready')
+    } finally { await ctx.fiber.dispose() }
+    expect(wire.signals[0]?.aborted).toBe(true)
   })
 
-  it('restores archived baseline rows across reconnects and a fresh Client model', () => {
-    const archived = { ...task('t1', 'in_review', 0, 2), archivedAt: '2026-01-02T00:00:00.000Z' }
-    const baseline = { tasks: [archived, task('t2', 'done', 0)] }
-    const model = new ClientTaskboardModel(remote() as never)
-    model.replaceBaseline(baseline)
-    model.handleCarrierFailure()
-    expect(model.getSnapshot()).toMatchObject({ tasks: baseline.tasks, state: 'loading', phase: 'ready' })
-    model.replaceBaseline(baseline)
-    expect(model.getSnapshot()).toMatchObject({ tasks: baseline.tasks, state: 'idle' })
-    const refreshed = new ClientTaskboardModel(remote() as never)
-    refreshed.replaceBaseline(baseline)
-    expect(refreshed.getSnapshot().tasks).toEqual(baseline.tasks)
+  it.each(['carrier', 'ended'] as const)('replaces stale state after an accepted generation is %s', async (ending) => {
+    const row = task()
+    const fresh = task({ revision: 2, title: 'Fresh baseline' })
+    const wire = streamRemote([
+      { frames: [{ type: 'baseline', value: baseline([row]) }],
+        ...(ending === 'carrier' ? { error: new RemoteStreamCarrierError('Connection lost') } : {}) },
+      { frames: [{ type: 'baseline', value: baseline([fresh]) }], hold: true },
+    ])
+    const model = new ClientTaskboardModel(wire.client.taskboard)
+    const carrierFailed = vi.fn(() => { model.handleCarrierFailure() })
+    const failed = vi.fn()
+    const stream = createTaskboardStateStream(wire.client, { accept: model, carrierFailed, failed })
+    try {
+      stream.start()
+      await vi.waitFor(() => { expect(model.getSnapshot().tasks).toEqual([fresh]) })
+      expect(carrierFailed).toHaveBeenCalledOnce()
+      expect(failed).not.toHaveBeenCalled()
+      expect(model.getSnapshot().state).toBe('idle')
+    } finally { await stream.dispose() }
+    expect(wire.signals.every(signal => signal.aborted)).toBe(true)
   })
 
-  it('keeps actual deletion tombstones against delayed archive echoes and stale baselines', async () => {
+  it.each([
+    { frames: [], message: 'ended before its opening snapshot' },
+    { frames: [{ type: 'runtime', value: runtime }], message: 'update before its opening snapshot' },
+    { frames: [{ type: 'baseline', value: baseline([]) }, { type: 'baseline', value: baseline([]) }],
+      message: 'more than one opening snapshot' },
+  ] satisfies Array<{ frames: TaskboardFollowFrame[]; message: string }>)('reports malformed ordering: $message', async ({ frames, message }) => {
+    const wire = streamRemote([{ frames }])
+    const model = new ClientTaskboardModel(wire.client.taskboard)
+    const failed = vi.fn((error: unknown) => { model.handleStreamFailure(error) })
+    const stream = createTaskboardStateStream(wire.client, { accept: model, failed })
+    try {
+      stream.start()
+      await vi.waitFor(() => { expect(failed).toHaveBeenCalledOnce() })
+      expect(model.getSnapshot().error?.message).toContain(message)
+      expect(model.getSnapshot().state).toBe('error')
+    } finally { await stream.dispose() }
+  })
+
+  it('publishes terminal and recovering failures through the installed service', async () => {
+    const wire = streamRemote([
+      { frames: [{ type: 'baseline', value: baseline([task()]) }], error: new RemoteStreamCarrierError('Lost carrier') },
+      { frames: [], error: new Error('Protocol rejected') },
+    ])
+    const ctx = new Context()
+    ctx.provide('remote', wire.client)
+    try {
+      apply(ctx)
+      await vi.waitFor(() => { expect(ctx.taskboard.list.getSnapshot().state).toBe('error') })
+      expect(ctx.taskboard.list.getSnapshot()).toMatchObject({
+        tasks: [task()], runtime, error: { message: 'Protocol rejected' },
+      })
+    } finally { await ctx.fiber.dispose() }
+  })
+})
+
+describe('ClientTaskboardModel', () => {
+  it('leaves runtime unknown until a Host baseline and keeps snapshot identity stable between changes', async () => {
+    const model = new ClientTaskboardModel(remote())
+    expect(model.getSnapshot()).toMatchObject({ phase: 'pending', runtime: undefined })
+    const before = model.getSnapshot()
+    expect(model.getSnapshot()).toBe(before)
+    const listener = vi.fn()
+    const dispose = model.subscribe(listener)
+    model.replaceBaseline(baseline([task()]))
+    model.upsertTask(task({ revision: 2 }))
+    const snapshot = model.getSnapshot()
+    expect(snapshot.runtime).toBe(runtime)
+    expect(snapshot.phase).toBe('ready')
+    await Promise.resolve()
+    expect(listener).toHaveBeenCalledOnce()
+    expect(model.getSnapshot()).toBe(snapshot)
+    dispose()
+    model.upsertTask(task({ revision: 3 }))
+    await Promise.resolve()
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('retains tasks and settings during carrier recovery and replaces runtime from ordered increments and baselines', () => {
+    const model = new ClientTaskboardModel(remote())
+    const row = task()
+    model.replaceBaseline(baseline([row]))
+    const updated = { ...runtime, settings: { ...runtime.settings, enabled: false } }
+    model.replaceRuntime(updated)
+    const current = model.getSnapshot()
+    model.replaceRuntime(updated)
+    expect(model.getSnapshot()).toBe(current)
+    model.handleCarrierFailure()
+    expect(model.getSnapshot()).toMatchObject({ runtime: updated, tasks: [row], state: 'loading', phase: 'ready' })
+    model.replaceBaseline(baseline([]))
+    expect(model.getSnapshot()).toMatchObject({ runtime, tasks: [], state: 'idle' })
+  })
+
+  it('does not overwrite an ordered runtime increment with a delayed settings response', async () => {
     const wire = remote()
-    const delayed = Promise.withResolvers<RemoteResult<TaskboardTaskValue>>()
-    wire.archive.mockReturnValue(delayed.promise)
-    const initial = task('t1', 'todo', 0)
-    const archived = { ...initial, revision: 2, archivedAt: '2026-01-02T00:00:00.000Z' }
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [initial] })
-    const archiving = model.archive({ taskId: initial.id, expectedRevision: 1 })
-    model.removeTask(initial.id, Number.MAX_SAFE_INTEGER)
-    delayed.resolve(ok(archived))
-    await archiving
-    model.replaceBaseline({ tasks: [archived] })
-    model.upsertTask(initial)
+    const delayed = Promise.withResolvers<RemoteResult<TaskboardRuntimeState>>()
+    wire.updateSettings.mockReturnValue(delayed.promise)
+    const model = new ClientTaskboardModel(wire)
+    model.replaceBaseline(baseline([]))
+    const update = model.updateSettings({ patch: { enabled: false } })
+    const newer = { ...runtime, settings: { ...runtime.settings, enabled: false, preventIdleSleep: true } }
+    model.replaceRuntime(newer)
+    delayed.resolve({ ok: true, value: { ...runtime, settings: { ...runtime.settings, enabled: false } } })
+    await update
+    expect(model.getSnapshot().runtime).toBe(newer)
+  })
+
+  it('sorts all five planning statuses and rank, ordinal, identity tie-breakers', () => {
+    const model = new ClientTaskboardModel(remote())
+    model.replaceBaseline(baseline([
+      task({ id: id('done'), status: 'done' }), task({ id: id('review'), status: 'in_review' }),
+      task({ id: id('later'), rank: 100 }), task({ id: id('progress'), status: 'in_progress' }),
+      task({ id: id('backlog'), status: 'backlog' }), task(),
+    ]))
+    expect(model.getSnapshot().tasks.map(row => row.id)).toEqual(['backlog', 't1', 'later', 'progress', 'review', 'done'])
+    model.upsertTask(task({ id: id('later'), status: 'backlog', revision: 2, rank: -100 }))
+    expect(model.getSnapshot().tasks[0]?.id).toBe('later')
+  })
+
+  it.each(['create', 'update', 'move', 'archive', 'connect', 'disconnect', 'duplicate', 'restore', 'confirmPermissions'] as const)(
+    'installs a committed %s echo but never rolls back a newer stream revision', async (operation) => {
+      const wire = remote()
+      const delayed = Promise.withResolvers<RemoteResult<TaskboardTaskValue>>()
+      wire[operation].mockReturnValue(delayed.promise)
+      const model = new ClientTaskboardModel(wire)
+      const row = task()
+      model.replaceBaseline(baseline([row]))
+      const request = {
+        taskId: row.id, expectedRevision: 1, workspaceId: row.workspaceId, title: row.title, status: 'in_review' as const,
+        patch: { prompt: 'Run this' }, connection,
+      }
+      const pending = model[operation](request)
+      const newer = task({ revision: 3, status: 'in_review' })
+      model.upsertTask(newer)
+      delayed.resolve(ok(task({ revision: 2 })))
+      await pending
+      model.replaceBaseline(baseline([row]))
+      expect(model.getSnapshot().tasks).toEqual([newer])
+      expect(wire[operation]).toHaveBeenCalledExactlyOnceWith(request)
+    },
+  )
+
+  it('treats baseline membership as authoritative without discarding newer retained row revisions', () => {
+    const model = new ClientTaskboardModel(remote())
+    model.upsertTask(task({ revision: 5 }))
+    model.replaceBaseline(baseline([task()]))
+    expect(model.getSnapshot().tasks[0]?.revision).toBe(5)
+    model.replaceBaseline(baseline([]))
     expect(model.getSnapshot().tasks).toEqual([])
   })
 
-  it('removes archived rows omitted from a complete baseline', async () => {
+  it('keeps archive and deletion receipts authoritative against delayed echoes and baselines', async () => {
     const wire = remote()
-    const archived = { ...task('t1', 'todo', 0, 2), archivedAt: '2026-01-02T00:00:00.000Z' }
+    const model = new ClientTaskboardModel(wire)
+    const initial = task()
+    const archived = task({ archivedAt: '2026-01-02', revision: 3 })
     wire.archive.mockResolvedValue(ok(archived))
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [task('t1', 'todo', 0)] })
-    await model.archive({ taskId: id('t1'), expectedRevision: 1 })
-    model.replaceBaseline({ tasks: [] })
+    model.replaceBaseline(baseline([initial]))
+    await model.archive({ taskId: initial.id, expectedRevision: 1 })
+    model.upsertTask(task({ revision: 2 }))
+    model.replaceBaseline(baseline([initial]))
+    expect(model.getSnapshot().tasks).toEqual([archived])
+    wire.delete.mockResolvedValue({ ok: true, value: { taskId: initial.id, revision: Number.MAX_SAFE_INTEGER } })
+    await model.delete({ taskId: initial.id, expectedRevision: 3 })
+    model.upsertTask(task({ revision: 4 }))
+    model.replaceBaseline(baseline([archived]))
     expect(model.getSnapshot().tasks).toEqual([])
   })
 
-  it('ignores a removal older than the retained task revision', () => {
-    const model = new ClientTaskboardModel(remote() as never)
-    const current = task('t1', 'todo', 0, 3)
-    model.replaceBaseline({ tasks: [current] })
-    model.removeTask(current.id, 2)
-    model.upsertTask(task('t1', 'todo', 0, 1))
-    model.replaceBaseline({ tasks: [current] })
-    expect(model.getSnapshot().tasks).toEqual([current])
-    model.removeTask(current.id, 3)
+  it('ignores obsolete removals and retires only the matching or newer revision', () => {
+    const model = new ClientTaskboardModel(remote())
+    model.replaceBaseline(baseline([task({ revision: 4 })]))
+    model.removeTask(id('t1'), 3)
+    expect(model.getSnapshot().tasks).toHaveLength(1)
+    model.removeTask(id('t1'), 4)
     expect(model.getSnapshot().tasks).toEqual([])
+    model.upsertTask(task({ revision: 5 }))
+    expect(model.getSnapshot().tasks[0]?.revision).toBe(5)
   })
 
-  it('installs Start with Copilot echoes and isolates transient Agency status failures', async () => {
+  it('preserves typed manual-status failure details without changing or retrying the task', async () => {
+    const ctx = new Context()
     const wire = remote()
-    const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-    const linked = { ...task('t1', 'todo', 0, 2), agencyCopilotSessionId: sessionId }
-    wire.startAgencyCopilot.mockResolvedValue({ ok: true, value: { task: linked, launch: 'accepted' } })
-    wire.inspectAgencyCopilot.mockResolvedValueOnce({
-      ok: true,
-      value: { observations: [{ taskId: id('t1'), sessionId, status: 'idle' }] },
-    }).mockResolvedValueOnce({
-      ok: false,
-      error: new RemoteError('taskboard/agency-unavailable', 'offline', {}),
+    const row = task()
+    const failure = new RemoteError('taskboard/manual-status-not-allowed', 'Host diagnostic', {
+      taskId: row.id, currentStatus: 'todo', requestedStatus: 'in_review',
     })
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [task('t1', 'todo', 0)] })
-    await model.startAgencyCopilot({ taskId: id('t1'), expectedRevision: 1 })
-    expect(model.getSnapshot().tasks[0]).toMatchObject({ revision: 2, agencyCopilotSessionId: sessionId })
-    await model.inspectAgencyCopilot({ taskIds: [id('t1')] })
-    expect(model.getSnapshot()).toMatchObject({
-      state: 'idle', agencyState: 'idle', agencyByTask: { t1: { status: 'idle' } },
-    })
-    await model.inspectAgencyCopilot({ taskIds: [id('t1')] })
-    expect(model.getSnapshot()).toMatchObject({ state: 'idle', agencyState: 'error' })
-    expect(model.getSnapshot().agencyByTask[id('t1')]).toMatchObject({ status: 'idle' })
+    wire.move.mockResolvedValueOnce({ ok: false, error: failure })
+    const model = new ClientTaskboardModel(wire)
+    model.replaceBaseline(baseline([row]))
+    try {
+      const controller = new TaskboardClientController(ctx, model)
+      await expect(controller.move({ taskId: row.id, expectedRevision: row.revision, status: 'in_review' }))
+        .rejects.toMatchObject({ name: 'TaskboardCommandError', operation: 'move', failure })
+      expect(model.getSnapshot().tasks[0]).toBe(row)
+      expect(wire.move).toHaveBeenCalledOnce()
+    } finally { await ctx.fiber.dispose() }
   })
 
-  it('merges overlapping Agency refreshes per task with newest-request wins', async () => {
+  it('installs the Host admission status without manufacturing connections or issuing a separate move', async () => {
     const wire = remote()
-    const sessionOne = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-    const sessionTwo = '2eb3dbf2-8b82-4863-b505-520708dcce80' as AgencyCopilotSessionId
+    const row = task({ connection, executionSettings: { kind: 'copilot' }, status: 'in_review' })
+    const executionId = 'execution' as TaskExecutionId
+    const requestId = 'request' as TaskRunRequestId
+    const admitted = task({ ...row, revision: 2, status: 'in_progress', executions: [{
+      id: executionId, requestId, status: 'pending', trigger: 'manual', requestedAt: '2026-01-01',
+      workspaceId: row.workspaceId, prompt: 'Saved', executionSettings: row.executionSettings, connection, createsConnection: false,
+    }] })
+    wire.run.mockResolvedValue({ ok: true, value: { task: admitted, executionId } })
+    const model = new ClientTaskboardModel(wire)
+    model.replaceBaseline(baseline([row]))
+    await model.run({ taskId: row.id, expectedRevision: row.revision, requestId })
+    expect(model.getSnapshot().tasks[0]).toMatchObject({
+      connection, status: 'in_progress', allowedManualStatuses: admitted.allowedManualStatuses, executions: [{ status: 'pending' }],
+    })
+    expect(wire.create).not.toHaveBeenCalled()
+    expect(wire.connect).not.toHaveBeenCalled()
+    expect(wire.move).not.toHaveBeenCalled()
+  })
+
+  it.each(['remote', 'rejected'] as const)('preserves failed mutations and retries only after explicit %s recovery', async (kind) => {
+    const wire = remote()
+    const failure = new RemoteError('taskboard/execution-error', 'The connected Session is missing', { taskId: id('t1'), code: 'session-missing' })
+    if (kind === 'remote') wire.run.mockResolvedValueOnce({ ok: false, error: failure })
+    else wire.run.mockRejectedValueOnce(failure)
+    const row = task()
+    const request = { taskId: row.id, expectedRevision: row.revision, requestId: 'request' as TaskRunRequestId }
+    wire.run.mockResolvedValueOnce({ ok: true, value: { task: row, executionId: 'run' } })
+    const ctx = new Context()
+    try {
+      const model = new ClientTaskboardModel(wire)
+      const controller = new TaskboardClientController(ctx, model)
+      model.replaceBaseline(baseline([row]))
+      const before = model.getSnapshot()
+      const operation = controller.run(request)
+      await expect(operation).rejects.toThrow('connected Session is missing')
+      if (kind === 'remote') await expect(operation).rejects.toMatchObject({ failure, operation: 'run' })
+      expect(model.getSnapshot()).toBe(before)
+      expect(wire.run).toHaveBeenCalledOnce()
+      await controller.run(request)
+      expect(wire.run).toHaveBeenCalledTimes(2)
+      expect(wire.run.mock.calls[1]?.[0]).toBe(request)
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('forwards discovery, options and historical terminal navigation without changing the snapshot', async () => {
+    const wire = remote()
+    const value = { sessions: [{ sessionId: connection.sessionId, status: 'idle' }], truncated: true }
+    const catalog = { presets: [], permissions: [], models: [], timeZone: 'UTC', copilotAvailable: false }
+    wire.listAgencyCopilotSessions.mockResolvedValue({ ok: true, value })
+    wire.executionOptions.mockResolvedValue({ ok: true, value: catalog })
+    wire.agencyCopilotCapability.mockResolvedValue({ ok: true, value: { launch: true } })
+    wire.openAgencyCopilot.mockResolvedValue({ ok: true, value: { outcome: 'resume-accepted' } })
+    const ctx = new Context()
+    try {
+      const model = new ClientTaskboardModel(wire)
+      const controller = new TaskboardClientController(ctx, model)
+      model.replaceBaseline(baseline([task()]))
+      const before = model.getSnapshot()
+      await expect(controller.listAgencyCopilotSessions(task().workspaceId)).resolves.toBe(value)
+      await expect(controller.executionOptions()).resolves.toBe(catalog)
+      await expect(controller.agencyCopilotCapability()).resolves.toBe(true)
+      await expect(controller.openAgencyCopilot(id('t1'), 'history' as TaskExecutionId)).resolves.toBe('resume-accepted')
+      expect(wire.openAgencyCopilot).toHaveBeenCalledWith({ taskId: id('t1'), executionId: 'history' })
+      expect(model.getSnapshot()).toBe(before)
+      expect(wire.run).not.toHaveBeenCalled()
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('surfaces model-provider catalog failures rather than returning an empty successful option list', async () => {
+    const wire = remote()
+    const failure = new RemoteError('taskboard/execution-error', 'Provider catalog unavailable', { code: 'model-catalog-failed' })
+    wire.executionOptions.mockResolvedValue({ ok: false, error: failure })
+    const ctx = new Context()
+    try {
+      const model = new ClientTaskboardModel(wire)
+      const controller = new TaskboardClientController(ctx, model)
+      const before = model.getSnapshot()
+      await expect(controller.executionOptions()).rejects.toMatchObject({ operation: 'execution options', failure })
+      expect(wire.executionOptions).toHaveBeenCalledOnce()
+      expect(model.getSnapshot()).toBe(before)
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it.each(['echo', 'baseline', 'disconnect', 'archive', 'remove'] as const)('prunes Agency observations after %s and ignores stale inspection replies', async (arrival) => {
+    const wire = remote()
+    const delayed = Promise.withResolvers<RemoteResult<TaskboardInspectAgencyCopilotValue>>()
+    const linked = task({ connection, executionSettings: { kind: 'copilot' } })
+    const observation = { taskId: linked.id, sessionId: connection.sessionId, status: 'idle' as const }
+    wire.inspectAgencyCopilot.mockResolvedValueOnce({ ok: true, value: { observations: [observation] } })
+      .mockReturnValueOnce(delayed.promise)
+    const model = new ClientTaskboardModel(wire)
+    model.replaceBaseline(baseline([linked]))
+    await model.inspectAgencyCopilot({ taskIds: [linked.id] })
+    expect(model.getSnapshot().agencyByTask[linked.id]).toEqual(observation)
+    const pending = model.inspectAgencyCopilot({ taskIds: [linked.id] })
+    const changed = task({ revision: 2 })
+    switch (arrival) {
+      case 'echo': model.upsertTask(changed); break
+      case 'baseline': model.replaceBaseline(baseline([changed])); break
+      case 'disconnect':
+        wire.disconnect.mockResolvedValue(ok(changed))
+        await model.disconnect({ taskId: linked.id, expectedRevision: 1 })
+        break
+      case 'archive': model.upsertTask({ ...linked, revision: 2, archivedAt: '2026-01-02' }); break
+      case 'remove': model.removeTask(linked.id, Number.MAX_SAFE_INTEGER); break
+    }
+    delayed.resolve({ ok: true, value: { observations: [observation] } })
+    await pending
+    expect(model.getSnapshot().agencyByTask).toEqual({})
+  })
+
+  it('applies newest Agency inspection per task and preserves the last observation on failure', async () => {
+    const wire = remote()
     const first = Promise.withResolvers<RemoteResult<TaskboardInspectAgencyCopilotValue>>()
     const second = Promise.withResolvers<RemoteResult<TaskboardInspectAgencyCopilotValue>>()
     wire.inspectAgencyCopilot.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [
-      { ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionOne },
-      { ...task('t2', 'todo', 1), agencyCopilotSessionId: sessionTwo },
-    ] })
-    const all = model.inspectAgencyCopilot({ taskIds: [id('t1'), id('t2')] })
-    const one = model.inspectAgencyCopilot({ taskIds: [id('t1')] })
-    second.resolve({ ok: true, value: { observations: [
-      { taskId: id('t1'), sessionId: sessionOne, status: 'in_use' },
-    ] } })
-    await one
-    first.resolve({ ok: true, value: { observations: [
-      { taskId: id('t1'), sessionId: sessionOne, status: 'idle' },
-      { taskId: id('t2'), sessionId: sessionTwo, status: 'idle' },
-    ] } })
-    await all
-    expect(model.getSnapshot().agencyByTask).toMatchObject({
-      t1: { status: 'in_use' }, t2: { status: 'idle' },
-    })
-    expect(model.getSnapshot().agencyState).toBe('idle')
+    const model = new ClientTaskboardModel(wire)
+    model.replaceBaseline(baseline([task({ connection, executionSettings: { kind: 'copilot' } })]))
+    const a = model.inspectAgencyCopilot({ taskIds: [id('t1')] })
+    const b = model.inspectAgencyCopilot({ taskIds: [id('t1')] })
+    second.resolve({ ok: true, value: { observations: [{ taskId: id('t1'), sessionId: connection.sessionId, status: 'in_use' }] } })
+    await b
+    first.resolve({ ok: true, value: { observations: [{ taskId: id('t1'), sessionId: connection.sessionId, status: 'idle' }] } })
+    await a
+    expect(model.getSnapshot().agencyByTask[id('t1')]?.status).toBe('in_use')
+    const failure = new RemoteError('taskboard/agency-unavailable', 'Offline', {})
+    wire.inspectAgencyCopilot.mockResolvedValueOnce({ ok: false, error: failure })
+    await model.inspectAgencyCopilot({ taskIds: [id('t1')] })
+    expect(model.getSnapshot()).toMatchObject({ agencyState: 'error', agencyError: failure, agencyByTask: { t1: { status: 'in_use' } } })
+    wire.inspectAgencyCopilot.mockRejectedValueOnce(new TypeError('Fetch failed'))
+    await expect(model.inspectAgencyCopilot({ taskIds: [id('t1')] })).rejects.toThrow('Fetch failed')
+    expect(model.getSnapshot().agencyError?.message).toBe('Fetch failed')
   })
 
-  it.each(['echo', 'baseline', 'clear'] as const)(
-    'prunes current and delayed Agency observations after a link changes through %s',
-    async (arrival) => {
-      const wire = remote()
-      const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-      const replacement = '2eb3dbf2-8b82-4863-b505-520708dcce80' as AgencyCopilotSessionId
-      const initial = { ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionId }
-      const changed = arrival === 'clear'
-        ? task('t1', 'todo', 0, 2)
-        : { ...initial, revision: 2, agencyCopilotSessionId: replacement }
-      const observed: RemoteResult<TaskboardInspectAgencyCopilotValue> = {
-        ok: true, value: { observations: [{ taskId: initial.id, sessionId, status: 'idle' }] },
-      }
-      const delayed = Promise.withResolvers<RemoteResult<TaskboardInspectAgencyCopilotValue>>()
-      wire.inspectAgencyCopilot.mockResolvedValueOnce(observed).mockReturnValueOnce(delayed.promise)
-      wire.update.mockResolvedValue(ok(changed))
-      const model = new ClientTaskboardModel(wire as never)
-      model.replaceBaseline({ tasks: [initial] })
-      await model.inspectAgencyCopilot({ taskIds: [initial.id] })
-      const refreshing = model.inspectAgencyCopilot({ taskIds: [initial.id] })
-      if (arrival === 'baseline') model.replaceBaseline({ tasks: [changed] })
-      else {
-        await model.update({
-          taskId: initial.id, expectedRevision: 1, patch: { agencyCopilotSessionId: arrival === 'clear' ? null : replacement },
-        })
-      }
-      expect(model.getSnapshot().agencyByTask).toEqual({})
-      delayed.resolve(observed)
-      await refreshing
-      expect(model.getSnapshot().agencyByTask).toEqual({})
-      expect(model.getSnapshot().tasks).toEqual([changed])
-    },
-  )
-
-  it.each(['echo', 'upsert', 'baseline', 'remove'] as const)(
-    'drops Agency observations on archive or deletion through %s, including in-flight results',
-    async (arrival) => {
-      const wire = remote()
-      const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-      const linked = { ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionId }
-      const archived = { ...linked, revision: 2, archivedAt: '2026-01-02T00:00:00.000Z' }
-      const observed: RemoteResult<TaskboardInspectAgencyCopilotValue> = {
-        ok: true, value: { observations: [{ taskId: linked.id, sessionId, status: 'idle' }] },
-      }
-      const delayed = Promise.withResolvers<RemoteResult<TaskboardInspectAgencyCopilotValue>>()
-      wire.inspectAgencyCopilot.mockResolvedValueOnce(observed).mockReturnValueOnce(delayed.promise)
-      wire.archive.mockResolvedValue(ok(archived))
-      const model = new ClientTaskboardModel(wire as never)
-      model.replaceBaseline({ tasks: [linked] })
-      await model.inspectAgencyCopilot({ taskIds: [linked.id] })
-      expect(model.getSnapshot().agencyByTask[linked.id]).toMatchObject({ status: 'idle' })
-      const refreshing = model.inspectAgencyCopilot({ taskIds: [linked.id] })
-      switch (arrival) {
-        case 'echo': await model.archive({ taskId: linked.id, expectedRevision: 1 }); break
-        case 'upsert': model.upsertTask(archived); break
-        case 'baseline': model.replaceBaseline({ tasks: [archived] }); break
-        case 'remove': model.removeTask(linked.id, Number.MAX_SAFE_INTEGER); break
-      }
-      expect(model.getSnapshot().agencyByTask).toEqual({})
-      delayed.resolve(observed)
-      await refreshing
-      expect(model.getSnapshot().agencyByTask).toEqual({})
-      expect(model.getSnapshot().tasks).toEqual(arrival === 'remove' ? [] : [archived])
-    },
-  )
-
-  it('publishes one stable snapshot after a microtask batch', async () => {
-    const model = new ClientTaskboardModel(remote() as never)
-    const listener = vi.fn()
-    model.subscribe(listener)
-    model.replaceBaseline({ tasks: [] })
-    model.upsertTask(task('t1', 'todo', 0))
-    await Promise.resolve()
-    expect(listener).toHaveBeenCalledOnce()
-    expect(model.getSnapshot()).toBe(model.getSnapshot())
-  })
-
-  it('retains the Remote error instance and typed details on a terminal stream failure', () => {
-    const model = new ClientTaskboardModel(remote() as never)
-    const failure = new RemoteError('taskboard/task-not-found', 'Task was removed', { taskId: id('t1') })
-    model.handleStreamFailure(failure)
-    expect(model.getSnapshot().error).toBe(failure)
-    expect(remoteErrorOf(model.getSnapshot().error)).toMatchObject({
-      code: 'taskboard/task-not-found', details: { taskId: id('t1') },
-    })
-  })
-
-  it.each([new Error('Broken stream'), 'Broken stream'])('normalizes an unclassified stream failure into an Error', (error) => {
-    const model = new ClientTaskboardModel(remote() as never)
+  it('retains structured terminal stream errors and normalizes unknown failures', () => {
+    const model = new ClientTaskboardModel(remote())
+    const error = new RemoteError('taskboard/revision-conflict', 'Conflict', { taskId: id('t1'), expectedRevision: 1, actualRevision: 2 })
     model.handleStreamFailure(error)
-    const failure = model.getSnapshot().error
-    expect(failure).toBeInstanceOf(Error)
-    expect(remoteErrorOf(failure)).toMatchObject({
-      code: 'gateway/internal', message: 'Broken stream', details: {}, cause: error,
-    })
+    expect(model.getSnapshot().error).toBe(error)
+    expect(remoteErrorOf(model.getSnapshot().error)?.details).toEqual(error.details)
+    model.handleStreamFailure('Broken stream')
+    expect(model.getSnapshot()).toMatchObject({ state: 'error', error: { code: 'gateway/internal', message: 'Broken stream' } })
   })
 
-  it('records a rejected Agency inspection as a Remote error while preserving the original rejection', async () => {
-    const wire = remote()
-    const error = new Error('Agency inspection failed')
-    wire.inspectAgencyCopilot.mockRejectedValue(error)
-    const model = new ClientTaskboardModel(wire as never)
-    await expect(model.inspectAgencyCopilot({ taskIds: [id('t1')] })).rejects.toBe(error)
-    expect(model.getSnapshot().agencyError).toBeInstanceOf(Error)
-    expect(remoteErrorOf(model.getSnapshot().agencyError)).toMatchObject({
-      code: 'gateway/internal', message: error.message, cause: error,
-    })
-  })
-
-  it.each([false, true])('deletes an active or archived linked row only after a successful receipt (archived=%s)', async (archived) => {
-    const wire = remote()
-    const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-    const initial = {
-      ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionId,
-      ...(archived ? { archivedAt: '2026-01-02T00:00:00.000Z' } : {}),
-    }
-    const retained = task('t2', 'todo', 1)
-    const pending = Promise.withResolvers<RemoteResult<TaskboardDeleteValue>>()
-    wire.delete.mockReturnValue(pending.promise)
-    const ctx = new Context()
-    try {
-      const model = new ClientTaskboardModel(wire as never)
-      const controller = new TaskboardClientController(ctx, model)
-      model.replaceBaseline({ tasks: [initial, retained] })
-      const before = controller.list.getSnapshot()
-      const deleting = controller.delete(initial.id, initial.revision)
-      expect(controller.list.getSnapshot()).toBe(before)
-      pending.resolve({ ok: true, value: { taskId: initial.id, revision: Number.MAX_SAFE_INTEGER } })
-      await expect(deleting).resolves.toBeUndefined()
-      expect(wire.delete).toHaveBeenCalledExactlyOnceWith({ taskId: initial.id, expectedRevision: initial.revision })
-      expect(controller.list.getSnapshot().tasks).toEqual([retained])
-      expect(wire.openAgencyCopilot).not.toHaveBeenCalled()
-      expect(wire.clearAgencyCopilot).not.toHaveBeenCalled()
-    } finally { await ctx.fiber.dispose() }
-  })
-
-  it.each(['remote-failure', 'rejected-fetch'] as const)(
-    'preserves task and Agency observation on deletion %s and retries only on request',
-    async (kind) => {
+  it.each(['create', 'update', 'move', 'connect', 'disconnect', 'restore', 'duplicate', 'confirmPermissions'] as const)(
+    'the %s service preserves full error details and returns committed tasks', async (operation) => {
       const wire = remote()
-      const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-      const initial = { ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionId }
-      const failure = new RemoteError('taskboard/revision-conflict', 'Current revision changed', {
-        taskId: initial.id, expectedRevision: initial.revision, actualRevision: initial.revision + 1,
-      })
-      const rejected = new TypeError('Failed to fetch')
-      if (kind === 'remote-failure') wire.delete.mockResolvedValueOnce({ ok: false, error: failure })
-      else wire.delete.mockRejectedValueOnce(rejected)
-      wire.delete.mockResolvedValueOnce({ ok: true, value: { taskId: initial.id, revision: Number.MAX_SAFE_INTEGER } })
-      wire.inspectAgencyCopilot.mockResolvedValue({
-        ok: true, value: { observations: [{ taskId: initial.id, sessionId, status: 'in_use' }] },
-      })
+      const failure = new RemoteError('taskboard/bad-request', 'Invalid input', {})
+      wire[operation].mockResolvedValueOnce({ ok: false, error: failure }).mockResolvedValueOnce(ok(task({ revision: 2 })))
       const ctx = new Context()
       try {
-        const model = new ClientTaskboardModel(wire as never)
-        const controller = new TaskboardClientController(ctx, model)
-        model.replaceBaseline({ tasks: [initial] })
-        await model.inspectAgencyCopilot({ taskIds: [initial.id] })
-        const before = controller.list.getSnapshot()
-        const deleting = controller.delete(initial.id, initial.revision)
-        if (kind === 'remote-failure') {
-          await expect(deleting).rejects.toBeInstanceOf(TaskboardCommandError)
-          await expect(deleting).rejects.toMatchObject({ operation: 'delete', failure })
-        } else await expect(deleting).rejects.toBe(rejected)
-        expect(controller.list.getSnapshot()).toBe(before)
-        expect(wire.delete).toHaveBeenCalledExactlyOnceWith({ taskId: initial.id, expectedRevision: initial.revision })
-        await controller.delete(initial.id, initial.revision)
-        expect(controller.list.getSnapshot()).toMatchObject({ tasks: [], agencyByTask: {} })
-        expect(wire.delete).toHaveBeenCalledTimes(2)
+        const controller = new TaskboardClientController(ctx, new ClientTaskboardModel(wire))
+        const request = { taskId: id('t1'), expectedRevision: 1, workspaceId: task().workspaceId, title: 'Task',
+          status: 'todo' as const, patch: { prompt: 'Prompt' }, connection }
+        const pending = controller[operation](request)
+        await expect(pending).rejects.toBeInstanceOf(TaskboardCommandError)
+        await expect(pending).rejects.toMatchObject({ failure, operation: operation === 'confirmPermissions' ? 'confirm permissions' : operation })
+        await expect(controller[operation](request)).resolves.toMatchObject({ revision: 2 })
       } finally { await ctx.fiber.dispose() }
     },
   )
 
-  it('keeps deletion authoritative over later higher-revision echoes, baselines, and Agency observations', async () => {
-    const wire = remote()
-    const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as AgencyCopilotSessionId
-    const initial = { ...task('t1', 'todo', 0), agencyCopilotSessionId: sessionId }
-    const observed: RemoteResult<TaskboardInspectAgencyCopilotValue> = {
-      ok: true, value: { observations: [{ taskId: initial.id, sessionId, status: 'in_use' }] },
-    }
-    const delayedObservation = Promise.withResolvers<RemoteResult<TaskboardInspectAgencyCopilotValue>>()
-    const delayedUpdate = Promise.withResolvers<RemoteResult<TaskboardTaskValue>>()
-    wire.inspectAgencyCopilot.mockResolvedValueOnce(observed).mockReturnValueOnce(delayedObservation.promise)
-    wire.update.mockReturnValue(delayedUpdate.promise)
-    wire.delete.mockResolvedValue({ ok: true, value: { taskId: initial.id, revision: Number.MAX_SAFE_INTEGER } })
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [initial] })
-    await model.inspectAgencyCopilot({ taskIds: [initial.id] })
-    const refreshing = model.inspectAgencyCopilot({ taskIds: [initial.id] })
-    const updating = model.update({ taskId: initial.id, expectedRevision: 1, patch: { title: 'Delayed edit' } })
-    await model.delete({ taskId: initial.id, expectedRevision: 3 })
-    expect(model.getSnapshot()).toMatchObject({ tasks: [], agencyByTask: {} })
-    delayedUpdate.resolve(ok({ ...initial, revision: 2, title: 'Delayed edit' }))
-    delayedObservation.resolve(observed)
-    await Promise.all([updating, refreshing])
-    model.upsertTask({ ...initial, revision: 3 })
-    model.handleCarrierFailure()
-    model.replaceBaseline({ tasks: [{ ...initial, revision: 3 }] })
-    expect(model.getSnapshot()).toMatchObject({ tasks: [], agencyByTask: {}, state: 'idle' })
-    model.replaceBaseline({ tasks: [] })
-    model.upsertTask(initial)
-    const reusedOrdinal = { ...task('t2', 'todo', 0), ordinal: initial.ordinal }
-    model.upsertTask(reusedOrdinal)
-    expect(model.getSnapshot().tasks).toEqual([reusedOrdinal])
+  it.each(['archive', 'delete', 'agencyCopilotCapability', 'listAgencyCopilotSessions', 'openAgencyCopilot', 'inspectAgencyCopilot', 'updateSettings'] as const)(
+    'preserves %s failure details, then installs or returns only the explicit retry result', async (operation) => {
+      const wire = remote()
+      const row = task({ connection, executionSettings: { kind: 'copilot' } })
+      const failure = new RemoteError('taskboard/execution-error', 'Host operation rejected', { code: 'fixture-failed' })
+      const archived = { ...row, revision: 2, archivedAt: '2026-01-02' }
+      const values = {
+        archive: { task: archived }, delete: { taskId: row.id, revision: 2 },
+        agencyCopilotCapability: { launch: false }, listAgencyCopilotSessions: { sessions: [], truncated: false },
+        openAgencyCopilot: { outcome: 'already-running' }, inspectAgencyCopilot: { observations: [] }, updateSettings: runtime,
+      }
+      wire[operation].mockResolvedValueOnce({ ok: false, error: failure })
+        .mockResolvedValueOnce({ ok: true, value: values[operation] })
+      const model = new ClientTaskboardModel(wire)
+      model.replaceBaseline(baseline([row]))
+      const ctx = new Context()
+      const controller = new TaskboardClientController(ctx, model)
+      const command = () => {
+        switch (operation) {
+          case 'archive': return controller.archive(row.id, row.revision)
+          case 'delete': return controller.delete(row.id, row.revision)
+          case 'agencyCopilotCapability': return controller.agencyCopilotCapability()
+          case 'listAgencyCopilotSessions': return controller.listAgencyCopilotSessions(row.workspaceId)
+          case 'openAgencyCopilot': return controller.openAgencyCopilot(row.id)
+          case 'inspectAgencyCopilot': return controller.inspectAgencyCopilot([row.id])
+          case 'updateSettings': return controller.updateSettings({ patch: { enabled: false } })
+        }
+      }
+      try {
+        await expect(command()).rejects.toMatchObject({ failure })
+        expect(model.getSnapshot().tasks).toEqual([row])
+        const value = await command()
+        expect(wire[operation]).toHaveBeenCalledTimes(2)
+        if (operation === 'archive') expect(model.getSnapshot().tasks).toEqual([archived])
+        if (operation === 'delete') expect(model.getSnapshot().tasks).toEqual([])
+        if (operation === 'agencyCopilotCapability') expect(value).toBe(false)
+        if (operation === 'openAgencyCopilot') {
+          expect(value).toBe('already-running')
+          expect(wire.openAgencyCopilot).toHaveBeenLastCalledWith({ taskId: row.id })
+        }
+        if (operation === 'updateSettings') expect(value).toBe(runtime)
+      } finally { await ctx.fiber.dispose() }
+    },
+  )
+
+  it('orders equal ranks by ordinal then identity, and ignores replayed or absent removals', () => {
+    const model = new ClientTaskboardModel(remote())
+    const rows = [task({ id: id('b'), ordinal: 2 }), task({ id: id('a'), ordinal: 2 }), task({ id: id('first'), ordinal: 1 })]
+    model.replaceBaseline(baseline(rows))
+    expect(model.getSnapshot().tasks.map(row => row.id)).toEqual(['first', 'a', 'b'])
+    model.removeTask(id('missing'), 3)
+    const before = model.getSnapshot()
+    model.removeTask(id('missing'), 2)
+    expect(model.getSnapshot()).toBe(before)
+    model.upsertTask(task({ id: id('missing'), revision: 4 }))
+    model.removeTask(id('missing'), 5)
+    const removed = model.getSnapshot()
+    model.removeTask(id('missing'), 5)
+    expect(model.getSnapshot()).toBe(removed)
+    model.replaceBaseline(baseline([task({ id: id('missing'), revision: 6 })]))
+    expect(model.getSnapshot().tasks[0]?.revision).toBe(6)
   })
 
-  it('accepts a delayed deletion receipt after a feed tombstone without reviving the task', async () => {
+  it('keeps same-conversation observations but rejects replies for replaced, archived, or absent tasks', async () => {
     const wire = remote()
-    const initial = task('t1', 'todo', 0)
-    const delayed = Promise.withResolvers<RemoteResult<TaskboardDeleteValue>>()
-    wire.delete.mockReturnValue(delayed.promise)
-    const model = new ClientTaskboardModel(wire as never)
-    model.replaceBaseline({ tasks: [initial] })
-    const deleting = model.delete({ taskId: initial.id, expectedRevision: initial.revision })
-    model.removeTask(initial.id, Number.MAX_SAFE_INTEGER)
-    model.replaceBaseline({ tasks: [initial] })
-    delayed.resolve({ ok: true, value: { taskId: initial.id, revision: Number.MAX_SAFE_INTEGER } })
-    await deleting
-    model.upsertTask({ ...initial, revision: 2 })
-    expect(model.getSnapshot().tasks).toEqual([])
+    const model = new ClientTaskboardModel(wire)
+    const row = task({ connection, executionSettings: { kind: 'copilot' } })
+    const observation = { taskId: row.id, sessionId: connection.sessionId, status: 'idle' }
+    model.replaceBaseline(baseline([row]))
+    wire.inspectAgencyCopilot.mockResolvedValue({ ok: true, value: { observations: [observation] } })
+    await model.inspectAgencyCopilot({ taskIds: [row.id, row.id] })
+    expect(wire.inspectAgencyCopilot).toHaveBeenLastCalledWith({ taskIds: [row.id] })
+    model.upsertTask({ ...row, revision: 2, title: 'Planning edit' })
+    model.replaceBaseline(baseline([{ ...row, revision: 2 }]))
+    expect(model.getSnapshot().agencyByTask[row.id]).toEqual(observation)
+    const replacement = { ...row, revision: 3, connection: { ...connection, sessionId: 'replacement' as AgencyCopilotSessionId } }
+    model.upsertTask(replacement)
+    expect(model.getSnapshot().agencyByTask).toEqual({})
+    await model.inspectAgencyCopilot({ taskIds: [row.id] })
+    expect(model.getSnapshot().agencyByTask).toEqual({})
+    model.replaceBaseline(baseline([{ ...replacement, archivedAt: '2026-01-02' }]))
+    await model.inspectAgencyCopilot({ taskIds: [row.id] })
+    model.replaceBaseline(baseline([]))
+    await model.inspectAgencyCopilot({ taskIds: [row.id] })
+    expect(model.getSnapshot().agencyByTask).toEqual({})
   })
 })

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   PACKAGE_DEPENDENCY_POLICY,
+  usesFlattenedPackageDependencies,
   type PackageDependencyPolicy,
 } from './package-dependency-policy.ts'
 import {
@@ -124,6 +125,7 @@ describe('package dependency scope', () => {
   it('keeps the measured Host relay roster explicit', () => {
     expect(PACKAGE_DEPENDENCY_POLICY.clientFaceExclude).toEqual([
       '@deepseek-ai/dsh-api-session-controller',
+      '@deepseek-ai/dsh-api-taskboard-controller',
       '@deepseek-ai/dsh-api-workspace-controller',
     ])
     expect(PACKAGE_DEPENDENCY_POLICY.hostPackages).toEqual([
@@ -156,6 +158,17 @@ describe('package dependency scope', () => {
       'carrierKeyOf', 'scopeOf', 'scopeTarget',
     ])
     expect(PACKAGE_DEPENDENCY_POLICY.peerRequiredHostExports['@deepseek-ai/dsh-typert-protocol']).toBeUndefined()
+  })
+
+  it('retains Taskboard Host service peers without exempting other dual-face controllers', () => {
+    expect(usesFlattenedPackageDependencies(
+      'packages/api/taskboard-controller/package.json',
+      '@deepseek-ai/dsh-api-taskboard-controller', { client: {} },
+    )).toBe(false)
+    expect(usesFlattenedPackageDependencies(
+      'packages/api/another-controller/package.json',
+      '@deepseek-ai/dsh-api-another-controller', { client: {} },
+    )).toBe(true)
   })
 
   it('discovers the Client directory, dsh.client declarations, and configured Host packages', () => {

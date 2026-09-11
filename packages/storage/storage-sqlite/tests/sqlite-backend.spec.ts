@@ -86,6 +86,76 @@ describe('sqlite backend specifics', () => {
     await backend.close()
   })
 
+  it('advances an explicitly compatible per-record unit without rewriting its records', async () => {
+    const path = await freshDbPath()
+    const first = backendAt(path)
+    try {
+      const unit = await first.kv.open({ ...DESCRIPTOR, layout: 'per-record' })
+      await unit.putRecord('records', 'legacy', { title: 'Retained task', revision: 3 })
+      await unit.setGlobal({ retained: true })
+    } finally { await first.close() }
+
+    const second = backendAt(path)
+    try {
+      const unit = await second.kv.open({
+        ...DESCRIPTOR, version: 2, layout: 'per-record', compatibleVersions: [1],
+      })
+      expect(await unit.loadAll()).toEqual({
+        tables: { records: { legacy: { title: 'Retained task', revision: 3 } } },
+        global: { retained: true },
+      })
+    } finally { await second.close() }
+
+    const reopened = backendAt(path)
+    try {
+      await expect(reopened.kv.open({ ...DESCRIPTOR, layout: 'per-record' }))
+        .rejects.toMatchObject({ code: 'version-mismatch' })
+      const unit = await reopened.kv.open({ ...DESCRIPTOR, version: 2, layout: 'per-record' })
+      expect((await unit.loadAll()).tables['records']).toEqual({
+        legacy: { title: 'Retained task', revision: 3 },
+      })
+    } finally { await reopened.close() }
+  })
+
+  it('rejects undeclared compatibility, single-layout upgrades, and version downgrades', async () => {
+    const backend = backendAt(':memory:')
+    try {
+      const first = await backend.kv.open(DESCRIPTOR)
+      await first.close()
+      await expect(backend.kv.open({ ...DESCRIPTOR, version: 2, layout: 'per-record' }))
+        .rejects.toMatchObject({ code: 'version-mismatch' })
+      await expect(backend.kv.open({ ...DESCRIPTOR, version: 2, compatibleVersions: [1] }))
+        .rejects.toMatchObject({ code: 'version-mismatch' })
+      await expect(backend.kv.open({
+        ...DESCRIPTOR, version: 0, layout: 'per-record', compatibleVersions: [1],
+      })).rejects.toMatchObject({ code: 'version-mismatch' })
+      const unchanged = await backend.kv.open(DESCRIPTOR)
+      await unchanged.close()
+    } finally { await backend.close() }
+  })
+
+  it('rolls back a compatible version advance when the unit tables cannot be prepared', async () => {
+    const path = await freshDbPath()
+    const first = backendAt(path)
+    try {
+      const unit = await first.kv.open({ ...DESCRIPTOR, layout: 'per-record' })
+      await unit.putRecord('records', 'retained', { value: 1 })
+    } finally { await first.close() }
+    const db = new DatabaseSync(path)
+    try { db.exec('CREATE TABLE u_specimen_invalid (different TEXT) STRICT') }
+    finally { db.close() }
+
+    const second = backendAt(path)
+    try {
+      await expect(second.kv.open({
+        ...DESCRIPTOR, version: 2, layout: 'per-record', compatibleVersions: [1],
+        tables: ['records', 'invalid'],
+      })).rejects.toThrow()
+      const original = await second.kv.open({ ...DESCRIPTOR, layout: 'per-record' })
+      expect((await original.loadAll()).tables['records']).toEqual({ retained: { value: 1 } })
+    } finally { await second.close() }
+  })
+
   it('rejects invalid unit and table names before touching the medium', async () => {
     const backend = backendAt(':memory:')
     await expect(backend.kv.open({ ...DESCRIPTOR, name: 'Bad-Name' })).rejects.toThrow(/violates/)

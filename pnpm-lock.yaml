@@ -1136,6 +1136,103 @@ importers:
         specifier: workspace:^
         version: link:../../typert/protocol
 
+  packages/api/taskboard-controller:
+    dependencies:
+      '@deepseek-ai/dsh-brand':
+        specifier: workspace:^
+        version: link:../../util/brand
+      '@deepseek-ai/node-addon-system':
+        specifier: workspace:^
+        version: link:../../../native/system/packages/entry
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@github/copilot-sdk':
+        specifier: 1.0.13
+        version: 1.0.13
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:^
+        version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-presets':
+        specifier: workspace:^
+        version: link:../../preset/agent-presets
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: workspace:^
+        version: link:../gateway
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: workspace:^
+        version: link:../session-controller
+      '@deepseek-ai/dsh-client-connection':
+        specifier: workspace:^
+        version: link:../../client/connection
+      '@deepseek-ai/dsh-client-store':
+        specifier: workspace:^
+        version: link:../../client/store
+      '@deepseek-ai/dsh-cordis-host-runner':
+        specifier: workspace:^
+        version: link:../../extensions/cordis-host-runner
+      '@deepseek-ai/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
+      '@deepseek-ai/dsh-launch-environment':
+        specifier: workspace:^
+        version: link:../../util/launch-environment
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-permission-presets':
+        specifier: workspace:^
+        version: link:../../interaction/permission-presets
+      '@deepseek-ai/dsh-sandbox-policy':
+        specifier: workspace:^
+        version: link:../../sandbox/sandbox-policy
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-persistence':
+        specifier: workspace:^
+        version: link:../../session/session-persistence
+      '@deepseek-ai/dsh-session-projection':
+        specifier: workspace:^
+        version: link:../../session/session-projection
+      '@deepseek-ai/dsh-settings':
+        specifier: workspace:^
+        version: link:../../settings/settings
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      '@deepseek-ai/dsh-subprocess':
+        specifier: workspace:^
+        version: link:../../subprocess/subprocess
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:^
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-taskboard':
+        specifier: workspace:^
+        version: link:../../workspace/taskboard
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:^
+        version: link:../../typert/protocol
+      '@deepseek-ai/dsh-user-approval':
+        specifier: workspace:^
+        version: link:../../interaction/user-approval
+      '@deepseek-ai/dsh-user-questions':
+        specifier: workspace:^
+        version: link:../../interaction/user-questions
+      '@deepseek-ai/dsh-win32-process':
+        specifier: workspace:^
+        version: link:../../subprocess/win32-process
+      '@deepseek-ai/dsh-workspace':
+        specifier: workspace:^
+        version: link:../../workspace/workspace
+
   packages/api/workspace-controller:
     dependencies:
       '@deepseek-ai/dsh-deque':
@@ -4082,6 +4179,63 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+
+  packages/client/ui-taskboard:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: workspace:^
+        version: link:../../api/session-controller
+      '@deepseek-ai/dsh-api-taskboard-controller':
+        specifier: workspace:^
+        version: link:../../api/taskboard-controller
+      '@deepseek-ai/dsh-api-workspace-controller':
+        specifier: workspace:^
+        version: link:../../api/workspace-controller
+      '@deepseek-ai/dsh-client-connection':
+        specifier: workspace:^
+        version: link:../connection
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../locale
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: workspace:^
+        version: link:../ui-layout
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:^
+        version: link:../ui-primitives
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:^
+        version: link:../ui-renderer
+      '@deepseek-ai/dsh-client-ui-session':
+        specifier: workspace:^
+        version: link:../ui-session
+      '@deepseek-ai/dsh-client-ui-sidebar':
+        specifier: workspace:^
+        version: link:../ui-sidebar
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../ui-slots
+      '@deepseek-ai/dsh-client-ui-workspace':
+        specifier: workspace:^
+        version: link:../ui-workspace
+      '@deepseek-ai/dsh-goal':
+        specifier: workspace:^
+        version: link:../../goal/goal
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-util-crypto':
+        specifier: workspace:^
+        version: link:../../util/crypto
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
 
   packages/client/ui-theme:
     dependencies:
@@ -10685,6 +10839,40 @@ importers:
         specifier: ^4.19.2
         version: 4.22.4
 
+  packages/workspace/taskboard:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      croner:
+        specifier: ^10.0.1
+        version: 10.0.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-agent-presets':
+        specifier: workspace:^
+        version: link:../../preset/agent-presets
+      '@deepseek-ai/dsh-brand':
+        specifier: workspace:^
+        version: link:../../util/brand
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      '@deepseek-ai/dsh-workspace':
+        specifier: workspace:^
+        version: link:../workspace
+
   packages/workspace/workspace:
     dependencies:
       '@deepseek-ai/dsh-brand':
@@ -11243,131 +11431,6 @@ importers:
       vitepress-plugin-mermaid:
         specifier: ^2.0.17
         version: 2.0.17(mermaid@11.16.0)(vitepress@1.6.4(@algolia/client-search@5.55.2)(@types/node@25.9.3)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3))
-
-  packages/api/taskboard-controller:
-    dependencies:
-      '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
-        version: link:../../../vendor/schemastery
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@deepseek-ai/dsh-api-gateway':
-        specifier: workspace:^
-        version: link:../gateway
-      '@deepseek-ai/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../../client/connection
-      '@deepseek-ai/dsh-client-store':
-        specifier: workspace:^
-        version: link:../../client/store
-      '@deepseek-ai/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@deepseek-ai/dsh-launch-environment':
-        specifier: workspace:^
-        version: link:../../util/launch-environment
-      '@deepseek-ai/dsh-storage-domain':
-        specifier: workspace:^
-        version: link:../../storage/storage-domain
-      '@deepseek-ai/dsh-subprocess':
-        specifier: workspace:^
-        version: link:../../subprocess/subprocess
-      '@deepseek-ai/dsh-taskboard':
-        specifier: workspace:^
-        version: link:../../workspace/taskboard
-      '@deepseek-ai/dsh-typert-protocol':
-        specifier: workspace:^
-        version: link:../../typert/protocol
-      '@deepseek-ai/dsh-win32-process':
-        specifier: workspace:^
-        version: link:../../subprocess/win32-process
-      '@deepseek-ai/dsh-workspace':
-        specifier: workspace:^
-        version: link:../../workspace/workspace
-
-  packages/client/ui-taskboard:
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@deepseek-ai/dsh-api-session-controller':
-        specifier: workspace:^
-        version: link:../../api/session-controller
-      '@deepseek-ai/dsh-api-taskboard-controller':
-        specifier: workspace:^
-        version: link:../../api/taskboard-controller
-      '@deepseek-ai/dsh-api-workspace-controller':
-        specifier: workspace:^
-        version: link:../../api/workspace-controller
-      '@deepseek-ai/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@deepseek-ai/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@deepseek-ai/dsh-client-ui-layout':
-        specifier: workspace:^
-        version: link:../ui-layout
-      '@deepseek-ai/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@deepseek-ai/dsh-client-ui-renderer':
-        specifier: workspace:^
-        version: link:../ui-renderer
-      '@deepseek-ai/dsh-client-ui-session':
-        specifier: workspace:^
-        version: link:../ui-session
-      '@deepseek-ai/dsh-client-ui-sidebar':
-        specifier: workspace:^
-        version: link:../ui-sidebar
-      '@deepseek-ai/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@deepseek-ai/dsh-client-ui-workspace':
-        specifier: workspace:^
-        version: link:../ui-workspace
-      '@deepseek-ai/dsh-goal':
-        specifier: workspace:^
-        version: link:../../goal/goal
-      '@deepseek-ai/dsh-session':
-        specifier: workspace:^
-        version: link:../../core/session
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/workspace/taskboard:
-    dependencies:
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@deepseek-ai/dsh-brand':
-        specifier: workspace:^
-        version: link:../../util/brand
-      '@deepseek-ai/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@deepseek-ai/dsh-session':
-        specifier: workspace:^
-        version: link:../../core/session
-      '@deepseek-ai/dsh-storage-domain':
-        specifier: workspace:^
-        version: link:../../storage/storage-domain
-      '@deepseek-ai/dsh-workspace':
-        specifier: workspace:^
-        version: link:../workspace
 
 packages:
 
@@ -12440,6 +12503,54 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@github/copilot-sdk-darwin-arm64@1.0.13':
+    resolution: {integrity: sha512-AvBV5dzjNWpGwgoCnttrETnt7rLI4pTFQsRSM7GU5TK+YqShauffdMU06Bn/d+IDX2fj1Z4ThH7yl/gHCDvoNQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@github/copilot-sdk-darwin-x64@1.0.13':
+    resolution: {integrity: sha512-ZNQmTnHwk8bO/E514k0sFBsuCVNpFj8jMH4jeLncASQM4RRdOqYhXlYLW7H/ts7ANjdfMJjJY29NUqzEWaADOA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@github/copilot-sdk-linux-arm64@1.0.13':
+    resolution: {integrity: sha512-km1jvveDwlJbht8luFyBurz0wUxPHSzdkZRMJEJgVHYfMn03gi0gdnZ6fC6JWgkiffNZpukSxRPJmPfRobw6Aw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@github/copilot-sdk-linux-x64@1.0.13':
+    resolution: {integrity: sha512-4AbzC8Nb1dWYQ1uxbHGAh0ZAoOJeL3Ms1oe3byZLn8ENP1PfoyD8DJZUSsyXGYHxL7oLJyUqd3wyt18ifIg8iw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.13':
+    resolution: {integrity: sha512-pCUjly1nXcNpYDZNnKrglFIFejbb+QDkloilldu+0tTbSzb8gEmVsbGwpfwyZXfNQf5Je5FFjsOfQR9PXH1NDQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@github/copilot-sdk-linuxmusl-x64@1.0.13':
+    resolution: {integrity: sha512-y5RmqAbKSYHt+OwQdILIiiMSibXdd7/0kO7kFoTZCN2gn2eGRA8wJbXlf6KZh+yYgWSJGUL8677LDJd3WnIHbA==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@github/copilot-sdk-win32-arm64@1.0.13':
+    resolution: {integrity: sha512-azISXh4pEVfX0hPzu58wZTYg3tdWG4L1nNpiRa/wdBxhcovbxw+eZVkI4C6FZMx0tiNYFkqWzVTV7oKskNybcw==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@github/copilot-sdk-win32-x64@1.0.13':
+    resolution: {integrity: sha512-lvS7kMbuuxydBQxPDHCkuUwbC858Rvcz3Q3vv0mxnLKuWJ75lAcqERefqA2p4beaPdez+ifZOA5heUT0rx3GnA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@github/copilot-sdk@1.0.13':
+    resolution: {integrity: sha512-/j6/tGc9HOtcupuYFloOKk0fpScdpy65EVF1LKg2Z2VQOojCGPgBGkhgVGVDaqW7UB6TV2qbQZa9rKJimJ0wWQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
 
   '@google/genai@1.52.0':
     resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
@@ -14852,6 +14963,10 @@ packages:
 
   cose-base@2.2.0:
     resolution: {integrity: sha512-AzlgcsCbUMymkADOJtQm3wO9S3ltPfYOFD5033keQn9NJzIbtnZj+UdBJe7DYml/8TdbtHJW3j58SOnKhWY/5g==}
+
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+    engines: {node: '>=18.0'}
 
   cross-dirname@0.1.0:
     resolution: {integrity: sha512-+R08/oI0nl3vfPcqftZRpytksBXDzOUveBq/NBVx0sUp1axwzPQrKinNx5yd5sxPu8j1wIy8AfnVQ+5eFdha6Q==}
@@ -17895,6 +18010,10 @@ packages:
     resolution: {integrity: sha512-JvONPptw3GAQGXlVV2utDcHx0BiY34FupW/kI6mZ5x06ER5DdPG/tXWMVHjTNULF5uKPOUUD0SaXg5QaubJL0A==}
     engines: {node: '>=8.0.0 || >=10.0.0'}
 
+  vscode-jsonrpc@8.2.1:
+    resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
+    engines: {node: '>=14.0.0'}
+
   vscode-jsonrpc@9.0.1:
     resolution: {integrity: sha512-rfuA6T75H6m5EkbhtEPzre9pT0HPcDI2MMy4+nPFIBks5J8JBAUHD4tRYSgaBOijIEC7SRkC1kKyXTLqbmh9jw==}
     engines: {node: '>=14.0.0'}
@@ -19210,6 +19329,45 @@ snapshots:
   '@exodus/bytes@1.15.1(@noble/hashes@2.3.0)':
     optionalDependencies:
       '@noble/hashes': 2.3.0
+
+  '@github/copilot-sdk-darwin-arm64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk-darwin-x64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk-linux-arm64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk-linux-x64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk-linuxmusl-x64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk-win32-arm64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk-win32-x64@1.0.13':
+    optional: true
+
+  '@github/copilot-sdk@1.0.13':
+    dependencies:
+      koffi: 3.1.1
+      vscode-jsonrpc: 8.2.1
+      zod: 4.4.3
+    optionalDependencies:
+      '@github/copilot-sdk-darwin-arm64': 1.0.13
+      '@github/copilot-sdk-darwin-x64': 1.0.13
+      '@github/copilot-sdk-linux-arm64': 1.0.13
+      '@github/copilot-sdk-linux-x64': 1.0.13
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.13
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.13
+      '@github/copilot-sdk-win32-arm64': 1.0.13
+      '@github/copilot-sdk-win32-x64': 1.0.13
 
   '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))':
     dependencies:
@@ -21450,6 +21608,8 @@ snapshots:
   cose-base@2.2.0:
     dependencies:
       layout-base: 2.0.1
+
+  croner@10.0.1: {}
 
   cross-dirname@0.1.0:
     optional: true
@@ -25048,6 +25208,8 @@ snapshots:
       - msw
 
   vscode-jsonrpc@5.0.1: {}
+
+  vscode-jsonrpc@8.2.1: {}
 
   vscode-jsonrpc@9.0.1: {}
 

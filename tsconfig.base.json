@@ -407,7 +407,6 @@
       "@deepseek-ai/dsh-system-prompt": ["./packages/core/system-prompt/src"],
       "@deepseek-ai/dsh-system-prompt/invariant": ["./packages/core/system-prompt/src/invariant.ts"],
       "@deepseek-ai/dsh-taskboard": ["./packages/workspace/taskboard/src"],
-      "@deepseek-ai/dsh-taskboard/invariant": ["./packages/workspace/taskboard/src/invariant.ts"],
       "@deepseek-ai/dsh-terminal": ["./packages/terminal/terminal/src"],
       "@deepseek-ai/dsh-terminal-bash": ["./packages/terminal/terminal-bash/src"],
       "@deepseek-ai/dsh-time-context": ["./packages/context/time-context/src"],

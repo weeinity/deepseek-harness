@@ -1,439 +1,841 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { TaskboardSnapshot, TaskboardTask } from '@deepseek-ai/dsh-api-taskboard-controller/client'
-import type { WorkspaceId, WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
-import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { TaskboardSurfaceProps } from '../src/client/contract.ts'
 import { en, zh } from '../src/client/locales.ts'
 import { Taskboard } from '../src/client/Taskboard.tsx'
-
-function makeTask(overrides: Partial<TaskboardTask> = {}): TaskboardTask {
-  return {
-    id: 'task' as TaskboardTask['id'], revision: 1, ordinal: 1,
-    workspaceId: 'workspace' as WorkspaceId, title: 'Investigate', description: 'Collect diagnostic evidence.',
-    status: 'todo', rank: 0, labels: [],
-    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides,
-  }
-}
+import { copilot, dsh, execution, manualStatusError, options, runtime, sessions, task, translate, workspaces } from './fixtures.client.ts'
 
 function mountBoard(
-  dictionary: Readonly<Record<keyof typeof en, string>> = en,
-  tasks: readonly TaskboardTask[] = [],
-  extraWorkspaces: WorkspaceSnapshot['items'] = [],
+  tasks: readonly TaskboardTask[] = [], dictionary: typeof en | typeof zh = en, initial: Partial<TaskboardSnapshot> = {},
+  sources: { sessions?: ReturnType<typeof sessions>; workspaces?: ReturnType<typeof workspaces> } = {},
+  callbacks: Partial<TaskboardSurfaceProps> = {},
 ) {
-  const workspaceId = 'workspace' as WorkspaceId
-  let taskboard: TaskboardSnapshot = {
-    tasks, state: 'idle', phase: 'ready', error: null,
-    agencyByTask: {}, agencyState: 'idle', agencyError: null,
-  }
-  const sessions: SessionListState = {
-    ids: [], byId: {}, current: undefined, phase: 'ready',
-    subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
-  }
-  const workspaces: WorkspaceSnapshot = {
-    items: [{
-      workspaceId, title: 'Workspace', path: 'Q:\\workspace', sessionIds: [],
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-    }, ...extraWorkspaces],
-    archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
-  }
-  const createTask = vi.fn<TaskboardSurfaceProps['createTask']>(async (request) => {
-    const created = makeTask(request)
-    taskboard = { ...taskboard, tasks: [...taskboard.tasks, created] }
-    return created
-  })
-  const locale = new LocaleRuntime(new Context())
-  locale.register('taskboard', { en: dictionary, zh: dictionary })
+  let state: TaskboardSnapshot = { tasks, state: 'idle', phase: 'ready', error: null, runtime,
+    agencyByTask: {}, agencyState: 'idle', agencyError: null, ...initial }
+  let sessionState = sources.sessions ?? sessions()
+  let workspaceState = sources.workspaces ?? workspaces()
   const props: TaskboardSurfaceProps = {
-    useTaskboard: selector => selector(taskboard),
-    useSessions: selector => selector(sessions),
-    useWorkspaces: selector => selector(workspaces),
+    useTaskboard: selector => selector(state), useSessions: selector => selector(sessionState),
+    useWorkspaces: selector => selector(workspaceState),
     useSessionPendingInteraction: selector => selector(new Map()),
     useResource: () => ({ status: 'none', value: undefined, failure: undefined, reload: () => {} }),
-    t: locale.bind('taskboard'),
-    createTask,
-    updateTask: vi.fn(async () => {}),
-    moveTask: vi.fn(async () => {}),
-    archiveTask: vi.fn<TaskboardSurfaceProps['archiveTask']>(async (task) => {
-      taskboard = { ...taskboard, tasks: taskboard.tasks.map(candidate => candidate.id === task.id
-        ? { ...candidate, revision: candidate.revision + 1, archivedAt: '2026-01-02T00:00:00.000Z' }
-        : candidate) }
+    t: translate(dictionary), createTask: vi.fn<TaskboardSurfaceProps['createTask']>(async (request) => {
+      const created = task({ ...request, id: 'copy' as TaskboardTask['id'] })
+      state = { ...state, tasks: [...state.tasks, created] }
+      return created
     }),
-    deleteTask: vi.fn<TaskboardSurfaceProps['deleteTask']>(async (task) => {
-      taskboard = { ...taskboard, tasks: taskboard.tasks.filter(candidate => candidate.id !== task.id) }
+    updateTask: vi.fn(async () => {}), moveTask: vi.fn(async () => {}),
+    archiveTask: vi.fn<TaskboardSurfaceProps['archiveTask']>(async (row) => {
+      state = { ...state, tasks: state.tasks.map(item => item.id === row.id ? { ...item, archivedAt: '2026-01-02', revision: item.revision + 1 } : item) }
     }),
-    startWork: vi.fn(async () => {}),
-    openSession: vi.fn(),
-    agencyCopilotCapability: vi.fn(async () => false),
-    listAgencyCopilotSessions: vi.fn(async () => ({ sessions: [], truncated: false })),
-    startAgencyCopilot: vi.fn(async () => {}),
+    deleteTask: vi.fn<TaskboardSurfaceProps['deleteTask']>(async (row) => {
+      state = { ...state, tasks: state.tasks.filter(item => item.id !== row.id) }
+    }),
+    restoreTask: vi.fn<TaskboardSurfaceProps['restoreTask']>(async (row) => {
+      const { archivedAt: _archivedAt, ...restored } = row
+      state = { ...state, tasks: state.tasks.map(item => item.id === row.id ? restored : item) }
+    }),
+    startWork: vi.fn(async () => {}), connectTask: vi.fn(async () => {}), disconnectTask: vi.fn(async () => {}),
+    confirmPermissions: vi.fn(async () => {}), executionOptions: vi.fn(async () => options),
+    updateSettings: vi.fn<TaskboardSurfaceProps['updateSettings']>(async (patch) => {
+      const value = { ...runtime, settings: { ...runtime.settings, ...patch } }
+      state = { ...state, runtime: value }
+      return value
+    }),
+    openSession: vi.fn(), agencyCopilotCapability: vi.fn(async () => true),
+    listAgencyCopilotSessions: vi.fn(async () => ({ sessions: [{ sessionId: copilot.sessionId, status: 'idle' as const }], truncated: false })),
     openAgencyCopilot: vi.fn<TaskboardSurfaceProps['openAgencyCopilot']>(async () => 'resume-accepted'),
-    clearAgencyCopilot: vi.fn(async () => {}),
     refreshAgencyCopilot: vi.fn(async () => {}),
-    isLoopback: true,
-    closeSurface: vi.fn(),
+    isLoopback: true, closeSurface: vi.fn(), ...callbacks,
   }
-  return { ...render(<Taskboard {...props} />), createTask, workspaceId, props, sessions, workspaces,
-    setTaskboard: (update: Partial<TaskboardSnapshot>) => { taskboard = { ...taskboard, ...update } },
-  }
+  const view = render(<Taskboard {...props} />)
+  return { props, ...view, get sessions() { return sessionState }, get workspaces() { return workspaceState },
+    replaceSessions: (next: ReturnType<typeof sessions>) => { sessionState = next; view.rerender(<Taskboard {...props} />) },
+    replaceWorkspaces: (next: ReturnType<typeof workspaces>) => { workspaceState = next; view.rerender(<Taskboard {...props} />) },
+    replace: (patch: Partial<TaskboardSnapshot>) => { state = { ...state, ...patch }; view.rerender(<Taskboard {...props} />) } }
+}
+afterEach(cleanup)
+const button = (name: string) => screen.getByRole<HTMLButtonElement>('button', { name })
+async function ready(name = en.newTask) { await waitFor(() =>{  expect(button(name).disabled).toBe(false) }) }
+const change = (name: string, value: string) => fireEvent.change(screen.getByRole('textbox', { name }), { target: { value } })
+function clickMask(dialog: HTMLElement): void {
+  const mask = dialog.previousElementSibling
+  if (mask === null) throw new Error('Modal mask is missing')
+  fireEvent.click(mask)
 }
 
-afterEach(cleanup)
-
-describe('Taskboard creation controls', () => {
-  it.each([['English', en], ['Chinese', zh]] as const)(
-    'keeps task creation in the header without column actions in %s',
-    (_language, dictionary) => {
-      const { container } = mountBoard(dictionary)
-      const columns = container.querySelectorAll<HTMLElement>('section[data-status]')
-      expect(columns).toHaveLength(5)
-      for (const column of columns) {
-        expect(within(column).getByText(dictionary.empty)).toBeTruthy()
-        expect(within(column).queryByRole('button')).toBeNull()
-      }
-      expect(screen.getAllByRole('button', { name: dictionary.newTask })).toHaveLength(1)
-    },
-  )
-
-  it.each([['English', en], ['Chinese', zh]] as const)(
-    'shows the existing fields and optional Copilot session in the reference layout in %s',
-    (_language, dictionary) => {
-      mountBoard(dictionary)
-      fireEvent.click(screen.getByRole('button', { name: dictionary.newTask }))
-      const dialog = screen.getByRole('dialog', { name: dictionary.newTask })
-      const title = within(dialog).getByRole('textbox', { name: dictionary.taskTitle })
-      const description = within(dialog).getByRole('textbox', { name: dictionary.description })
-      const workspace = within(dialog).getByRole('combobox', { name: dictionary.workspace })
-      const copilot = within(dialog).getByRole('combobox', { name: dictionary.copilotSession })
-      expect([...dialog.querySelectorAll('input, textarea, select')]).toEqual([title, description, workspace, copilot])
-      expect(dialog.parentElement?.parentElement).toBe(document.body)
-      expect(title.getAttribute('placeholder')).toBe(dictionary.taskTitlePlaceholder)
-      expect(description.getAttribute('placeholder')).toBe(dictionary.taskDescriptionPlaceholder)
-      expect(document.activeElement).toBe(title)
-      expect(within(dialog).getAllByRole('button').map(button => button.textContent)).toEqual([
-        dictionary.copilotSessionsRefresh, dictionary.cancel, dictionary.createTask,
-      ])
-      fireEvent.click(within(dialog).getByRole('button', { name: dictionary.cancel }))
-      expect(screen.queryByRole('dialog')).toBeNull()
-    },
-  )
-
-  it('requires a title before creating a task', () => {
-    const { createTask } = mountBoard()
-    fireEvent.click(screen.getByRole('button', { name: 'New task' }))
-    const dialog = screen.getByRole('dialog', { name: 'New task' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
-    expect(createTask).not.toHaveBeenCalled()
-    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Title' }).validity.valueMissing).toBe(true)
+describe('Taskboard', () => {
+  it.each([en, zh])('discards a creation draft on Cancel without changing saved tasks', async (dictionary) => {
+    const row = task()
+    const value = mountBoard([row], dictionary)
+    await ready(dictionary.newTask)
+    fireEvent.click(button(dictionary.newTask))
+    const dialog = screen.getByRole('dialog', { name: dictionary.newTask })
+    expect(within(dialog).queryByRole('button', { name: dictionary.archive })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: dictionary.deleteTask })).toBeNull()
+    change(dictionary.taskTitle, 'Discarded task')
+    change(dictionary.description, 'Discarded instructions')
+    change(dictionary.prompt, 'Do not submit')
+    fireEvent.click(button(dictionary.cancel))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getAllByRole('article').map(card => card.getAttribute('aria-label'))).toEqual([row.title])
+    for (const operation of ['createTask', 'updateTask', 'archiveTask', 'deleteTask', 'connectTask', 'startWork'] as const) {
+      expect(value.props[operation]).not.toHaveBeenCalled()
+    }
+    fireEvent.click(button(dictionary.newTask))
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: dictionary.taskTitle }).value).toBe('')
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: dictionary.description }).value).toBe('')
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: dictionary.prompt }).value).toBe('')
   })
 
-  it('creates a backlog task from the header', async () => {
-    const { createTask, workspaceId } = mountBoard()
-    fireEvent.click(screen.getByRole('button', { name: 'New task' }))
-    const dialog = screen.getByRole('dialog', { name: 'New task' })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Title' }), {
-      target: { value: 'Investigate request' },
-    })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Description' }), {
-      target: { value: 'Check the request and document the result.' },
-    })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
-    await waitFor(() => { expect(screen.queryByRole('dialog', { name: 'New task' })).toBeNull() })
-    const details = screen.getByRole('dialog', { name: 'Task details' })
-    expect(within(details).getByRole<HTMLInputElement>('textbox', { name: 'Title' }).value).toBe('Investigate request')
-    expect(createTask).toHaveBeenCalledExactlyOnceWith({
-      workspaceId, title: 'Investigate request', description: 'Check the request and document the result.', status: 'backlog',
-    })
+  it.each([en, zh])('creates and closes without opening edit actions on Save and Close', async (dictionary) => {
+    const value = mountBoard([], dictionary)
+    await ready(dictionary.newTask)
+    fireEvent.click(button(dictionary.newTask))
+    const actions = within(screen.getByRole('dialog', { name: dictionary.newTask })).getAllByRole('button')
+    expect(actions[actions.indexOf(button(dictionary.saveAndClose)) + 1]).toBe(button(dictionary.save))
+    change(dictionary.taskTitle, 'Saved and closed')
+    fireEvent.click(button(dictionary.saveAndClose))
+    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+    expect(value.props.createTask).toHaveBeenCalledOnce()
+    const card = screen.getByRole('article', { name: 'Saved and closed' })
+    expect(card.closest('section')?.dataset.status).toBe('todo')
+    expect(value.props.startWork).not.toHaveBeenCalled()
+    fireEvent.click(card)
+    screen.getByRole('dialog', { name: dictionary.taskDetails })
+    expect(button(dictionary.archive).disabled).toBe(false)
+    expect(button(dictionary.deleteTask).disabled).toBe(false)
   })
 
-  it('creates a task with the selected existing Copilot session without starting a terminal', async () => {
-    const board = mountBoard()
-    const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as NonNullable<TaskboardTask['agencyCopilotSessionId']>
-    vi.mocked(board.props.listAgencyCopilotSessions).mockResolvedValue({
-      sessions: [{ sessionId, summary: 'Existing investigation', status: 'idle' }], truncated: false,
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'New task' }))
-    const dialog = screen.getByRole('dialog', { name: 'New task' })
-    await within(dialog).findByRole('option', { name: /Existing investigation/ })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Title' }), { target: { value: 'Continue investigation' } })
-    fireEvent.change(within(dialog).getByRole('combobox', { name: en.copilotSession }), { target: { value: sessionId } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
-    await screen.findByRole('dialog', { name: 'Task details' })
-    expect(board.createTask).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: board.workspaceId, title: 'Continue investigation', description: '', status: 'backlog', agencyCopilotSessionId: sessionId,
-    })
-    expect(board.props.startAgencyCopilot).not.toHaveBeenCalled()
-    expect(board.props.startWork).not.toHaveBeenCalled()
+  it('does not close another task when an earlier Save and Close finishes after removal', async () => {
+    const row = task()
+    const next = task({ id: 'next' as TaskboardTask['id'], title: 'Another task' })
+    const gate = Promise.withResolvers<undefined>()
+    const value = mountBoard([row, next])
+    vi.mocked(value.props.updateTask).mockReturnValueOnce(gate.promise)
+    await ready()
+    fireEvent.click(screen.getByRole('article', { name: row.title }))
+    try {
+      fireEvent.click(button(en.saveAndClose))
+      value.replace({ tasks: [next] })
+      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+      fireEvent.click(screen.getByRole('article', { name: next.title }))
+      await act(async () => { gate.resolve(undefined) })
+      expect(screen.getByRole<HTMLInputElement>('textbox', { name: en.taskTitle }).value).toBe(next.title)
+    } finally { await act(async () => { gate.resolve(undefined) }) }
   })
 
-  it('clears the selected Copilot session when the new task Workspace changes', async () => {
-    const otherWorkspace = 'other' as WorkspaceId
-    const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as NonNullable<TaskboardTask['agencyCopilotSessionId']>
-    const board = mountBoard(en, [], [{
-      workspaceId: otherWorkspace, title: 'Other', path: 'Q:\\other', sessionIds: [],
-      createdAt: '', updatedAt: '',
-    }])
-    vi.mocked(board.props.listAgencyCopilotSessions).mockImplementation(async workspaceId => ({
-      sessions: workspaceId === board.workspaceId ? [{ sessionId, status: 'idle' }] : [], truncated: false,
+  it.each([en, zh])('localizes a rejected drop with the Host current and requested status labels', async (dictionary) => {
+    const row = task({ status: 'in_progress' })
+    const value = mountBoard([row], dictionary, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
+    const error = manualStatusError()
+    vi.mocked(value.props.moveTask).mockRejectedValueOnce(error)
+    await ready(dictionary.newTask)
+    const target = screen.getByText(dictionary.inReview).closest('section')?.lastElementChild
+    if (target === undefined || target === null) throw new Error('Planning column is missing')
+    let payload = ''
+    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
+    fireEvent.dragStart(screen.getByRole('article'), { dataTransfer })
+    fireEvent.drop(target, { dataTransfer })
+    const message = value.props.t('manualStatusNotAllowed', { current: dictionary.todo, requested: dictionary.inReview })
+    await screen.findByText(value.props.t('error', { message }))
+    expect(value.container.textContent).not.toContain(error.failure.message)
+    expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'in_review', undefined)
+  })
+
+  it.each([new Error('Move rejected'), 'Move rejected'])('surfaces a rejected drop into an empty planning column: %s', async (reason) => {
+    const row = task({ status: 'in_progress' })
+    const value = mountBoard([row], en, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
+    vi.mocked(value.props.moveTask).mockRejectedValueOnce(reason)
+    await ready()
+    const target = screen.getByText(en.inReview).closest('section')?.lastElementChild
+    if (target === undefined || target === null) throw new Error('Planning column is missing')
+    let payload = ''
+    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
+    fireEvent.dragStart(screen.getByRole('article'), { dataTransfer })
+    fireEvent.dragOver(target)
+    fireEvent.drop(target, { dataTransfer })
+    await screen.findByText(translate()('error', { message: 'Move rejected' }))
+    expect(value.props.moveTask).toHaveBeenCalledWith(row, 'in_review', undefined)
+  })
+
+  it('rejects foreign, self and finished drag payloads while accepting the next local reorder', async () => {
+    const row = task({ status: 'in_progress' })
+    const other = task({ id: 'other' as TaskboardTask['id'], title: 'Next task', status: 'in_review' })
+    const value = mountBoard([row, other], en, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
+    await ready()
+    const first = screen.getByRole('article', { name: row.title })
+    const second = screen.getByRole('article', { name: other.title })
+    expect(first.getAttribute('draggable')).toBe('true')
+    let payload: string = row.id
+    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
+    fireEvent.drop(second, { dataTransfer })
+    fireEvent.dragStart(first, { dataTransfer })
+    fireEvent.drop(first, { dataTransfer })
+    fireEvent.dragStart(first, { dataTransfer })
+    fireEvent.dragEnd(first)
+    fireEvent.drop(second, { dataTransfer })
+    expect(value.props.moveTask).not.toHaveBeenCalled()
+    fireEvent.dragStart(first, { dataTransfer })
+    fireEvent.drop(second, { dataTransfer })
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'in_review', other.id) })
+  })
+
+  it('ignores a retired discovery failure and reports the next active discovery failure', async () => {
+    const pending = Promise.withResolvers<undefined>()
+    const row = task({ connection: copilot, executionSettings: { kind: 'copilot' } })
+    const refresh = vi.fn<TaskboardSurfaceProps['refreshAgencyCopilot']>()
+      .mockReturnValueOnce(pending.promise).mockRejectedValueOnce(new Error('Current discovery failed'))
+    const value = mountBoard([row], en, {}, {}, { refreshAgencyCopilot: refresh })
+    try {
+      expect(refresh).toHaveBeenCalledOnce()
+      value.replace({ tasks: [] })
+      await act(async () => { pending.reject(new Error('Retired discovery failed')) })
+      expect(screen.queryByText(translate()('error', { message: 'Retired discovery failed' }))).toBeNull()
+      value.replace({ tasks: [row] })
+      await screen.findByText(translate()('error', { message: 'Current discovery failed' }))
+      expect(refresh).toHaveBeenCalledTimes(2)
+    } finally { pending.resolve(undefined) }
+  })
+
+  it.each([false, true])('copies priority and handover while disabling retained scheduling or removing it: %s', async (removeSchedule) => {
+    const handover = { goal: 'Copied goal', progress: 'Copied progress', next: 'Copied next', references: ['readme'],
+      source: dsh, frozenAt: '2026-01-01T00:00:00Z' }
+    const row = task({ priority: 'high', handover, schedule: { enabled: true, cron: '0 9 * * *', timeZone: 'UTC' } })
+    const value = mountBoard([row])
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    if (removeSchedule) fireEvent.click(button(en.removeSchedule))
+    fireEvent.click(button(removeSchedule ? en.editAsCopy : en.duplicate))
+    screen.getByRole('dialog', { name: en.duplicate })
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en.priority }).value).toBe('high')
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: en.goal }).value).toBe(handover.goal)
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.scheduleEnabled }).checked).toBe(false)
+    if (removeSchedule) expect(screen.queryByRole('button', { name: en.removeSchedule })).toBeNull()
+    else screen.getByRole('button', { name: en.removeSchedule })
+    fireEvent.click(button(en.save))
+    await waitFor(() => { expect(value.props.createTask).toHaveBeenCalledOnce() })
+    const request = vi.mocked(value.props.createTask).mock.calls[0]?.[0]
+    expect(request).toMatchObject({ priority: 'high', handover: { goal: handover.goal, references: handover.references } })
+    if (removeSchedule) expect(request).not.toHaveProperty('schedule')
+    else expect(request).toHaveProperty('schedule', { enabled: false, cron: '0 9 * * *', timeZone: 'UTC' })
+    expect(request).not.toHaveProperty('connection')
+    expect(request).not.toHaveProperty('permissionConfirmedAt')
+    expect(value.props.archiveTask).not.toHaveBeenCalled()
+  })
+
+  it('starts in the current Session Workspace and removes stale selection when its data disappears', async () => {
+    const row = task({ connection: dsh })
+    const value = mountBoard([row], en, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
+    await ready()
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en.workspace }).value).toBe(row.workspaceId)
+    fireEvent.click(screen.getByRole('article'))
+    value.replace({ tasks: [] })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    value.replaceWorkspaces({ ...workspaces(), items: [] })
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en.workspace }).value).toBe('all')
+    screen.getByText(en.noWorkspace)
+    expect(button(en.newTask).disabled).toBe(true)
+  })
+
+  it('prioritizes task errors, then Workspace errors and loading, and counts live connections separately', async () => {
+    const error = (message: string) => Object.assign(new Error(message), {
+      isDSHRemoteError: true as const, code: 'gateway/internal' as const, details: {},
+    })
+    const first = task({ connection: dsh })
+    const second = task({ id: 'second' as TaskboardTask['id'], title: 'Copilot task', connection: copilot,
+      executionSettings: { kind: 'copilot' } })
+    const value = mountBoard([first, second], en, { state: 'error', error: error('Task stream failed'),
+      agencyByTask: { [second.id]: { taskId: second.id, sessionId: copilot.sessionId, status: 'in_use' } } },
+    { workspaces: { ...workspaces(), state: 'error', error: error('Workspace stream failed') } })
+    screen.getByText('Task stream failed')
+    value.replace({ state: 'idle', error: null })
+    screen.getByText('Workspace stream failed')
+    value.replaceWorkspaces({ ...workspaces(), state: 'loading', phase: 'pending' })
+    screen.getByText(en.loading)
+    value.replaceWorkspaces(workspaces())
+    const live = sessions()
+    live.byId[dsh.sessionId] = { ...live.byId[dsh.sessionId]!, running: true }
+    value.replaceSessions(live)
+    screen.getByText(translate()('subtitle', { count: 2, running: 2 }))
+    value.replace({ agencyState: 'error', agencyError: error('Discovery failed') })
+    fireEvent.click(screen.getByRole('article', { name: second.title }))
+    expect(within(screen.getByRole('dialog')).getByText(en.copilotUnavailable)).toBeTruthy()
+  })
+
+  it('forwards Run, connection changes, confirmation and archive through the selected current task', async () => {
+    const row = task({ connection: dsh })
+    const value = mountBoard([row])
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    fireEvent.click(button(en.startWork))
+    await waitFor(() => { expect(button(en.startWork).disabled).toBe(false) })
+    expect(value.props.startWork).toHaveBeenCalledOnce()
+    fireEvent.click(button(en.disconnect))
+    await waitFor(() => { expect(button(en.disconnect).disabled).toBe(false) })
+    expect(value.props.disconnectTask).toHaveBeenCalledWith(row)
+    const disconnected = task({ revision: 2 })
+    value.replace({ tasks: [disconnected] })
+    fireEvent.change(screen.getByRole('combobox', { name: en.linkedSession }), { target: { value: dsh.sessionId } })
+    fireEvent.click(button(en.connect))
+    await waitFor(() => { expect(value.props.connectTask).toHaveBeenCalledWith(disconnected, dsh, undefined) })
+    const connected = { ...row, revision: 3 }
+    value.replace({ tasks: [connected] })
+    await waitFor(() => { expect(button(en.disconnect).disabled).toBe(false) })
+    fireEvent.click(screen.getByRole('checkbox', { name: en.confirmPermissionCheck }))
+    fireEvent.click(button(en.confirmPermissions))
+    await waitFor(() => { expect(button(en.archive).disabled).toBe(false) })
+    expect(value.props.confirmPermissions).toHaveBeenCalledWith(connected)
+    fireEvent.click(button(en.archive))
+    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+    expect(value.props.archiveTask).toHaveBeenCalledWith(connected)
+  })
+
+  it('reports active discovery failure, refreshes explicitly, and closes the settings dialog and surface', async () => {
+    const value = mountBoard()
+    vi.mocked(value.props.refreshAgencyCopilot).mockRejectedValueOnce('Discovery offline')
+    const row = task({ connection: copilot, executionSettings: { kind: 'copilot' } })
+    value.replace({ tasks: [row] })
+    await screen.findByText(translate()('error', { message: 'Discovery offline' }))
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    fireEvent.click(button(en.refreshCopilot))
+    await waitFor(() => { expect(value.props.refreshAgencyCopilot).toHaveBeenCalledTimes(2) })
+    await waitFor(() => { expect(within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: en.close }).disabled).toBe(false) })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(button(en.settings))
+    fireEvent.click(within(screen.getByRole('dialog', { name: en.settings })).getByRole('button', { name: en.close }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(button(en.close))
+    expect(value.props.closeSurface).toHaveBeenCalledOnce()
+  })
+
+  it.each(['resolve', 'reject'] as const)('ignores retired option and capability requests that later %s', async (outcome) => {
+    const oldOptions = Promise.withResolvers<typeof options>()
+    const oldCapability = Promise.withResolvers<boolean>()
+    const row = task({ connection: copilot, executionSettings: { kind: 'copilot' } })
+    const value = mountBoard([row], en, {}, {}, {
+      executionOptions: vi.fn(() => oldOptions.promise), agencyCopilotCapability: vi.fn(() => oldCapability.promise),
+    })
+    try {
+      value.rerender(<Taskboard {...value.props} executionOptions={vi.fn(async () => options)}
+        agencyCopilotCapability={vi.fn(async () => false)} />)
+      await ready()
+      await act(async () => {
+        if (outcome === 'resolve') {
+          oldOptions.resolve({ ...options, presets: [{ id: 'stale', name: 'Stale preset', isDefault: true }] })
+          oldCapability.resolve(true)
+        } else {
+          oldOptions.reject(new Error('Retired catalog failed'))
+          oldCapability.reject(new Error('Retired capability failed'))
+        }
+      })
+      expect(screen.queryByRole('alert')).toBeNull()
+      fireEvent.click(screen.getByRole('article'))
+      expect(button(en.openAgencyCopilot).disabled).toBe(true)
+      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.click(button(en.newTask))
+      screen.getByRole('option', { name: 'Standard agent' })
+      expect(screen.queryByRole('option', { name: 'Stale preset' })).toBeNull()
+    } finally {
+      await act(async () => { oldOptions.resolve(options); oldCapability.resolve(false) })
+    }
+  })
+
+  it('shows opaque catalog failure and treats failed capability discovery as unavailable', async () => {
+    const value = mountBoard([task({ connection: copilot, executionSettings: { kind: 'copilot' } })], en, {}, {}, {
+      executionOptions: vi.fn<TaskboardSurfaceProps['executionOptions']>().mockRejectedValue('Catalog offline'),
+      agencyCopilotCapability: vi.fn<TaskboardSurfaceProps['agencyCopilotCapability']>().mockRejectedValue(new Error('Capability offline')),
+    })
+    await screen.findByText(translate()('optionsError', { message: 'Catalog offline' }))
+    fireEvent.click(screen.getByRole('article'))
+    expect(button(en.openAgencyCopilot).disabled).toBe(true)
+    expect(value.props.openAgencyCopilot).not.toHaveBeenCalled()
+  })
+
+  it.each([en, zh])('keeps the five-column layout and loads real execution options in the active locale', async (dictionary) => {
+    const value = mountBoard([], dictionary)
+    await ready(dictionary.newTask)
+    const columns = value.container.querySelectorAll<HTMLElement>('section[data-status]')
+    expect(columns).toHaveLength(5)
+    for (const column of columns) expect(within(column).queryByRole('button')).toBeNull()
+    expect(value.props.executionOptions).toHaveBeenCalledOnce()
+    fireEvent.click(button(dictionary.newTask))
+    const dialog = screen.getByRole('dialog', { name: dictionary.newTask })
+    expect(within(dialog).getByRole('textbox', { name: dictionary.prompt })).toBeTruthy()
+    expect(within(dialog).getByRole('option', { name: 'Standard agent' })).toBeTruthy()
+    expect(within(dialog).queryByRole('combobox', { name: dictionary.copilotSession })).toBeNull()
+    expect(value.props.listAgencyCopilotSessions).not.toHaveBeenCalled()
+  })
+
+  it.each([en, zh])('creates in Todo with separate prompt and description and keeps editing on Save without running', async (dictionary) => {
+    const value = mountBoard([], dictionary)
+    await ready(dictionary.newTask)
+    fireEvent.click(button(dictionary.newTask))
+    change(dictionary.taskTitle, 'New task')
+    change(dictionary.description, 'Planning notes')
+    change(dictionary.prompt, 'Run these instructions')
+    fireEvent.change(screen.getByRole('combobox', { name: dictionary.linkedSession }), { target: { value: dsh.sessionId } })
+    fireEvent.click(button(dictionary.save))
+    await screen.findByRole('dialog', { name: dictionary.taskDetails })
+    expect(value.props.createTask).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: task().workspaceId, title: 'New task', description: 'Planning notes', prompt: 'Run these instructions',
+      status: 'todo', labels: [], executionSettings: { kind: 'dsh' }, connection: dsh,
+    })
+    expect(screen.getByRole('article', { name: 'New task' }).closest('section')?.dataset.status).toBe('todo')
+    expect(value.props.startWork).not.toHaveBeenCalled()
+    expect(value.props.openSession).not.toHaveBeenCalled()
+    expect(value.props.connectTask).not.toHaveBeenCalled()
+  })
+
+  it('rejects forbidden Todo drops while allowing Backlog moves and same-column reordering', async () => {
+    const row = task()
+    const anchor = task({ id: 'anchor' as TaskboardTask['id'], title: 'Todo anchor' })
+    const value = mountBoard([row, anchor], en, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
+    await ready()
+    const card = screen.getByRole('article', { name: row.title })
+    const targetCard = screen.getByRole('article', { name: anchor.title })
+    let payload = ''
+    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
+    const dropColumn = (status: TaskboardTask['status']) => {
+      const column = value.container.querySelector<HTMLElement>(`section[data-status="${status}"]`)?.lastElementChild
+      if (column === null || column === undefined) throw new Error('Planning column is missing')
+      fireEvent.dragStart(card, { dataTransfer })
+      fireEvent.dragOver(column)
+      fireEvent.drop(column, { dataTransfer })
+    }
+    for (const status of ['in_progress', 'in_review', 'done'] as const) dropColumn(status)
+    expect(value.props.moveTask).not.toHaveBeenCalled()
+    fireEvent.dragStart(card, { dataTransfer })
+    fireEvent.drop(targetCard, { dataTransfer })
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'todo', anchor.id) })
+    dropColumn('backlog')
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenLastCalledWith(row, 'backlog', undefined) })
+    expect(value.props.moveTask).toHaveBeenCalledTimes(2)
+    expect(value.props.startWork).not.toHaveBeenCalled()
+  })
+
+  it('switches exclusive provider pickers and discovers Copilot only when selected', async () => {
+    const value = mountBoard()
+    await ready()
+    fireEvent.click(button(en.newTask))
+    fireEvent.change(screen.getByRole('combobox', { name: en.linkedSession }), { target: { value: dsh.sessionId } })
+    fireEvent.change(screen.getByRole('combobox', { name: en.connectionKind }), { target: { value: 'copilot' } })
+    expect(screen.queryByRole('combobox', { name: en.linkedSession })).toBeNull()
+    await screen.findByRole('option', { name: new RegExp(copilot.sessionId) })
+    change(en.taskTitle, 'Copilot task')
+    change(en.modelId, 'authoritative-user-model')
+    fireEvent.change(screen.getByRole('combobox', { name: en.copilotSession }), { target: { value: copilot.sessionId } })
+    fireEvent.click(button(en.save))
+    await screen.findByRole('dialog', { name: en.taskDetails })
+    expect(value.props.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      connection: copilot, executionSettings: { kind: 'copilot', permission: 'read-only', model: 'authoritative-user-model' },
     }))
-    fireEvent.click(screen.getByRole('button', { name: 'New task' }))
-    const dialog = screen.getByRole('dialog', { name: 'New task' })
-    await within(dialog).findByRole('option', { name: new RegExp(sessionId) })
-    const picker = within(dialog).getByRole<HTMLSelectElement>('combobox', { name: en.copilotSession })
-    fireEvent.change(picker, { target: { value: sessionId } })
-    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Workspace' }), { target: { value: otherWorkspace } })
-    await within(dialog).findByText(en.copilotSessionsEmpty)
-    expect(within(dialog).getByRole<HTMLSelectElement>('combobox', { name: en.copilotSession }).value).toBe('')
-    expect(within(dialog).queryByRole('option', { name: new RegExp(sessionId) })).toBeNull()
-    expect(board.props.listAgencyCopilotSessions).toHaveBeenLastCalledWith(otherWorkspace)
+    expect(value.props.startWork).not.toHaveBeenCalled()
+    expect(value.props.openAgencyCopilot).not.toHaveBeenCalled()
   })
 
-  it('retains the new task and selected session when Host validation rejects creation', async () => {
-    const board = mountBoard()
-    const sessionId = '13e59df5-bd3a-46e6-bfd5-b61e22ff0491' as NonNullable<TaskboardTask['agencyCopilotSessionId']>
-    vi.mocked(board.props.listAgencyCopilotSessions).mockResolvedValue({
-      sessions: [{ sessionId, status: 'idle' }], truncated: false,
-    })
-    board.createTask.mockRejectedValueOnce(new Error('Session belongs to another Workspace'))
-    fireEvent.click(screen.getByRole('button', { name: 'New task' }))
-    const dialog = screen.getByRole('dialog', { name: 'New task' })
-    await within(dialog).findByRole('option', { name: new RegExp(sessionId) })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Title' }), { target: { value: 'Continue' } })
-    fireEvent.change(within(dialog).getByRole('combobox', { name: en.copilotSession }), { target: { value: sessionId } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
-    await within(dialog).findByRole('alert')
-    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Title' }).value).toBe('Continue')
-    expect(within(dialog).getByRole<HTMLSelectElement>('combobox', { name: en.copilotSession }).value).toBe(sessionId)
-    expect(within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(false)
-    expect(board.createTask).toHaveBeenCalledOnce()
+  it('retains invalid schedule inputs and server feedback until corrected', async () => {
+    const value = mountBoard()
+    vi.mocked(value.props.createTask).mockRejectedValueOnce(new Error('Invalid cron: requires 5 fields'))
+    await ready()
+    fireEvent.click(button(en.newTask))
+    change(en.taskTitle, 'Scheduled')
+    change(en.cron, 'bad')
+    fireEvent.click(button(en.save))
+    await screen.findByText(/Invalid cron/)
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: en.cron }).value).toBe('bad')
+    fireEvent.change(screen.getByRole('combobox', { name: en.schedulePreset }), { target: { value: 'every10' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: en.scheduleEnabled }))
+    fireEvent.click(button(en.save))
+    await screen.findByRole('dialog', { name: en.taskDetails })
+    expect(value.props.createTask).toHaveBeenLastCalledWith(expect.objectContaining({
+      schedule: { enabled: true, cron: '*/10 * * * *', timeZone: options.timeZone },
+    }))
   })
-  describe('Taskboard details and Archive', () => {
-    it.each([['English', en], ['Chinese', zh]] as const)(
-      'requires confirmation and allows retrying failed deletion in %s',
-      async (_language, dictionary) => {
-        const task = makeTask()
-        const board = mountBoard(dictionary, [task])
-        vi.mocked(board.props.deleteTask).mockRejectedValueOnce(new Error('Failed to fetch'))
-        fireEvent.click(screen.getByRole('article', { name: task.title }))
-        fireEvent.click(screen.getByRole('button', { name: dictionary.deleteTask }))
-        let confirmation = screen.getByRole('dialog', { name: dictionary.deleteTaskTitle })
-        within(confirmation).getByText(dictionary.deleteTaskMessage.replace('{title}', task.title))
-        expect(board.props.deleteTask).not.toHaveBeenCalled()
-        fireEvent.keyDown(document, { key: 'Escape' })
-        expect(screen.getByRole('dialog', { name: dictionary.taskDetails })).toBeTruthy()
-        fireEvent.click(screen.getByRole('button', { name: dictionary.deleteTask }))
-        confirmation = screen.getByRole('dialog', { name: dictionary.deleteTaskTitle })
-        const remove = within(confirmation).getByRole<HTMLButtonElement>('button', { name: dictionary.deleteTask })
-        fireEvent.click(remove)
-        await waitFor(() => {
-          expect(within(confirmation).getByRole('alert').textContent).toBe(dictionary.error.replace('{message}', 'Failed to fetch'))
-          expect(remove.disabled).toBe(false)
-        })
-        expect(board.props.deleteTask).toHaveBeenCalledExactlyOnceWith(task)
-        expect(screen.getByRole('article', { name: task.title })).toBeTruthy()
-        fireEvent.click(remove)
-        await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
-        expect(board.props.deleteTask).toHaveBeenCalledTimes(2)
-        expect(screen.queryByRole('article', { name: task.title })).toBeNull()
-      },
-    )
 
-    it.each([false, true])('deletes only the confirmed linked task, archived: %s', async (archived) => {
-      const task = makeTask({
-        sessionId: 'session' as NonNullable<TaskboardTask['sessionId']>,
-        agencyCopilotSessionId: 'copilot' as NonNullable<TaskboardTask['agencyCopilotSessionId']>,
-        ...(archived ? { archivedAt: '2026-01-02T00:00:00.000Z' } : {}),
-      })
-      const other = makeTask({ id: 'other' as TaskboardTask['id'], title: 'Keep this task' })
-      const board = mountBoard(en, [task, other])
-      if (archived) fireEvent.click(screen.getByRole('button', { name: 'Archived (1)' }))
-      fireEvent.click(screen.getByRole('article', { name: task.title }))
-      fireEvent.click(screen.getByRole('button', { name: en.deleteTask }))
-      const confirmation = screen.getByRole('dialog', { name: en.deleteTaskTitle })
-      fireEvent.click(within(confirmation).getByRole('button', { name: en.deleteTask }))
-      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
-      expect(board.props.deleteTask).toHaveBeenCalledExactlyOnceWith(task)
-      expect(screen.queryByRole('article', { name: task.title })).toBeNull()
-      if (archived) fireEvent.click(screen.getByRole('button', { name: en.backToBoard }))
-      expect(screen.getByRole('article', { name: other.title })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Archived (0)' })).toBeTruthy()
-      expect(board.props.clearAgencyCopilot).not.toHaveBeenCalled()
-      expect(board.props.openAgencyCopilot).not.toHaveBeenCalled()
-      expect(board.props.startAgencyCopilot).not.toHaveBeenCalled()
-      expect(board.props.openSession).not.toHaveBeenCalled()
+  it('does not duplicate creation when separately archiving an original fails', async () => {
+    const source = task({ connection: dsh, executions: [execution('succeeded')], permissionConfirmedAt: '2026-01-01' })
+    const value = mountBoard([source])
+    vi.mocked(value.props.archiveTask).mockRejectedValueOnce(new Error('Revision conflict'))
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    fireEvent.click(button(en.duplicate))
+    change(en.taskTitle, 'Editable copy')
+    fireEvent.click(screen.getByRole('checkbox', { name: en.archiveOriginal }))
+    fireEvent.click(button(en.save))
+    await screen.findByText(/Copy created, but archiving the original failed: Revision conflict/)
+    expect(value.props.createTask).toHaveBeenCalledOnce()
+    const request = vi.mocked(value.props.createTask).mock.calls[0]?.[0]
+    expect(request).not.toHaveProperty('connection')
+    expect(request).not.toHaveProperty('executions')
+    expect(request).not.toHaveProperty('permissionConfirmedAt')
+    expect(request?.title).toBe('Editable copy')
+    fireEvent.click(button(en.retryArchive))
+    await screen.findByRole('dialog', { name: en.taskDetails })
+    expect(value.props.createTask).toHaveBeenCalledOnce()
+    expect(value.props.archiveTask).toHaveBeenCalledTimes(2)
+  })
+
+  it('restores archived tasks through the explicit action and preserves In Review', async () => {
+    const row = task({ status: 'in_review', archivedAt: '2026-01-01' })
+    const value = mountBoard([row])
+    await ready()
+    fireEvent.click(button('Archived (1)'))
+    fireEvent.click(screen.getByRole('article'))
+    fireEvent.click(button(en.restore))
+    await waitFor(() =>{  expect(screen.queryByRole('dialog')).toBeNull() })
+    expect(value.props.restoreTask).toHaveBeenCalledExactlyOnceWith(row)
+    fireEvent.click(button(en.backToBoard))
+    expect(within(screen.getByRole('article')).getByText(en.inReview)).toBeTruthy()
+    expect(value.props.moveTask).not.toHaveBeenCalled()
+  })
+
+  it('keeps Taskboard settings reachable while disabled and displays Host power errors', async () => {
+    const value = mountBoard([], en, { runtime: { ...runtime, settings: { ...runtime.settings, enabled: false },
+      power: { ...runtime.power, phase: 'error', error: 'Power adapter failed' } } })
+    screen.getByText(en.boardDisabled)
+    expect(button(en.newTask).disabled).toBe(true)
+    fireEvent.click(button(en.settings))
+    expect(screen.getAllByRole('switch')).toHaveLength(3)
+    screen.getByText('Power adapter failed')
+    fireEvent.click(screen.getByRole('switch', { name: en.enabled }))
+    await waitFor(() =>{  expect(value.props.updateSettings).toHaveBeenCalledExactlyOnceWith({ enabled: true }) })
+    value.replace({ runtime })
+    expect(screen.getByRole<HTMLInputElement>('switch', { name: en.enabled }).checked).toBe(true)
+  })
+
+  it('does not substitute browser settings before the Host baseline arrives', () => {
+    mountBoard([], en, { runtime: undefined, phase: 'pending' })
+    fireEvent.click(button(en.settings))
+    screen.getByText(en.runtimePending)
+    expect(screen.queryByRole('switch')).toBeNull()
+  })
+
+  it.each([en, zh])('displays execution-monitor errors on the board and inside settings', (dictionary) => {
+    mountBoard([], dictionary, { runtime: {
+      ...runtime, settings: { ...runtime.settings, enabled: false }, error: 'Ownership lease lost',
+    } })
+    expect(screen.getByRole('alert').textContent).toContain('Ownership lease lost')
+    fireEvent.click(button(dictionary.settings))
+    const dialog = screen.getByRole('dialog', { name: dictionary.settings })
+    expect(within(dialog).getByRole('alert').textContent).toContain('Ownership lease lost')
+  })
+
+  it('retains failed option discovery and retries through the visible error control', async () => {
+    const value = mountBoard()
+    await ready()
+    const failure = vi.fn(async () => { throw new Error('Catalog unavailable') })
+    value.rerender(<Taskboard {...value.props} executionOptions={failure} />)
+    await screen.findByText(/Could not load execution options: Catalog unavailable/)
+    fireEvent.click(button(en.optionsRetry))
+    await waitFor(() =>{  expect(failure).toHaveBeenCalledTimes(2) })
+    expect(value.props.startWork).not.toHaveBeenCalled()
+  })
+
+  it.each([dsh, copilot].flatMap(connection =>
+    (['succeeded', 'failed', 'cancelled'] as const).map(outcome => ({ connection, outcome }))))(
+    'projects Host admission, attention, resumption and $outcome for $connection.kind without extra commands',
+    async ({ connection, outcome }) => {
+      const executionSettings: TaskboardTask['executionSettings'] = connection.kind === 'dsh' ? { kind: 'dsh' } : { kind: 'copilot' }
+      const row = task({ connection, executionSettings })
+      const value = mountBoard([row])
+      const acknowledgement = Promise.withResolvers<undefined>()
+      vi.mocked(value.props.startWork).mockReturnValue(acknowledgement.promise)
+      await ready()
+      const column = () => screen.getByRole('article', { name: row.title }).closest('section')?.dataset.status
+      fireEvent.click(screen.getByRole('article'))
+      try {
+        fireEvent.click(button(en.startWork))
+        expect(column()).toBe('todo')
+        const pending = execution('pending', { connection, executionSettings })
+        const admitted = task({ ...row, revision: 2, status: 'in_progress', executions: [pending] })
+        value.replace({ tasks: [admitted] })
+        expect(column()).toBe('in_progress')
+        await act(async () => { acknowledgement.resolve(undefined) })
+        expect(button(en.runAgain).disabled).toBe(true)
+        const running = { ...pending, status: 'running' as const, startedAt: '2026-01-01T01:01:00.000Z' }
+        const active = task({ ...admitted, revision: 3, executions: [running] })
+        value.replace({ tasks: [active] })
+        const waiting = task({ ...active, revision: 4, status: 'in_review' })
+        value.replace({ tasks: [waiting] })
+        expect(column()).toBe('in_review')
+        expect(button(en.runAgain).disabled).toBe(true)
+        expect(button(en.inReview).getAttribute('aria-pressed')).toBe('true')
+        const resumed = task({ ...active, revision: 5 })
+        value.replace({ tasks: [resumed] })
+        expect(column()).toBe('in_progress')
+        const settled = task({ ...resumed, revision: 6, status: outcome === 'succeeded' ? 'done' : 'in_review',
+          executions: [{ ...running, status: outcome, endedAt: '2026-01-01T01:02:00.000Z',
+            ...(outcome === 'succeeded' ? {} : { error: { code: outcome, message: `Run ${outcome}` } }) }] })
+        value.replace({ tasks: [settled] })
+        expect(column()).toBe(outcome === 'succeeded' ? 'done' : 'in_review')
+        expect(button(en.runAgain).disabled).toBe(false)
+        const dialog = screen.getByRole('dialog')
+        within(dialog).getByText(en[`execution.${outcome}`])
+        within(dialog).getByRole('button', { name: `${en[connection.kind]}: ${connection.sessionId}` })
+        expect(value.props.startWork).toHaveBeenCalledOnce()
+        expect(value.props.moveTask).not.toHaveBeenCalled()
+        expect(value.props.connectTask).not.toHaveBeenCalled()
+      } finally { await act(async () => { acknowledgement.resolve(undefined) }) }
+    },
+  )
+
+  it.each(['backlog', 'in_progress', 'in_review', 'done'] as const)('keeps the explicit source column for a %s copy', async (status) => {
+    const row = task({ status })
+    const value = mountBoard([row])
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    fireEvent.click(button(en.duplicate))
+    fireEvent.click(button(en.save))
+    await screen.findByRole('dialog', { name: en.taskDetails })
+    expect(value.props.createTask).toHaveBeenCalledWith(expect.objectContaining({ status }))
+    expect(screen.getAllByRole('article').map(card => card.closest('section')?.dataset.status)).toEqual([status, status])
+    expect(value.props.startWork).not.toHaveBeenCalled()
+  })
+
+  it.each([en, zh].flatMap(dictionary => ([
+    ['launch-pending', dictionary.copilotLaunchPending],
+    ['already-running', dictionary.copilotAlreadyRunning],
+    ['resume-accepted', dictionary.copilotResumeAccepted],
+  ] as const).map(([outcome, message]) => ({ dictionary, outcome, message }))))(
+    'opens archived history by its saved identity and displays the exact Copilot terminal outcome',
+    async ({ dictionary, outcome, message }) => {
+      const history = execution('succeeded', { connection: copilot, executionSettings: { kind: 'copilot' } })
+      const oldDsh = { ...dsh, sessionId: 'prior-dsh' as typeof dsh.sessionId }
+      const row = task({ archivedAt: '2026-01-02', connection: dsh, executions: [
+        history, execution('cancelled', { connection: oldDsh }),
+      ] })
+      const value = mountBoard([row], dictionary)
+      vi.mocked(value.props.openAgencyCopilot).mockResolvedValue(outcome)
+      await ready(dictionary.newTask)
+      fireEvent.click(button(value.props.t('archivedCount', { count: 1 })))
+      fireEvent.click(screen.getByRole('article', { name: row.title }))
+      const dialog = screen.getByRole('dialog', { name: dictionary.taskDetails })
+      fireEvent.click(within(dialog).getByRole('button', { name: `${dictionary.copilot}: ${copilot.sessionId}` }))
+      await within(dialog).findByText(message)
+      expect(value.props.openAgencyCopilot).toHaveBeenCalledExactlyOnceWith(row, history.id)
+      fireEvent.click(within(dialog).getByRole('button', { name: `${dictionary.dsh}: ${oldDsh.sessionId}` }))
+      expect(value.props.openSession).toHaveBeenCalledExactlyOnceWith(oldDsh.sessionId)
+      expect(value.props.startWork).not.toHaveBeenCalled()
+      expect(value.props.createTask).not.toHaveBeenCalled()
     })
 
-    it('keeps pending deletion open and prevents duplicate confirmation', async () => {
-      const task = makeTask()
-      const board = mountBoard(en, [task])
-      const pending = Promise.withResolvers<undefined>()
-      vi.mocked(board.props.deleteTask).mockImplementationOnce(async () => {
-        await pending.promise
-        board.setTaskboard({ tasks: [] })
-      })
-      fireEvent.click(screen.getByRole('article', { name: task.title }))
-      fireEvent.click(screen.getByRole('button', { name: en.deleteTask }))
-      const confirmation = screen.getByRole('dialog', { name: en.deleteTaskTitle })
-      const remove = within(confirmation).getByRole<HTMLButtonElement>('button', { name: en.deleteTask })
-      fireEvent.click(remove)
-      expect(remove.disabled).toBe(true)
-      expect(within(confirmation).getByRole<HTMLButtonElement>('button', { name: en.cancel }).disabled).toBe(true)
-      expect(screen.getByRole('article', { name: task.title })).toBeTruthy()
-      fireEvent.click(remove)
+  it('retains an exact missing Copilot conversation failure without creating, reconnecting, or submitting work', async () => {
+    const row = task({ connection: copilot, executionSettings: { kind: 'copilot' } })
+    const value = mountBoard([row])
+    vi.mocked(value.props.openAgencyCopilot).mockRejectedValue(new Error('Exact Copilot conversation is missing'))
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    fireEvent.click(button(en.openAgencyCopilot))
+    const dialog = screen.getByRole('dialog', { name: en.taskDetails })
+    await within(dialog).findByText(/Exact Copilot conversation is missing/)
+    expect(value.props.openAgencyCopilot).toHaveBeenCalledExactlyOnceWith(row, undefined)
+    expect(value.props.createTask).not.toHaveBeenCalled()
+    expect(value.props.connectTask).not.toHaveBeenCalled()
+    expect(value.props.startWork).not.toHaveBeenCalled()
+  })
+
+  it('submits the captured draft revision rather than a newer incoming row revision', async () => {
+    const row = task()
+    const value = mountBoard([row])
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    change(en.description, 'Unsaved draft')
+    value.replace({ tasks: [{ ...row, revision: 2, title: 'Changed remotely' }] })
+    fireEvent.click(button(en.save))
+    await waitFor(() => {
+      expect(value.props.updateTask).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: row.id, revision: 1 }),
+        expect.objectContaining({ title: row.title, description: 'Unsaved draft' }),
+      )
+    })
+  })
+
+  it('requires saving dirty inputs before either planning-status action and moves the saved revision', async () => {
+    const row = task({ status: 'in_progress' })
+    const saved = { ...row, description: 'Saved draft', revision: row.revision + 1 }
+    const value = mountBoard([row])
+    vi.mocked(value.props.updateTask).mockImplementation(async () => { value.replace({ tasks: [saved] }) })
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    change(en.description, saved.description)
+    expect(button(en.inReview).disabled).toBe(true)
+    expect(button(en.submitReview).disabled).toBe(true)
+    fireEvent.click(button(en.inReview))
+    fireEvent.click(button(en.submitReview))
+    expect(value.props.moveTask).not.toHaveBeenCalled()
+    fireEvent.click(button(en.save))
+    await waitFor(() => { expect(button(en.submitReview).disabled).toBe(false) })
+    expect(value.props.updateTask).toHaveBeenCalledExactlyOnceWith(row, expect.objectContaining({ description: saved.description }))
+    fireEvent.click(button(en.submitReview))
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(saved, 'in_review') })
+  })
+
+  it('starts the next edit at the current revision after reverting a draft and changing status', async () => {
+    const row = task({ status: 'in_progress' })
+    const moved = task({ ...row, status: 'in_review', revision: row.revision + 1 })
+    const value = mountBoard([row])
+    vi.mocked(value.props.moveTask).mockImplementation(async () => { value.replace({ tasks: [moved] }) })
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    change(en.description, 'Discarded local draft')
+    change(en.description, row.description)
+    expect(button(en.submitReview).disabled).toBe(false)
+    fireEvent.click(button(en.submitReview))
+    await waitFor(() => { expect(button(en.save).disabled).toBe(false) })
+    change(en.description, 'New revision draft')
+    fireEvent.click(button(en.save))
+    await waitFor(() => {
+      expect(value.props.updateTask).toHaveBeenCalledExactlyOnceWith(moved, expect.objectContaining({ description: 'New revision draft' }))
+    })
+  })
+
+  it.each(['succeeded', 'failed'] as const)('keeps Details open during Save and allows dismissal after it %s', async (outcome) => {
+    const row = task()
+    const saved = { ...row, description: 'Pending save draft', revision: row.revision + 1 }
+    const value = mountBoard([row])
+    const gate = Promise.withResolvers<undefined>()
+    vi.mocked(value.props.updateTask).mockImplementation(async () => {
+      await gate.promise
+      value.replace({ tasks: [saved] })
+    })
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    change(en.description, saved.description)
+    const dialog = screen.getByRole('dialog', { name: en.taskDetails })
+    try {
+      fireEvent.click(within(dialog).getByRole('button', { name: en.save }))
+      expect(value.props.updateTask).toHaveBeenCalledOnce()
       fireEvent.keyDown(document, { key: 'Escape' })
-      fireEvent.click(within(confirmation).getByRole('button', { name: en.close }))
-      expect(screen.getByRole('dialog', { name: en.deleteTaskTitle })).toBe(confirmation)
-      expect(board.props.deleteTask).toHaveBeenCalledExactlyOnceWith(task)
-      pending.resolve(undefined)
-      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
-      expect(screen.queryByRole('article')).toBeNull()
-    })
-
-    it.each([['English', en], ['Chinese', zh]] as const)('opens task details and the Archive list in %s', (_language, dictionary) => {
-      const active = makeTask()
-      const archived = makeTask({
-        id: 'archive' as TaskboardTask['id'], title: 'Completed investigation', status: 'done',
-        archivedAt: '2026-01-02T00:00:00.000Z',
+      expect(screen.getByRole('dialog', { name: en.taskDetails })).toBe(dialog)
+      clickMask(dialog)
+      expect(screen.getByRole('dialog', { name: en.taskDetails })).toBe(dialog)
+      fireEvent.click(within(dialog).getByRole('button', { name: en.close }))
+      expect(screen.getByRole('dialog', { name: en.taskDetails })).toBe(dialog)
+      await act(async () => {
+        if (outcome === 'failed') gate.reject(new Error('Save rejected'))
+        else gate.resolve(undefined)
       })
-      mountBoard(dictionary, [active, archived])
-      expect(screen.queryByText(archived.title)).toBeNull()
-      fireEvent.click(screen.getByRole('article', { name: active.title }))
-      expect(screen.getByRole('dialog', { name: dictionary.taskDetails })).toBeTruthy()
+      expect(within(dialog).getByRole<HTMLTextAreaElement>('textbox', { name: en.description }).value).toBe(saved.description)
+      if (outcome === 'failed') expect(within(dialog).getByRole('alert').textContent).toContain('Save rejected')
+      else expect(within(dialog).queryByRole('alert')).toBeNull()
+      expect(within(dialog).getByRole<HTMLButtonElement>('button', { name: en.close }).disabled).toBe(false)
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(screen.queryByRole('dialog')).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: dictionary.archivedCount.replace('{count}', '1') }))
-      const archive = screen.getByRole('region', { name: dictionary.archiveTitle })
-      expect(within(archive).getByText(archived.description)).toBeTruthy()
-      expect(within(archive).getByRole('article').draggable).toBe(false)
-      expect(screen.queryByText(active.title)).toBeNull()
-      fireEvent.click(within(archive).getByRole('article'))
-      screen.getByText(dictionary.archivedReadOnly)
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: dictionary.close }))
-      fireEvent.click(screen.getByRole('button', { name: dictionary.backToBoard }))
-      expect(screen.getByRole('article', { name: active.title })).toBeTruthy()
-      expect(screen.queryByText(archived.title)).toBeNull()
-    })
+      fireEvent.click(screen.getByRole('article'))
+      const reopened = screen.getByRole('dialog', { name: en.taskDetails })
+      expect(within(reopened).getByRole<HTMLTextAreaElement>('textbox', { name: en.description }).value)
+        .toBe(outcome === 'failed' ? row.description : saved.description)
+      expect(within(reopened).queryByRole('alert')).toBeNull()
+      fireEvent.click(within(reopened).getByRole('button', { name: en.close }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+    } finally {
+      await act(async () => { gate.resolve(undefined) })
+    }
+  })
 
-    it.each([false, true])('moves an archived task into the Archive list with session links: %s', async (linked) => {
-      const task = makeTask(linked ? {
-        sessionId: 'session' as NonNullable<TaskboardTask['sessionId']>,
-        agencyCopilotSessionId: 'copilot' as NonNullable<TaskboardTask['agencyCopilotSessionId']>,
-      } : {})
-      const { props } = mountBoard(en, [task])
-      fireEvent.click(screen.getByRole('article', { name: task.title }))
-      fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
-      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
-      expect(props.archiveTask).toHaveBeenCalledExactlyOnceWith(task)
-      expect(screen.queryByRole('article')).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: 'Archived (1)' }))
-      expect(screen.getByRole('article', { name: task.title })).toBeTruthy()
-    })
-
-    it.each([['English', en], ['Chinese', zh]] as const)(
-      'keeps failed archives open and permits an explicit retry in %s',
-      async (_language, dictionary) => {
-        const task = makeTask({ status: 'done' })
-        const { props } = mountBoard(dictionary, [task])
-        vi.mocked(props.archiveTask).mockRejectedValueOnce(new Error('Failed to fetch'))
-        fireEvent.click(screen.getByRole('article', { name: task.title }))
-        const dialog = screen.getByRole('dialog', { name: dictionary.taskDetails })
-        const archive = within(dialog).getByRole<HTMLButtonElement>('button', { name: dictionary.archive })
-        fireEvent.click(archive)
-        await waitFor(() => {
-          expect(within(dialog).getByRole('alert').textContent)
-            .toBe(dictionary.error.replace('{message}', 'Failed to fetch'))
-          expect(archive.disabled).toBe(false)
+  it.each(['succeeded', 'failed'].flatMap(outcome => [false, true].map(closeAfterSave => ({ outcome, closeAfterSave }))))(
+    'keeps New Task open while saving: %j', async ({ outcome, closeAfterSave }) => {
+      const value = mountBoard()
+      const gate = Promise.withResolvers<undefined>()
+      const create = vi.mocked(value.props.createTask)
+      const original = create.getMockImplementation()
+      if (original === undefined) throw new Error('Create fixture is missing')
+      create.mockImplementation(async (request) => { await gate.promise; return original(request) })
+      await ready()
+      fireEvent.click(button(en.newTask))
+      change(en.taskTitle, 'Pending creation')
+      change(en.prompt, 'Retained run instructions')
+      const dialog = screen.getByRole('dialog', { name: en.newTask })
+      try {
+        fireEvent.click(within(dialog).getByRole('button', { name: closeAfterSave ? en.saveAndClose : en.save }))
+        expect(create).toHaveBeenCalledOnce()
+        fireEvent.keyDown(document, { key: 'Escape' })
+        expect(screen.getByRole('dialog', { name: en.newTask })).toBe(dialog)
+        clickMask(dialog)
+        expect(screen.getByRole('dialog', { name: en.newTask })).toBe(dialog)
+        fireEvent.click(within(dialog).getByRole('button', { name: en.cancel }))
+        expect(screen.getByRole('dialog', { name: en.newTask })).toBe(dialog)
+        await act(async () => {
+          if (outcome === 'failed') gate.reject(new Error('Create rejected'))
+          else gate.resolve(undefined)
         })
-        expect(props.archiveTask).toHaveBeenCalledExactlyOnceWith(task)
-        expect(screen.getByRole('dialog')).toBe(dialog)
-        expect(screen.getByRole('button', { name: dictionary.archivedCount.replace('{count}', '0') })).toBeTruthy()
-        fireEvent.click(archive)
-        await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
-        expect(props.archiveTask).toHaveBeenCalledTimes(2)
-        expect(props.archiveTask).toHaveBeenLastCalledWith(task)
-        expect(screen.queryByText(dictionary.error.replace('{message}', 'Failed to fetch'))).toBeNull()
-        fireEvent.click(screen.getByRole('button', { name: dictionary.archivedCount.replace('{count}', '1') }))
-        expect(screen.getByRole('article', { name: task.title })).toBeTruthy()
-      },
-    )
-
-    it('waits for the archive response and prevents duplicate actions while it is pending', async () => {
-      const task = makeTask()
-      const board = mountBoard(en, [task])
-      const pending = Promise.withResolvers<undefined>()
-      vi.mocked(board.props.archiveTask).mockImplementationOnce(async () => {
-        await pending.promise
-        board.setTaskboard({ tasks: [{ ...task, revision: 2, archivedAt: '2026-01-02T00:00:00.000Z' }] })
-      })
-      fireEvent.click(screen.getByRole('article', { name: task.title }))
-      const archive = screen.getByRole<HTMLButtonElement>('button', { name: 'Archive' })
-      fireEvent.click(archive)
-      expect(archive.disabled).toBe(true)
-      expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Save' }).disabled).toBe(true)
-      expect(screen.getByRole('button', { name: 'Archived (0)' })).toBeTruthy()
-      fireEvent.click(archive)
-      expect(board.props.archiveTask).toHaveBeenCalledExactlyOnceWith(task)
-      pending.resolve(undefined)
-      await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
-      expect(screen.queryByRole('article')).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: 'Archived (1)' }))
-      expect(screen.getByRole('article', { name: task.title })).toBeTruthy()
-    })
-
-    it('filters archived task descriptions and preserves filters when returning to the board', () => {
-      mountBoard(en, [
-        makeTask({ title: 'Current task' }),
-        makeTask({ id: 'archive' as TaskboardTask['id'], title: 'Older task', description: 'Network evidence', archivedAt: '2026-01-02T00:00:00.000Z' }),
-      ])
-      fireEvent.click(screen.getByRole('button', { name: 'Archived (1)' }))
-      const search = screen.getByPlaceholderText('Search tasks…')
-      fireEvent.change(search, { target: { value: 'Network' } })
-      expect(screen.getByRole('article', { name: 'Older task' })).toBeTruthy()
-      fireEvent.change(search, { target: { value: 'Current' } })
-      screen.getByText('No archived tasks match the current filters.')
-      fireEvent.click(screen.getByRole('button', { name: 'Back to board' }))
-      expect(screen.getByRole('article', { name: 'Current task' })).toBeTruthy()
-      expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Archived (0)' })).toBeTruthy()
-    })
-
-    it('does not inspect archived Copilot identities', () => {
-      const archived = makeTask({
-        archivedAt: '2026-01-02T00:00:00.000Z',
-        agencyCopilotSessionId: 'copilot' as NonNullable<TaskboardTask['agencyCopilotSessionId']>,
-      })
-      const { props } = mountBoard(en, [archived])
-      expect(props.refreshAgencyCopilot).not.toHaveBeenCalled()
-    })
-
-    it('keeps durable status separate from live DSH and Copilot progress on cards', () => {
-      const sessionId = 'session' as NonNullable<TaskboardTask['sessionId']>
-      const copilotId = 'copilot' as NonNullable<TaskboardTask['agencyCopilotSessionId']>
-      const task = makeTask({
-        status: 'in_progress', sessionId,
-        agencyCopilotSessionId: copilotId,
-      })
-      const board = mountBoard(en, [task])
-      board.sessions.byId[sessionId] = {
-        id: sessionId, displayTitle: 'Investigation', running: true, blank: false, updatedAt: Date.now(),
+        if (outcome === 'failed') {
+          expect(within(dialog).getByRole('alert').textContent).toContain('Create rejected')
+          expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: en.taskTitle }).value).toBe('Pending creation')
+          expect(within(dialog).getByRole<HTMLTextAreaElement>('textbox', { name: en.prompt }).value).toBe('Retained run instructions')
+          fireEvent.click(within(dialog).getByRole('button', { name: en.cancel }))
+          expect(screen.queryByRole('dialog')).toBeNull()
+          expect(screen.queryByRole('article')).toBeNull()
+          fireEvent.click(button(en.newTask))
+          const reopened = screen.getByRole('dialog', { name: en.newTask })
+          expect(within(reopened).getByRole<HTMLInputElement>('textbox', { name: en.taskTitle }).value).toBe('')
+          expect(within(reopened).queryByRole('alert')).toBeNull()
+          fireEvent.keyDown(document, { key: 'Escape' })
+        } else {
+          expect(screen.queryByRole('dialog', { name: en.newTask })).toBeNull()
+          expect(screen.queryByRole('dialog', { name: en.taskDetails }) !== null).toBe(!closeAfterSave)
+          fireEvent.keyDown(document, { key: 'Escape' })
+          expect(screen.queryByRole('dialog')).toBeNull()
+          fireEvent.click(screen.getByRole('article', { name: 'Pending creation' }))
+          const reopened = screen.getByRole('dialog', { name: en.taskDetails })
+          expect(within(reopened).getByRole<HTMLTextAreaElement>('textbox', { name: en.prompt }).value).toBe('Retained run instructions')
+          clickMask(reopened)
+        }
+        expect(screen.queryByRole('dialog')).toBeNull()
+        expect(create).toHaveBeenCalledOnce()
+      } finally {
+        await act(async () => { gate.resolve(undefined) })
       }
-      board.setTaskboard({ agencyByTask: { [task.id]: { taskId: task.id, sessionId: copilotId, status: 'idle' } } })
-      board.rerender(<Taskboard {...board.props} />)
-      const card = screen.getByRole('article', { name: task.title })
-      within(card).getByText('In Progress')
-      within(card).getByText('Running')
-      within(card).getByText('Ready to resume')
-      board.sessions.byId[sessionId].running = false
-      board.setTaskboard({ agencyByTask: { [task.id]: { taskId: task.id, sessionId: copilotId, status: 'in_use' } } })
-      board.rerender(<Taskboard {...board.props} />)
-      within(card).getByText('In Progress')
-      within(card).getByText('Copilot running')
-      expect(within(card).queryByText('Running', { exact: true })).toBeNull()
-      expect(within(card).queryByText('Done')).toBeNull()
-      expect(board.props.moveTask).not.toHaveBeenCalled()
     })
+
+  it('requires explicit delete confirmation and retains a failed deletion for retry', async () => {
+    const row = task()
+    const value = mountBoard([row])
+    vi.mocked(value.props.deleteTask).mockRejectedValueOnce(new Error('Delete failed'))
+    await ready()
+    fireEvent.click(screen.getByRole('article'))
+    fireEvent.click(button(en.deleteTask))
+    fireEvent.click(button(en.deleteTask))
+    await screen.findByText(/Delete failed/)
+    expect(screen.getByRole('article')).toBeTruthy()
+    fireEvent.click(button(en.deleteTask))
+    await waitFor(() =>{  expect(screen.queryByRole('dialog')).toBeNull() })
+    expect(screen.queryByRole('article')).toBeNull()
+  })
+
+  it('filters by title, description and labels without moving tasks', async () => {
+    const value = mountBoard([task({ labels: ['bug'] }), task({ id: 'other' as TaskboardTask['id'], title: 'Other', description: '' })])
+    await ready()
+    fireEvent.change(screen.getByPlaceholderText(en.search), { target: { value: 'bug' } })
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+    expect(value.props.moveTask).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByPlaceholderText(en.search), { target: { value: 'evidence' } })
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+  })
+
+  it('moves cards only within an unfiltered single Workspace and retains before-card placement', async () => {
+    const row = task({ status: 'in_progress' })
+    const anchor = task({ id: 'anchor' as TaskboardTask['id'], title: 'Review anchor', status: 'in_review' })
+    const value = mountBoard([row, anchor])
+    await ready()
+    const card = screen.getByRole('article', { name: row.title })
+    expect(card.draggable).toBe(false)
+    fireEvent.change(screen.getByRole('combobox', { name: en.workspace }), { target: { value: row.workspaceId } })
+    expect(card.draggable).toBe(true)
+    let payload = ''
+    const dataTransfer = {
+      effectAllowed: '',
+      setData: (_type: string, value: string) => { payload = value },
+      getData: () => payload,
+    }
+    fireEvent.dragStart(card, { dataTransfer })
+    fireEvent.drop(screen.getByRole('article', { name: anchor.title }), { dataTransfer })
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'in_review', anchor.id) })
+    fireEvent.change(screen.getByPlaceholderText(en.search), { target: { value: row.title } })
+    expect(card.draggable).toBe(false)
   })
 })

@@ -79,6 +79,7 @@ function acceptIncrement(accept: TaskboardFollowSink, frame: TaskboardFollowIncr
   switch (frame.type) {
     case 'upsert': accept.upsertTask(frame.task); return
     case 'remove': accept.removeTask(frame.taskId, frame.revision); return
+    case 'runtime': accept.replaceRuntime(frame.value); return
     default: return assertNever(frame)
   }
 }

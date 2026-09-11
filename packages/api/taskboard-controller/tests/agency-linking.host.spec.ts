@@ -1,72 +1,42 @@
+import * as fileSystem from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
-import Storage from '@deepseek-ai/dsh-storage'
-import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
-import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
-import TaskboardService, { AgencyCopilotSessionId } from '@deepseek-ai/dsh-taskboard'
-import WorkspaceRegistry, { WorkspaceId } from '@deepseek-ai/dsh-workspace'
-import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
-import TaskboardController from '../src/index.ts'
+import { AgencyCopilotSessionId, TaskRunRequestId } from '@deepseek-ai/dsh-taskboard'
+import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
+import {
+  cleanupControllerHarness, controllerHarness as harness, firstId, nativeId, page, roots, secondId,
+} from './controller-harness.ts'
 
-const firstId = AgencyCopilotSessionId('13e59df5-bd3a-46e6-bfd5-b61e22ff0491')
-const secondId = AgencyCopilotSessionId('2eb3dbf2-8b82-4863-b505-520708dcce80')
-const roots: Context[] = []
-afterEach(async () => {
-  vi.restoreAllMocks()
-  await Promise.all(roots.splice(0).map(ctx => ctx.fiber.dispose()))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, realpath: vi.fn(actual.realpath) }
 })
 
-function page(sessionId = firstId, folder = process.cwd(), status: 'idle' | 'in_use' = 'idle'): string {
-  return JSON.stringify({ sessions: [{ session_id: sessionId, folder, status, summary: 'Inspect the logs' }] })
-}
+afterEach(async () => {
+  try { await cleanupControllerHarness() }
+  finally { vi.mocked(fileSystem.realpath).mockReset() }
+})
 
-async function harness(pool = new MemoryMediaPool(), launchEnabled = false) {
-  const ctx = new Context()
-  roots.push(ctx)
-  await ctx.plugin(Storage)
-  ctx.storage.backend.register('memory', new MemoryStorageBackend(pool))
-  const facility = new DomainFacility(ctx, { backend: 'memory', routes: {} })
-  ctx.storage.mount('domain', facility)
-  ctx.provide('storageDomain', facility)
-  ctx.provide('sessionPersistence', { list: async () => [{
-    header: { version: SESSION_FORMAT_VERSION, id: SessionId('native'), createdAt: 0, cwd: process.cwd(), isSeeded: false },
-    revision: 'fixture',
-  }] } as never)
-  await ctx.plugin(WorkspaceRegistry)
-  await ctx.plugin(TaskboardService)
-  const workspace = await ctx.workspaceRegistry.create(process.cwd())
-  const read = vi.fn(async () => page())
-  const spawn = vi.fn((_spec: SubprocessSpawnSpec): SubprocessHandle => {
-    let output = ''
-    return {
-      stdin: undefined, stdout: undefined, stderr: undefined,
-      collected: {
-        stdout: { readFrom: () => ({ text: output, nextOffset: output.length, lossy: false }) },
-        stderr: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) },
-      },
-      done: read().then((text) => {
-        output = text
-        return { exitCode: 0, signal: null }
-      }),
-      terminate: () => {},
-      waitForExit: async () => true,
-    }
+describe('Taskboard existing conversation selection', () => {
+  it.each(['ENOENT', 'ENOTDIR'] as const)('omits an Agency folder when canonical lookup fails with %s', async (code) => {
+    const b = await harness()
+    vi.mocked(fileSystem.realpath).mockRejectedValueOnce(Object.assign(new Error('Folder unavailable'), { code }))
+    await expect(b.controller.listAgencyCopilotSessions({ workspaceId: b.workspace.id }, new AbortController().signal))
+      .resolves.toEqual({ sessions: [], truncated: false })
+    expect(b.launch).not.toHaveBeenCalled()
   })
-  ctx.provide('subprocess', { resolveExecutable: async () => 'C:\\Agency\\agency.exe', spawn } as never)
-  const dispose = (): void => {}
-  ctx.provide('typert', {
-    lookups: { configure: () => dispose }, contexts: { configureHost: () => dispose },
-  } as never)
-  const launch = vi.fn(() => { throw new Error('Selection must not launch a terminal') })
-  const controller = new TaskboardController(
-    ctx, { agencyCopilotLaunch: launchEnabled }, { agency: { platform: 'win32', spawnBroker: launch } },
-  )
-  return { ctx, pool, facility, board: ctx.taskboard, workspace, read, spawn, launch, controller }
-}
 
-describe('Taskboard existing Agency session selection', () => {
+  it.each([
+    { error: new Error('Filesystem lookup failed'), code: 'host-operation-failed' },
+    { error: Object.assign(new Error('Filesystem access denied'), { code: 'EACCES' }), code: 'EACCES' },
+  ])('reports unexpected canonical-folder lookup errors without treating discovery as complete (%#)', async ({ error, code }) => {
+    const b = await harness()
+    vi.mocked(fileSystem.realpath).mockRejectedValueOnce(error)
+    await expect(b.controller.listAgencyCopilotSessions({ workspaceId: b.workspace.id }, new AbortController().signal))
+      .rejects.toMatchObject({ code: 'taskboard/execution-error', message: error.message, details: { code } })
+    expect(b.launch).not.toHaveBeenCalled()
+  })
+
   it('lists only canonical Workspace matches with summary/status and no folder disclosure', async () => {
     const b = await harness()
     b.read.mockResolvedValue(JSON.stringify({ sessions: [
@@ -84,17 +54,16 @@ describe('Taskboard existing Agency session selection', () => {
       ],
       truncated: false,
     })
-
     expect(b.spawn).toHaveBeenCalledOnce()
     expect(b.launch).not.toHaveBeenCalled()
+    expect(b.runtime.run).not.toHaveBeenCalled()
     expect(b.board.list()).toEqual([])
   })
 
   it('returns matching rows with truncation when further Agency pages remain', async () => {
     const b = await harness()
     b.read.mockResolvedValue(JSON.stringify({
-      sessions: [{ session_id: firstId, folder: process.cwd(), status: 'idle', summary: '' }],
-      next_cursor: 'more',
+      sessions: [{ session_id: firstId, folder: process.cwd(), status: 'idle', summary: '' }], next_cursor: 'more',
     }))
     await expect(b.controller.listAgencyCopilotSessions(
       { workspaceId: b.workspace.id }, new AbortController().signal,
@@ -116,10 +85,7 @@ describe('Taskboard existing Agency session selection', () => {
     if (kind === 'malformed') b.read.mockResolvedValue('{bad JSON')
     if (kind === 'unavailable') b.read.mockRejectedValue(new Error('Agency missing'))
     if (kind === 'cancelled') {
-      b.read.mockImplementation(async () => {
-        signal.abort(new Error('Cancelled'))
-        return page()
-      })
+      b.read.mockImplementation(async () => { signal.abort(new Error('Cancelled')); return page() })
     }
     const request = b.controller.listAgencyCopilotSessions({ workspaceId: b.workspace.id }, signal.signal)
     if (kind === 'cancelled') await expect(request).rejects.toThrow('Cancelled')
@@ -127,92 +93,186 @@ describe('Taskboard existing Agency session selection', () => {
     expect(b.launch).not.toHaveBeenCalled()
   })
 
-  it.each(['idle', 'in_use'] as const)('creates content and an existing %s session in one durable write', async (status) => {
+  it.each(['idle', 'in_use'] as const)('creates saved content and one existing %s connection in one durable write', async (status) => {
     const b = await harness()
     b.read.mockResolvedValue(page(firstId, process.cwd(), status))
     const write = vi.spyOn(b.pool, 'consumeInjectedFailure')
     const { task } = await b.controller.create({
       workspaceId: b.workspace.id, title: 'Linked task', description: 'Saved content', status: 'in_review',
-      agencyCopilotSessionId: firstId,
+      prompt: 'Run only when requested', executionSettings: { kind: 'copilot' },
+      connection: { kind: 'copilot', sessionId: firstId },
     }, new AbortController().signal)
     expect(write).toHaveBeenCalledOnce()
     expect(task).toMatchObject({
-      revision: 1, title: 'Linked task', description: 'Saved content', status: 'in_review', agencyCopilotSessionId: firstId,
+      revision: 1, title: 'Linked task', description: 'Saved content', status: 'in_review',
+      connection: { kind: 'copilot', sessionId: firstId }, executions: [], prompt: 'Run only when requested',
     })
-    expect(b.board.list()).toEqual([task])
+    expect(task).not.toHaveProperty('sessionId')
+    expect(task).not.toHaveProperty('agencyCopilotSessionId')
     expect(b.launch).not.toHaveBeenCalled()
+    expect(b.runtime.run).not.toHaveBeenCalled()
     await b.ctx.fiber.dispose()
     roots.splice(roots.indexOf(b.ctx), 1)
-    const reopened = await harness(b.pool)
+    const reopened = await harness({ pool: b.pool })
     expect(reopened.board.get(task.id)).toEqual(task)
   })
 
-  it('updates content and Agency link atomically while retaining the DSH Session and planning status', async () => {
+  it('retains the exclusive connection through offline planning edits and disconnects without discovery', async () => {
     const b = await harness()
-    await b.workspace.attachSession(SessionId('native'))
-    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', agencyCopilotSessionId: firstId })
-    const native = await b.board.update({
-      taskId: initial.id, expectedRevision: initial.revision, patch: { sessionId: SessionId('native') },
+    const initial = await b.board.create({
+      workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' },
+      connection: { kind: 'copilot', sessionId: firstId },
     })
-    b.read.mockResolvedValue(page(secondId))
-    const write = vi.spyOn(b.pool, 'consumeInjectedFailure')
-    const { task } = await b.controller.update({
-      taskId: native.id, expectedRevision: native.revision,
-      patch: { title: 'Edited', description: 'Linked existing conversation', agencyCopilotSessionId: secondId },
-    }, new AbortController().signal)
-    expect(write).toHaveBeenCalledOnce()
-    expect(task).toMatchObject({
-      revision: native.revision + 1, title: 'Edited', description: 'Linked existing conversation',
-      sessionId: 'native', agencyCopilotSessionId: secondId, status: 'backlog',
-    })
-    expect(b.launch).not.toHaveBeenCalled()
-    await b.ctx.fiber.dispose()
-    roots.splice(roots.indexOf(b.ctx), 1)
-    const reopened = await harness(b.pool)
-    expect(reopened.board.get(task.id)).toEqual(task)
-  })
-
-  it('retains an omitted or unchanged link while discovery is offline and clears without discovery', async () => {
-    const b = await harness()
-    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', agencyCopilotSessionId: firstId })
     b.read.mockRejectedValue(new Error('Agency offline'))
-    const { task: unchanged } = await b.controller.update({
-      taskId: initial.id, expectedRevision: initial.revision,
-      patch: { title: 'Edited', agencyCopilotSessionId: firstId },
+    const { task: edited } = await b.controller.update({
+      taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Edited', description: 'Metadata only' },
     })
-    const { task: retained } = await b.controller.update({
-      taskId: initial.id, expectedRevision: unchanged.revision, patch: { description: 'Metadata only' },
-    })
-    expect(retained.agencyCopilotSessionId).toBe(firstId)
-    const { task: cleared } = await b.controller.update({
-      taskId: initial.id, expectedRevision: retained.revision, patch: { agencyCopilotSessionId: null, title: 'Cleared' },
-    })
-    expect(cleared).toMatchObject({ title: 'Cleared', revision: retained.revision + 1 })
-    expect(cleared.agencyCopilotSessionId).toBeUndefined()
+    expect(edited.connection).toEqual(initial.connection)
+    const { task: disconnected } = await b.controller.disconnect({ taskId: edited.id, expectedRevision: edited.revision })
+    expect(disconnected.connection).toBeUndefined()
+    expect(disconnected.status).toBe(initial.status)
     expect(b.read).not.toHaveBeenCalled()
     expect(b.launch).not.toHaveBeenCalled()
+    expect(b.runtime.run).not.toHaveBeenCalled()
+    expect(b.persistence.create).not.toHaveBeenCalled()
+    expect(b.persistence.open).not.toHaveBeenCalled()
   })
 
-  it('clears a selected link through the dedicated command without affecting the DSH Session', async () => {
+  it('requires disconnect before replacing a connection and preserves the unrelated DSH Session', async () => {
     const b = await harness()
-    await b.workspace.attachSession(SessionId('native'))
-    const { task } = await b.controller.create({
-      workspaceId: b.workspace.id, title: 'Linked', agencyCopilotSessionId: firstId,
+    await b.workspace.attachSession(nativeId)
+    const initial = await b.board.create({
+      workspaceId: b.workspace.id, title: 'Connected DSH', connection: { kind: 'dsh', sessionId: nativeId },
     })
-    const native = await b.board.update({
-      taskId: task.id, expectedRevision: task.revision, patch: { sessionId: SessionId('native') },
+    await expect(b.controller.connect({
+      taskId: initial.id, expectedRevision: initial.revision,
+      connection: { kind: 'copilot', sessionId: firstId }, executionSettings: { kind: 'copilot' },
+    }, new AbortController().signal)).rejects.toMatchObject({
+      code: 'taskboard/execution-error', details: { code: 'connection-conflict' },
     })
-    b.read.mockClear().mockRejectedValue(new Error('Agency offline'))
-    const { task: cleared } = await b.controller.clearAgencyCopilot({
-      taskId: native.id, expectedRevision: native.revision,
-    })
-    expect(cleared.agencyCopilotSessionId).toBeUndefined()
-    expect(cleared.sessionId).toBe('native')
+    expect(b.board.get(initial.id)).toEqual(initial)
+    const { task: disconnected } = await b.controller.disconnect({ taskId: initial.id, expectedRevision: initial.revision })
+    const { task: linked } = await b.controller.connect({
+      taskId: initial.id, expectedRevision: disconnected.revision,
+      connection: { kind: 'copilot', sessionId: firstId }, executionSettings: { kind: 'copilot' },
+    }, new AbortController().signal)
+    expect(linked.connection).toEqual({ kind: 'copilot', sessionId: firstId })
+    expect(b.workspace.sessionIds).toContain(nativeId)
+    expect(b.persisted.has(nativeId)).toBe(true)
+    expect(b.persistence.create).not.toHaveBeenCalled()
+    expect(b.persistence.open).not.toHaveBeenCalled()
+    expect(b.launch).not.toHaveBeenCalled()
+    expect(b.runtime.run).not.toHaveBeenCalled()
+  })
+
+  it.each(['unaccounted', 'missing', 'valid'] as const)('validates %s DSH Sessions by membership and stat without opening bodies', async (kind) => {
+    const b = await harness()
+    const task = await b.board.create({ workspaceId: b.workspace.id, title: 'DSH choice' })
+    if (kind === 'unaccounted') await b.workspace.detachSession(nativeId)
+    else await b.workspace.attachSession(nativeId)
+    if (kind === 'missing') b.persisted.delete(nativeId)
+    const request = b.controller.connect({
+      taskId: task.id, expectedRevision: task.revision, connection: { kind: 'dsh', sessionId: nativeId },
+    }, new AbortController().signal)
+    if (kind === 'valid') {
+      await expect(request).resolves.toMatchObject({ task: { connection: { kind: 'dsh', sessionId: nativeId } } })
+      expect(b.persistence.stat).toHaveBeenCalledWith(nativeId)
+    } else {
+      await expect(request).rejects.toMatchObject({ code: 'taskboard/session-invalid' })
+      expect(b.board.get(task.id)).toEqual(task)
+    }
+    expect(b.persistence.create).not.toHaveBeenCalled()
+    expect(b.persistence.open).not.toHaveBeenCalled()
     expect(b.read).not.toHaveBeenCalled()
+    expect(b.runtime.run).not.toHaveBeenCalled()
+  })
+
+  it('cancels DSH association after stat completes without committing a connection', async () => {
+    const b = await harness()
+    await b.workspace.attachSession(nativeId)
+    const task = await b.board.create({ workspaceId: b.workspace.id, title: 'DSH choice' })
+    const signal = new AbortController()
+    b.persistence.stat.mockImplementation(async () => {
+      signal.abort(new Error('Cancelled during stat'))
+      return b.persisted.get(nativeId)
+    })
+    await expect(b.controller.connect({
+      taskId: task.id, expectedRevision: task.revision, connection: { kind: 'dsh', sessionId: nativeId },
+    }, signal.signal)).rejects.toThrow('Cancelled during stat')
+    expect(b.board.get(task.id)).toEqual(task)
+    expect(b.persistence.create).not.toHaveBeenCalled()
+  })
+
+  it('quiesces unfinished discovery before fixture disposal and leaves a fresh Host usable', async () => {
+    const b = await harness()
+    const task = await b.board.create({ workspaceId: b.workspace.id, title: 'Unfinished choice', executionSettings: { kind: 'copilot' } })
+    b.read.mockReturnValue(new Promise(() => {}))
+    const connecting = b.controller.connect({
+      taskId: task.id, expectedRevision: task.revision, connection: { kind: 'copilot', sessionId: firstId },
+    }, new AbortController().signal)
+    const state = { settled: false, rejected: false }
+    const completion = connecting.then(
+      () => { state.settled = true; return undefined },
+      (error: unknown) => { state.settled = true; state.rejected = true; return error },
+    )
+    await vi.waitFor(() => { expect(b.read).toHaveBeenCalledOnce() })
+    const nativeSignal = b.spawn.mock.calls[0]?.[0].signal
+    await cleanupControllerHarness()
+    expect(state).toEqual({ settled: true, rejected: true })
+    expect(nativeSignal?.aborted).toBe(true)
+    const error = await completion
+    expect(error).toBe(nativeSignal?.reason)
+    expect(error).toMatchObject({ message: 'Taskboard Controller stopped' })
+    expect(b.runtime.dispose).toHaveBeenCalledOnce()
+    const restored = await harness({ pool: b.pool })
+    expect(restored.board.get(task.id)).toEqual(task)
+    await expect(restored.controller.connect({
+      taskId: task.id, expectedRevision: task.revision, connection: { kind: 'copilot', sessionId: firstId },
+    }, new AbortController().signal)).resolves.toMatchObject({ task: { connection: { kind: 'copilot', sessionId: firstId } } })
+    expect(restored.launch).not.toHaveBeenCalled()
+    expect(restored.runtime.run).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit preserved legacy choice and never guesses which conversation to open or run', async () => {
+    const seed = await harness()
+    await seed.workspace.attachSession(nativeId)
+    const task = await seed.board.create({ workspaceId: seed.workspace.id, title: 'Legacy', description: 'Preserved context' })
+    seed.pool.media.get('taskboard')!.tables.get('tasks')!.set(task.id, {
+      revision: task.revision, ordinal: task.ordinal, workspaceId: task.workspaceId,
+      title: task.title, description: task.description, status: task.status, rank: task.rank, labels: task.labels,
+      createdAt: task.createdAt, updatedAt: task.updatedAt, sessionId: nativeId, agencyCopilotSessionId: firstId,
+    })
+    await seed.ctx.fiber.dispose()
+    roots.splice(roots.indexOf(seed.ctx), 1)
+    const b = await harness({ pool: seed.pool, launchEnabled: true })
+    const legacy = b.board.get(task.id)!
+    expect(legacy.connection).toBeUndefined()
+    expect(legacy.unresolvedConnections).toEqual([
+      { kind: 'dsh', sessionId: nativeId }, { kind: 'copilot', sessionId: firstId },
+    ])
+    await expect(b.controller.openAgencyCopilot({ taskId: task.id }, new AbortController().signal))
+      .rejects.toMatchObject({ code: 'taskboard/agency-not-linked' })
+    b.runtime.run.mockImplementation(async request => b.board.beginExecution({
+      ...request, trigger: 'manual', executionSettings: { kind: 'dsh', permission: 'default' },
+      proposedConnection: { kind: 'dsh', sessionId: nativeId },
+    }))
+    await expect(b.controller.run({
+      taskId: task.id, expectedRevision: legacy.revision, requestId: TaskRunRequestId('legacy'),
+    }, new AbortController().signal)).rejects.toMatchObject({
+      code: 'taskboard/execution-error', details: { code: 'unresolved-connections' },
+    })
+    const { task: selected } = await b.controller.connect({
+      taskId: task.id, expectedRevision: legacy.revision,
+      connection: { kind: 'copilot', sessionId: firstId }, executionSettings: { kind: 'copilot' },
+    }, new AbortController().signal)
+    expect(selected.connection).toEqual({ kind: 'copilot', sessionId: firstId })
+    expect(selected.unresolvedConnections).toBeUndefined()
+    expect(selected.prompt).toBe('Legacy\n\nPreserved context')
+    expect(selected.executions).toEqual([])
     expect(b.launch).not.toHaveBeenCalled()
   })
 
-  describe.each(['create', 'update'] as const)('%s rejects before writing', (operation) => {
+  describe.each(['create', 'connect'] as const)('%s rejects before writing', (operation) => {
     it.each([
       ['missing', 'taskboard/bad-request'],
       ['wrong-identity', 'taskboard/bad-request'],
@@ -225,7 +285,7 @@ describe('Taskboard existing Agency session selection', () => {
       ['missing-workspace', 'taskboard/workspace-not-found'],
     ] as const)('%s', async (kind, code) => {
       const b = await harness()
-      const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial' })
+      const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' } })
       let selected = firstId
       switch (kind) {
         case 'missing': b.read.mockResolvedValue(JSON.stringify({ sessions: [] })); break
@@ -239,173 +299,165 @@ describe('Taskboard existing Agency session selection', () => {
         case 'missing-workspace': await b.ctx.workspaceRegistry.delete(b.workspace.id); break
       }
       const write = vi.spyOn(b.pool, 'consumeInjectedFailure')
+      const connection = { kind: 'copilot' as const, sessionId: selected }
       const request = operation === 'create'
-        ? b.controller.create({ workspaceId: b.workspace.id, title: 'New', agencyCopilotSessionId: selected })
-        : b.controller.update({
-          taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Edited', agencyCopilotSessionId: selected },
-        })
+        ? b.controller.create({ workspaceId: b.workspace.id, title: 'New', executionSettings: { kind: 'copilot' }, connection })
+        : b.controller.connect({ taskId: initial.id, expectedRevision: initial.revision, connection }, new AbortController().signal)
       await expect(request).rejects.toMatchObject({ code })
       expect(write).not.toHaveBeenCalled()
       expect(b.board.list()).toEqual([initial])
       expect(b.launch).not.toHaveBeenCalled()
+      expect(b.runtime.run).not.toHaveBeenCalled()
     })
 
     it('does not commit when cancellation arrives during discovery', async () => {
       const b = await harness()
-      const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial' })
+      const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' } })
       const signal = new AbortController()
-      b.read.mockImplementation(async () => {
-        signal.abort(new Error('Cancelled before commit'))
-        return page()
-      })
+      b.read.mockImplementation(async () => { signal.abort(new Error('Cancelled before commit')); return page() })
       const write = vi.spyOn(b.pool, 'consumeInjectedFailure')
+      const connection = { kind: 'copilot' as const, sessionId: firstId }
       const request = operation === 'create'
-        ? b.controller.create({ workspaceId: b.workspace.id, title: 'New', agencyCopilotSessionId: firstId }, signal.signal)
-        : b.controller.update({
-          taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Edited', agencyCopilotSessionId: firstId },
-        }, signal.signal)
+        ? b.controller.create({ workspaceId: b.workspace.id, title: 'New', executionSettings: { kind: 'copilot' }, connection }, signal.signal)
+        : b.controller.connect({ taskId: initial.id, expectedRevision: initial.revision, connection }, signal.signal)
       await expect(request).rejects.toThrow('Cancelled before commit')
       expect(write).not.toHaveBeenCalled()
       expect(b.board.list()).toEqual([initial])
     })
 
-    it('publishes neither partial content nor a link when the durable write fails', async () => {
+    it('publishes neither partial content nor a connection when the durable write fails', async () => {
       const b = await harness()
-      const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial' })
+      const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' } })
       b.pool.failNextWrites = 1
+      const connection = { kind: 'copilot' as const, sessionId: firstId }
       const request = operation === 'create'
-        ? b.controller.create({ workspaceId: b.workspace.id, title: 'New', agencyCopilotSessionId: firstId })
-        : b.controller.update({
-          taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Edited', agencyCopilotSessionId: firstId },
-        })
+        ? b.controller.create({ workspaceId: b.workspace.id, title: 'New', executionSettings: { kind: 'copilot' }, connection })
+        : b.controller.connect({ taskId: initial.id, expectedRevision: initial.revision, connection }, new AbortController().signal)
       await expect(request).rejects.toThrow('injected write failure')
       expect(b.board.list()).toEqual([initial])
     })
   })
 
-  it.each(['stale', 'archived'] as const)('rejects an initially %s edit without reading Agency', async (kind) => {
+  it.each(['stale', 'archived'] as const)('rejects an initially %s association without reading Agency', async (kind) => {
     const b = await harness()
-    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial' })
+    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' } })
     const current = kind === 'stale'
       ? await b.board.update({ taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Changed' } })
       : await b.board.archive(initial.id, initial.revision)
-    await expect(b.controller.update({
-      taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Stale', agencyCopilotSessionId: firstId },
-    })).rejects.toMatchObject({ code: kind === 'stale' ? 'taskboard/revision-conflict' : 'taskboard/task-archived' })
+    await expect(b.controller.connect({
+      taskId: initial.id, expectedRevision: kind === 'stale' ? initial.revision : current.revision,
+      connection: { kind: 'copilot', sessionId: firstId },
+    }, new AbortController().signal)).rejects.toMatchObject({
+      code: kind === 'stale' ? 'taskboard/revision-conflict' : 'taskboard/task-archived',
+    })
     expect(b.board.get(initial.id)).toEqual(current)
     expect(b.read).not.toHaveBeenCalled()
   })
 
-  it.each(['stale', 'archived', 'workspace-removed'] as const)(
-    'checks authoritative state after asynchronous discovery becomes %s',
-    async (kind) => {
-      const b = await harness()
-      const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial' })
-      const pending = Promise.withResolvers<string>()
-      b.read.mockReturnValue(pending.promise)
-      const updating = b.controller.update({
-        taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Relinked', agencyCopilotSessionId: firstId },
-      })
-      await vi.waitFor(() => { expect(b.read).toHaveBeenCalledOnce() })
-      if (kind === 'stale') {
-        await b.board.update({ taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Concurrent' } })
-      } else if (kind === 'archived') await b.board.archive(initial.id, initial.revision)
-      else await b.ctx.workspaceRegistry.delete(b.workspace.id)
-      const retained = b.board.get(initial.id)
-      const code = kind === 'stale' ? 'taskboard/revision-conflict'
-        : kind === 'archived' ? 'taskboard/task-archived' : 'taskboard/workspace-not-found'
-      const rejected = expect(updating).rejects.toMatchObject({ code })
-      pending.resolve(page())
-      await rejected
-      expect(b.board.get(initial.id)).toEqual(retained)
-      expect(b.launch).not.toHaveBeenCalled()
-    },
-  )
-
-  it.each(['archive', 'clear', 'start', 'open'] as const)('serializes relinking with %s on the same task', async (operation) => {
-    const b = await harness(undefined, true)
-    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', agencyCopilotSessionId: firstId })
+  it.each(['stale', 'archived', 'workspace-removed'] as const)('rechecks authority after pending discovery becomes %s', async (kind) => {
+    const b = await harness()
+    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' } })
     const pending = Promise.withResolvers<string>()
     b.read.mockReturnValue(pending.promise)
-    const updating = b.controller.update({
-      taskId: initial.id, expectedRevision: initial.revision, patch: { agencyCopilotSessionId: secondId },
-    })
+    const connecting = b.controller.connect({
+      taskId: initial.id, expectedRevision: initial.revision, connection: { kind: 'copilot', sessionId: firstId },
+    }, new AbortController().signal)
     await vi.waitFor(() => { expect(b.read).toHaveBeenCalledOnce() })
-    const revision = initial.revision
-    let competing: Promise<unknown>
-    if (operation === 'archive') competing = b.controller.archive({ taskId: initial.id, expectedRevision: revision })
-    else if (operation === 'clear') competing = b.controller.clearAgencyCopilot({ taskId: initial.id, expectedRevision: revision })
-    else if (operation === 'start') {
-      competing = b.controller.startAgencyCopilot({ taskId: initial.id, expectedRevision: revision }, new AbortController().signal)
-    } else competing = b.controller.openAgencyCopilot({ taskId: initial.id }, new AbortController().signal)
+    if (kind === 'stale') await b.board.update({ taskId: initial.id, expectedRevision: initial.revision, patch: { title: 'Concurrent' } })
+    else if (kind === 'archived') await b.board.archive(initial.id, initial.revision)
+    else await b.ctx.workspaceRegistry.delete(b.workspace.id)
+    const retained = b.board.get(initial.id)
+    const code = kind === 'workspace-removed' ? 'taskboard/workspace-not-found' : 'taskboard/revision-conflict'
+    const rejected = expect(connecting).rejects.toMatchObject({ code })
+    pending.resolve(page())
+    await rejected
+    expect(b.board.get(initial.id)).toEqual(retained)
+    expect(b.launch).not.toHaveBeenCalled()
+  })
+
+  it.each(['archive', 'disconnect', 'connect'] as const)('serializes association with %s on the same task', async (operation) => {
+    const b = await harness()
+    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' } })
+    const pending = Promise.withResolvers<string>()
+    b.read.mockReturnValue(pending.promise)
+    const connecting = b.controller.connect({
+      taskId: initial.id, expectedRevision: initial.revision, connection: { kind: 'copilot', sessionId: firstId },
+    }, new AbortController().signal)
+    await vi.waitFor(() => { expect(b.read).toHaveBeenCalledOnce() })
+    const request = { taskId: initial.id, expectedRevision: initial.revision }
+    const competing = operation === 'archive' ? b.controller.archive(request)
+      : operation === 'disconnect' ? b.controller.disconnect(request)
+        : b.controller.connect({ ...request, connection: { kind: 'copilot', sessionId: secondId } }, new AbortController().signal)
     const settled = vi.fn()
     void competing.then(settled, settled)
     await Promise.resolve()
     expect(settled).not.toHaveBeenCalled()
-    pending.resolve(page(secondId))
-    const { task: linked } = await updating
-    await expect(competing).rejects.toMatchObject({
-      code: operation === 'open' ? 'taskboard/agency-not-linked' : 'taskboard/revision-conflict',
-    })
+    const rejected = expect(competing).rejects.toMatchObject({ code: 'taskboard/revision-conflict' })
+    pending.resolve(page())
+    const { task: linked } = await connecting
+    await rejected
     expect(b.board.get(initial.id)).toEqual(linked)
+    expect(b.read).toHaveBeenCalledOnce()
     expect(b.launch).not.toHaveBeenCalled()
   })
 
-  it('cancels an edit waiting for the Agency task lock before its durable write', async () => {
+  it('cancels a queued association before its durable write', async () => {
     const b = await harness()
-    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial' })
+    const initial = await b.board.create({ workspaceId: b.workspace.id, title: 'Initial', executionSettings: { kind: 'copilot' } })
     const pending = Promise.withResolvers<string>()
     b.read.mockReturnValue(pending.promise)
-    const linking = b.controller.update({
-      taskId: initial.id, expectedRevision: initial.revision, patch: { agencyCopilotSessionId: firstId },
-    })
+    const connecting = b.controller.connect({
+      taskId: initial.id, expectedRevision: initial.revision, connection: { kind: 'copilot', sessionId: firstId },
+    }, new AbortController().signal)
     await vi.waitFor(() => { expect(b.read).toHaveBeenCalledOnce() })
     const cancellation = new AbortController()
-    const editing = b.controller.update({
-      taskId: initial.id, expectedRevision: initial.revision + 1, patch: { title: 'Cancelled' },
+    const queued = b.controller.connect({
+      taskId: initial.id, expectedRevision: initial.revision + 1, connection: { kind: 'copilot', sessionId: secondId },
     }, cancellation.signal)
-    const rejected = expect(editing).rejects.toThrow('Cancelled in the task queue')
+    const rejected = expect(queued).rejects.toThrow('Cancelled in the task queue')
+    await Promise.resolve()
     cancellation.abort(new Error('Cancelled in the task queue'))
     pending.resolve(page())
-    const { task: linked } = await linking
+    const { task: linked } = await connecting
     await rejected
     expect(b.board.get(initial.id)).toEqual(linked)
+    expect(b.read).toHaveBeenCalledOnce()
   })
 })
 
-describe('Taskboard deletion and Agency operations', () => {
-  it.each([false, true])('deletes a linked task without changing Workspace or external sessions (archived=%s)', async (archived) => {
+describe('Taskboard deletion and existing conversations', () => {
+  it.each([false, true])('deletes only task data without changing Workspace or Sessions (archived=%s)', async (archive) => {
     const b = await harness()
-    await b.workspace.attachSession(SessionId('native'))
+    await b.workspace.attachSession(nativeId)
     const initial = await b.board.create({
-      workspaceId: b.workspace.id, title: 'Delete task only', agencyCopilotSessionId: firstId,
+      workspaceId: b.workspace.id, title: 'Delete task only', executionSettings: { kind: 'copilot' },
+      connection: { kind: 'copilot', sessionId: firstId },
     })
-    const linked = await b.board.update({
-      taskId: initial.id, expectedRevision: initial.revision, patch: { sessionId: SessionId('native') },
-    })
-    const current = archived ? await b.board.archive(linked.id, linked.revision) : linked
+    const current = archive ? await b.board.archive(initial.id, initial.revision) : initial
     const sessions = [...b.workspace.sessionIds]
     const changed = vi.fn()
     const dispose = b.ctx.on('domain/changed', changed)
-    await expect(b.controller.delete({
-      taskId: current.id, expectedRevision: current.revision,
-    })).resolves.toEqual({ taskId: current.id, revision: Number.MAX_SAFE_INTEGER })
+    await expect(b.controller.delete({ taskId: current.id, expectedRevision: current.revision }))
+      .resolves.toEqual({ taskId: current.id, revision: Number.MAX_SAFE_INTEGER })
     expect(b.ctx.workspaceRegistry.get(b.workspace.id)).toBe(b.workspace)
     expect(b.workspace.sessionIds).toEqual(sessions)
-    expect(await b.ctx.sessionPersistence.list()).toMatchObject([{ header: { id: SessionId('native') } }])
+    expect(await b.ctx.sessionPersistence.list()).toMatchObject([{ header: { id: nativeId } }])
     expect(changed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       domain: 'taskboard', table: 'tasks', key: current.id, operation: 'deleted',
     }))
     expect(b.read).not.toHaveBeenCalled()
     expect(b.spawn).not.toHaveBeenCalled()
     expect(b.launch).not.toHaveBeenCalled()
+    expect(b.runtime.run).not.toHaveBeenCalled()
+    expect(b.persistence.open).not.toHaveBeenCalled()
     dispose()
   })
 
-  it('waits for an admitted Open before deleting without interrupting the Agency session', async () => {
-    const b = await harness(undefined, true)
+  it('waits for admitted Open before deletion without interrupting the conversation', async () => {
+    const b = await harness({ launchEnabled: true })
     const task = await b.board.create({
-      workspaceId: b.workspace.id, title: 'Linked', agencyCopilotSessionId: firstId,
+      workspaceId: b.workspace.id, title: 'Linked', executionSettings: { kind: 'copilot' },
+      connection: { kind: 'copilot', sessionId: firstId },
     })
     const pending = Promise.withResolvers<string>()
     b.read.mockReturnValue(pending.promise)
@@ -416,7 +468,6 @@ describe('Taskboard deletion and Agency operations', () => {
     void deleting.then(settled, settled)
     await Promise.resolve()
     expect(settled).not.toHaveBeenCalled()
-    expect(b.board.get(task.id)).toEqual(task)
     pending.resolve(page(firstId, process.cwd(), 'in_use'))
     await expect(opening).resolves.toEqual({ outcome: 'already-running' })
     await expect(deleting).resolves.toEqual({ taskId: task.id, revision: Number.MAX_SAFE_INTEGER })
@@ -425,12 +476,12 @@ describe('Taskboard deletion and Agency operations', () => {
     expect(b.launch).not.toHaveBeenCalled()
   })
 
-  it.each(['start', 'open', 'archive', 'clear', 'update'] as const)(
-    'holds the task lock until durable deletion settles before %s',
-    async (operation) => {
-      const b = await harness(undefined, true)
+  it.each(['run', 'open', 'archive', 'disconnect', 'connect', 'update'] as const)(
+    'keeps durable deletion ahead of a concurrent %s', async (operation) => {
+      const b = await harness({ launchEnabled: true })
       const task = await b.board.create({
-        workspaceId: b.workspace.id, title: 'Linked', agencyCopilotSessionId: firstId,
+        workspaceId: b.workspace.id, title: 'Linked', executionSettings: { kind: 'copilot' },
+        connection: { kind: 'copilot', sessionId: firstId },
       })
       const table = b.facility.get('taskboard')!.table('tasks')
       const remove = table.delete.bind(table)
@@ -441,15 +492,19 @@ describe('Taskboard deletion and Agency operations', () => {
         await resume.promise
         return remove(key)
       })
+      b.runtime.run.mockImplementation(async request => b.board.beginExecution({
+        ...request, trigger: 'manual', executionSettings: { kind: 'copilot', permission: 'read-only' },
+      }))
       const request = { taskId: task.id, expectedRevision: task.revision }
       const deleting = b.controller.delete(request)
       await entered.promise
       let competing: Promise<unknown>
       switch (operation) {
-        case 'start': competing = b.controller.startAgencyCopilot(request, new AbortController().signal); break
+        case 'run': competing = b.controller.run({ ...request, requestId: TaskRunRequestId('deleted') }, new AbortController().signal); break
         case 'open': competing = b.controller.openAgencyCopilot({ taskId: task.id }, new AbortController().signal); break
         case 'archive': competing = b.controller.archive(request); break
-        case 'clear': competing = b.controller.clearAgencyCopilot(request); break
+        case 'disconnect': competing = b.controller.disconnect(request); break
+        case 'connect': competing = b.controller.connect({ ...request, connection: task.connection! }, new AbortController().signal); break
         case 'update': competing = b.controller.update({ ...request, patch: { title: 'Late edit' } }); break
       }
       const rejected = expect(competing).rejects.toMatchObject({ code: 'taskboard/task-not-found' })
@@ -464,10 +519,11 @@ describe('Taskboard deletion and Agency operations', () => {
     },
   )
 
-  it('cancels a delete waiting for the Agency lock and leaves the task available', async () => {
-    const b = await harness(undefined, true)
+  it('cancels deletion waiting for Open and leaves the task available for an explicit retry', async () => {
+    const b = await harness({ launchEnabled: true })
     const task = await b.board.create({
-      workspaceId: b.workspace.id, title: 'Linked', agencyCopilotSessionId: firstId,
+      workspaceId: b.workspace.id, title: 'Linked', executionSettings: { kind: 'copilot' },
+      connection: { kind: 'copilot', sessionId: firstId },
     })
     const pending = Promise.withResolvers<string>()
     b.read.mockReturnValue(pending.promise)

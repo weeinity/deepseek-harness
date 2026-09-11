@@ -224,6 +224,12 @@
 .sessionActions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 .fieldHint { margin: 7px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
 .sessionPicker { min-width: 0; }
+.executionFields { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.checkbox { display: flex; align-items: center; gap: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.history { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.historyItem { display: grid; gap: 8px; padding: 12px; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 9px; font-size: 12px; overflow-wrap: anywhere; }
+.historyItem pre { margin: 0; white-space: pre-wrap; font-family: var(--ds-font-family-code); }
+.settingsPanel { display: grid; gap: 12px; padding: 18px; }
 .sessionPickerFeedback { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
 .sessionPickerFeedback span { flex: 1; }
 .sessionPickerFeedback [role='alert'] { color: var(--dsw-alias-state-error-primary); }
