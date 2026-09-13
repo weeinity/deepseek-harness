@@ -108,9 +108,10 @@
 .archiveHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .archiveHeader h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; }
 .archiveList { display: flex; flex-direction: column; gap: 10px; }
+.column,
+.statusBadge { --taskboard-status: var(--dsw-alias-taskboard-backlog); }
 .column {
-  --taskboard-status: var(--dsw-alias-label-tertiary);
-  --taskboard-status-bg: var(--dsw-alias-bg-module-platform);
+  --taskboard-status-bg: color-mix(in srgb, var(--taskboard-status) 12%, transparent);
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -120,10 +121,15 @@
   border-radius: 12px;
   background: var(--dsw-alias-bg-module-platform);
 }
-.column[data-status='todo'] { --taskboard-status: var(--dsw-alias-state-business-primary); --taskboard-status-bg: var(--dsw-alias-state-business-tertiary); }
-.column[data-status='in_progress'] { --taskboard-status: var(--dsw-alias-state-business-primary); --taskboard-status-bg: var(--dsw-alias-state-business-tertiary); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 24%, transparent); }
-.column[data-status='in_review'] { --taskboard-status: var(--dsw-alias-state-warn-primary); --taskboard-status-bg: var(--dsw-alias-state-warn-tertiary); }
-.column[data-status='done'] { --taskboard-status: var(--dsw-alias-state-success-primary); --taskboard-status-bg: var(--dsw-alias-state-success-tertiary); }
+.column[data-status='todo'],
+.statusBadge[data-status='todo'] { --taskboard-status: var(--dsw-alias-taskboard-todo); }
+.column[data-status='in_progress'],
+.statusBadge[data-status='in_progress'] { --taskboard-status: var(--dsw-alias-taskboard-in-progress); }
+.column[data-status='in_review'],
+.statusBadge[data-status='in_review'] { --taskboard-status: var(--dsw-alias-taskboard-in-review); }
+.column[data-status='done'],
+.statusBadge[data-status='done'] { --taskboard-status: var(--dsw-alias-taskboard-done); }
+.column[data-status='in_progress'] { border-color: color-mix(in srgb, var(--taskboard-status) 24%, transparent); }
 .columnHeader { flex: none; height: 46px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 12px; }
 .statusDot { width: 8px; height: 8px; border-radius: 50%; background: var(--taskboard-status); box-shadow: 0 0 0 3px var(--taskboard-status-bg); }
 .count { min-width: 20px; height: 19px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--dsw-alias-label-tertiary); background: var(--dsw-alias-bg-overlay); font-size: 10px; }
@@ -160,11 +166,7 @@
 .cardDescription { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 0 0 9px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; white-space: pre-wrap; }
 .card[data-archived] .cardTitle { margin-top: 0; }
 .cardStatus { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; line-height: 16px; }
-.statusBadge { display: inline-flex; align-items: center; flex: none; padding: 2px 9px; border: 1px solid currentColor; border-radius: 999px; color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 16px; white-space: nowrap; }
-.statusBadge[data-status='todo'] { color: var(--dsw-alias-state-business-primary); }
-.statusBadge[data-status='in_progress'],
-.statusBadge[data-status='in_review'] { color: var(--dsw-alias-state-warn-primary); }
-.statusBadge[data-status='done'] { color: var(--dsw-alias-state-success-primary); }
+.statusBadge { display: inline-flex; align-items: center; flex: none; padding: 2px 9px; border: 1px solid currentColor; border-radius: 999px; color: var(--taskboard-status); font-size: 11px; line-height: 16px; white-space: nowrap; }
 .labels { min-height: 19px; display: flex; flex-wrap: wrap; gap: 4px; }
 .label { height: 18px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 5px; color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-markdown-tag); font-size: 9px; }
 .cardFooter { min-height: 24px; margin-top: 9px; padding-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-top: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-tertiary); font-size: 10px; line-height: 16px; }

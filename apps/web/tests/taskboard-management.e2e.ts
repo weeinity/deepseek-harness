@@ -7,7 +7,7 @@ import { expect, it } from 'vitest'
 import type { TaskboardExecutionOptionsValue, TaskboardListValue, TaskboardTask } from '@deepseek-ai/dsh-api-taskboard-controller'
 import { captureWorkspaceSnapshot } from '@deepseek-ai/dsh-session-snapshot'
 import { captureStableAria, compareOrRefreshGolden, fixtureUserPrompts, selectedSessionFixture, webSnapshotMode } from './scaffold.ts'
-import { REPO_ROOT } from './support.ts'
+import { connectFreshWorkspace, REPO_ROOT } from './support.ts'
 import {
   expectedTaskboardPrompt, savedTask, setTaskboardRuntimeSwitch, taskboardPersistedSessions, taskboardRpc, withTaskboardWorld,
 } from './taskboard-harness.ts'
@@ -43,6 +43,60 @@ async function detailsGolden(page: Page, workspace: string, task: TaskboardTask)
     replacements: timestamps.map(value => [value, '{{timestamp}}'] as const),
   })
 }
+
+it('Taskboard status colors distinguish every column and remain consistent on archived cards in both themes', async () => {
+  const fixture = await selectedSessionFixture(join(REPO_ROOT, 'snapshots', 'web', 'lifecycle-chrome', 'session.v3.jsonl'))
+  const palette = [
+    { status: 'backlog', color: 'rgb(156, 163, 175)' },
+    { status: 'todo', color: 'rgb(99, 102, 241)' },
+    { status: 'in_progress', color: 'rgb(37, 99, 235)' },
+    { status: 'in_review', color: 'rgb(245, 158, 11)' },
+    { status: 'done', color: 'rgb(34, 197, 94)' },
+  ] as const
+  await withTaskboardWorld({
+    name: 'taskboard-palette',
+    patches: [join(SCENARIO, 'cordis.yml'), join(SCENARIO, 'cordis.snapshot.yml')],
+    prepare: async () => ({ DSH_SNAPSHOT_FILE: fixture, DSH_SNAPSHOT_OVERRIDE: undefined }),
+  }, async ({ page, root, requests, pageErrors }) => {
+    await connectFreshWorkspace(page, root)
+    await page.getByRole('button', { name: 'Taskboard', exact: true }).click()
+    const workspaceId = await page.getByRole('combobox', { name: 'Workspace', exact: true }).inputValue()
+    expect(workspaceId).not.toBe('all')
+    for (const { status } of palette) {
+      await taskboardRpc(page, 'taskboard/create', {
+        request: { workspaceId, title: `Palette ${status}`, status },
+      })
+      await page.getByRole('article', { name: `Palette ${status}`, exact: true }).waitFor()
+    }
+    for (const archived of [false, true]) {
+      if (archived) {
+        for (const { status } of palette) {
+          const task = await savedTask(page, `Palette ${status}`)
+          await taskboardRpc(page, 'taskboard/archive', {
+            request: { taskId: task.id, expectedRevision: task.revision },
+          })
+        }
+        await page.getByRole('button', { name: 'Archived (5)', exact: true }).click()
+      }
+      for (const colorScheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme })
+        await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))
+          .toBe(colorScheme === 'dark')
+        for (const { status, color } of palette) {
+          if (!archived) {
+            const dot = page.locator(`section[data-status="${status}"] > div > span`).first()
+            expect(await dot.evaluate(element => getComputedStyle(element).backgroundColor), `${status} column`).toBe(color)
+          }
+          const badge = page.getByRole('article', { name: `Palette ${status}`, exact: true }).locator('[data-status]')
+          expect(await badge.evaluate(element => getComputedStyle(element).color), `${status} badge`).toBe(color)
+          expect(await badge.evaluate(element => getComputedStyle(element).borderTopColor), `${status} badge border`).toBe(color)
+        }
+      }
+    }
+    expect(requests.filter(request => request.method === 'taskboard/run' || request.method === 'session/prompt')).toEqual([])
+    expect(pageErrors).toEqual([])
+  })
+})
 
 it('Taskboard preserves saved inputs and history while success, failure, waiting, resumed work, and cancellation update its column', async () => {
   const fixture = await selectedSessionFixture(join(REPO_ROOT, 'snapshots', 'web', 'lifecycle-chrome', 'session.v3.jsonl'))

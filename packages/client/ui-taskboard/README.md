@@ -31,6 +31,8 @@ Open **Taskboard** from the sidebar in a Web composition containing the [Taskboa
 
 Admitted runs move tasks to In Progress. Success moves them to Done; failure, cancellation, or waiting for user input moves them to In Review. Resumed execution returns them to In Progress. Manual moves use the Host's permitted choices: Todo can move only to Backlog, but still supports same-column reordering. Save draft edits before using status controls. Manual-status refusals show localized current and requested columns.
 
+Column dots and task-status badges use grey for Backlog, indigo for Todo, blue for In Progress, amber for In Review, and green for Done. The same palette applies to light and dark themes and archived cards.
+
 Questions in a linked DSH chat also move its task to In Review when you continue the chat outside Run. Use **Open session** to answer. The [Host monitor](../../api/taskboard-controller/README.md#execution-and-connections) follows resumption and completion without adding execution history or linking unrelated chats.
 
 **Archive** and **Delete** appear only for saved tasks, never in creation drafts. **Archive** moves a task into the filtered archive list. Archived tasks are read-only; **Restore** returns them to the board with scheduling disabled. **Delete** requires confirmation and removes only the task record, not its conversations.
