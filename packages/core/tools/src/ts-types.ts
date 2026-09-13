@@ -9,6 +9,7 @@
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
 import { assertSupportedJsonSchema } from './json-schema.ts'
 import type { JsonSchemaNode, JsonSchemaScalar } from './json-schema.ts'
+import { renderRawParameterSchemas } from './sdk-parameters.ts'
 /** Internal PTC mode projection: the model-facing schema plus the canonical output schema. */
 export interface ToolSdkSchema extends ToolSchema {
   /** Validated canonical value returned by the tool binding. */
@@ -285,6 +286,7 @@ function renderBashExample(schemas: ToolSdkSchema[]): string {
 /**
  * Render the full `tools:sdk` prompt section: the fixed usage instructions
  * plus one `declare const tools` interface covering every given tool.
+ * Opaque argument types retain their complete parameter schemas in a JSON appendix.
  * Deterministic — tools are emitted in lexicographic name order, so an
  * unchanged tool set produces byte-identical text across assemblies. The sort
  * is not a total order on byte-equal names, so two schemas sharing a name
@@ -298,9 +300,12 @@ export function renderToolsSdk(schemas: ToolSdkSchema[]): string {
   const sorted = [...schemas].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
   const argsMembers: string[] = []
   const outputMembers: string[] = []
+  const opaque: ToolSdkSchema[] = []
   for (const schema of sorted) {
+    const argType = jsonSchemaToTs(schema.parameters, 1)
+    if (argType === 'unknown') opaque.push(schema)
     argsMembers.push(...docLines(schema.description, 1))
-    argsMembers.push(`${pad(1)}${renderKey(schema.name)}: ${jsonSchemaToTs(schema.parameters, 1)};`)
+    argsMembers.push(`${pad(1)}${renderKey(schema.name)}: ${argType};`)
     outputMembers.push(`${pad(1)}${renderKey(schema.name)}: ${jsonSchemaToTs(schema.output, 1)};`)
   }
   const argsMap = `interface ToolArgsMap {${argsMembers.length > 0 ? `\n${argsMembers.join('\n')}\n` : ''}}`
@@ -313,5 +318,5 @@ export function renderToolsSdk(schemas: ToolSdkSchema[]): string {
     ['declare const tools: {', '  [K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;', '}'].join('\n'),
   ].join('\n\n')
   const jsonValue = 'type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }'
-  return `${SDK_INSTRUCTIONS}${renderBashExample(sorted)}\n\n${SDK_PROGRAM_INSTRUCTIONS}\n\n\`\`\`ts\n${jsonValue}\n\n${declaration}\n\`\`\``
+  return `${SDK_INSTRUCTIONS}${renderBashExample(sorted)}\n\n${SDK_PROGRAM_INSTRUCTIONS}\n\n\`\`\`ts\n${jsonValue}\n\n${declaration}\n\`\`\`${renderRawParameterSchemas(opaque)}`
 }

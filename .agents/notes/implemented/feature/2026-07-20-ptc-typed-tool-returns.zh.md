@@ -45,7 +45,7 @@ declare const tools: {
 }
 ```
 
-`jsonSchemaToTs()` 覆盖统一 schema 支持的所有节点：对象、数组、字符串、数字、整数、布尔值、null、无约束 JSON、标量 `enum` 与 `const`，以及 `oneOf`。提示词生成期间，不支持的原始结构会回退为 `unknown`，而不会导致组装失败。工具名会保留精确键名，包括必须使用引号访问的名称。
+`jsonSchemaToTs()` 覆盖统一 schema 支持的所有节点：对象、数组、字符串、数字、整数、布尔值、null、无约束 JSON、标量 `enum` 与 `const`，以及 `oneOf`。根据[外部参数规则](../architecture/2026-07-20-unified-json-value-schema-dsl.zh.md)，不支持的原始结构会生成不透明参数类型，并附带完整 JSON-schema 附录。工具名会保留精确键名，包括必须使用引号访问的名称。
 
 ### 绑定值与失败
 

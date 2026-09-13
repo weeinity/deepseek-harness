@@ -18,6 +18,8 @@ An explicit author object must declare `additionalProperties: true | false`. The
 
 Object-rooting is a consumer rule rather than a vocabulary restriction. Subagent and workflow caller-defined structured outputs use `assertObjectJsonSchema()` and `ObjectJsonSchema`; tool outputs may use any root. Dynamic Cordis registrations rebuild realm-foreign schemas into host-owned JSON, preserve raw-wrapper openness, and require direct-DSL object openness before calling the same compiler. The dynamic boundary rejects JSON-invisible record keys and exotic schema arrays before normalization, so it cannot silently discard a constraint or consume custom iteration semantics.
 
+External raw tool parameters may exceed this enforced subset. An opaque PTC argument declaration retains the complete parameter schema in a JSON appendix in both language projections; it does not imply local validation of the external schema. The model needs those field names and constraints because PTC-only mode does not advertise the original native tool definitions. The appendix preserves schema semantics rather than translating overlapping type alternatives into exact-one unions, and uses the stack-safe JSON renderer shared with PTC results. Non-JSON parameters fail prompt assembly explicitly.
+
 ## Alternatives considered
 
 - **Keep separate parameter and structured-output schema systems:** rejected because every added output construct would require parallel inference, compilation, validation, and code-generation changes with no useful ownership boundary.
@@ -25,6 +27,7 @@ Object-rooting is a consumer rule rather than a vocabulary restriction. Subagent
 - **Adopt full JSON Schema or Ajv:** rejected because the harness must fail on every construct it cannot project into its generated SDK and validators; accepting a larger language would make enforcement and model guidance dishonest.
 - **Make every object implicitly open or closed:** rejected because either choice hides a consequential author decision. Only the legacy-shaped implicit parameter root and external raw schema retain an intentional default.
 - **Define `oneOf` as first-match:** rejected because branch ordering would change validation semantics and allow overlapping branches to hide ambiguous values.
+- **Expose only an opaque argument type for broader external schemas:** rejected because one unsupported nested field would hide every argument name and constraint from a PTC-only model. Preserving the supplied JSON schema avoids a second validator or a service-specific parameter guide.
 
 ## Consequences
 
@@ -32,6 +35,6 @@ Object-rooting is a consumer rule rather than a vocabulary restriction. Subagent
 - Output declarations can infer object, array, scalar, or null roots; subagent/workflow structured outputs remain object-rooted at their existing seams.
 - Explicit object openness and type-correct literal constraints make malformed declarations fail during authoring or registration rather than during a later model call.
 - Bounded type inference retains useful exact types for ordinary declarations and degrades unusually deep tails to `JsonValue`; runtime schema enforcement remains exact at every depth.
-- Raw tools may still register broader JSON Schema directly, but unified code generation treats unsupported schemas as unknown instead of pretending to enforce them.
+- Raw tools may still register broader JSON Schema directly. Their opaque argument declarations retain complete JSON guidance without pretending to enforce those schemas; the appendix adds prompt tokens only for opaque bindings.
 - Per-property `required: true` remains the tool-author contract, and type-level regression coverage pins required keys as non-optional after the original inference path exposed an optionality bug.
 - Runtime and compile-time tests cover every root, exact-one overlap/no-match behavior, raw open defaults, explicit openness, lossy JSON values, inference, deep nesting across core and dynamic projections, JSON-invisible dynamic keys, and exotic schema arrays.

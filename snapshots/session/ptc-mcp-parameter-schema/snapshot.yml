@@ -1,0 +1,9 @@
+version: 1
+scenario: ptc-mcp-parameter-schema
+profile: headless
+composition: ptc-mcp-parameter-schema
+recording: authored
+header:
+  class: ptc-mcp-parameter-schema
+  pin: true
+  toolSchemasSource: ptc-turn

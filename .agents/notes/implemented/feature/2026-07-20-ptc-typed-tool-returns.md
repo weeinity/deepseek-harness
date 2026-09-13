@@ -45,7 +45,7 @@ declare const tools: {
 }
 ```
 
-`jsonSchemaToTs()` covers every supported unified-schema node: object, array, string, number, integer, boolean, null, unconstrained JSON, scalar `enum` and `const`, and `oneOf`. Unsupported raw constructs degrade to `unknown` during prompt generation rather than breaking assembly. Tool names retain their exact keys, including names that require quoted access.
+`jsonSchemaToTs()` covers every supported unified-schema node: object, array, string, number, integer, boolean, null, unconstrained JSON, scalar `enum` and `const`, and `oneOf`. Unsupported raw constructs produce opaque argument types with a complete JSON-schema appendix under the [external parameter rule](../architecture/2026-07-20-unified-json-value-schema-dsl.md). Tool names retain their exact keys, including names that require quoted access.
 
 ### Binding values and failures
 

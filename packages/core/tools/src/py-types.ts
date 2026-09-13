@@ -15,6 +15,7 @@
  */
 
 import { assertSupportedJsonSchema } from './json-schema.ts'
+import { renderRawParameterSchemas } from './sdk-parameters.ts'
 import type { JsonSchemaNode, JsonSchemaScalar } from './json-schema.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
 
@@ -749,6 +750,7 @@ The available tools:`
  * method per visible tool on a `Tools` protocol — typed args in, the tool's
  * canonical output value out — with a `tools: Tools` singleton the model calls
  * into. The `typing` import line lists exactly the symbols the render used.
+ * Opaque argument types retain their complete parameter schemas in a JSON appendix.
  * Deterministic — tools are emitted in lexicographic name order, and class
  * declarations precede the protocol in that same order (nested classes before
  * the parent that references them), so an unchanged tool set produces
@@ -769,9 +771,11 @@ export function renderToolsSdkPy(schemas: ToolSdkSchema[]): string {
   // two `async def` lines is not a statement, so it changes nothing about how
   // the class body parses.
   const members: string[] = []
+  const opaque: ToolSdkSchema[] = []
   let statements = 0
   for (const schema of sorted) {
     const argType = renderType(schema.parameters, `${camelCase(schema.name)}Args`, state)
+    if (argType === 'Any') opaque.push(schema)
     const outputType = renderType(schema.output, `${camelCase(schema.name)}Output`, state)
     if (isBareIdentifier(schema.name) && !RESERVED.has(schema.name) && !schema.name.startsWith('_')) {
       // A docstring only documents its method when it is the FIRST statement
@@ -814,5 +818,5 @@ export function renderToolsSdkPy(schemas: ToolSdkSchema[]): string {
   const classBlock = state.classes.length > 0 ? `${state.classes.join('\n\n')}\n\n` : ''
   const errorDeclaration = 'class ToolCallError(Exception):\n    toolName: str'
   const declaration = `from typing import ${imports.join(', ')}\n\n${errorDeclaration}\n\n${classBlock}class Tools(Protocol):\n${body}\n\ntools: Tools`
-  return `${SDK_INSTRUCTIONS}\n\n\`\`\`python\n${declaration}\n\`\`\``
+  return `${SDK_INSTRUCTIONS}\n\n\`\`\`python\n${declaration}\n\`\`\`${renderRawParameterSchemas(opaque)}`
 }

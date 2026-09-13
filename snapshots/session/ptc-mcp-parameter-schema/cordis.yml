@@ -1,0 +1,32 @@
+# Keep MCP evidence independent of instruction and skill files in ancestor workspaces.
+- id: agent-instructions
+  disabled: true
+
+- id: skill-filesystem
+  disabled: true
+
+- id: tools
+  name: '@deepseek-ai/dsh-tools'
+  config:
+    mode: ptc
+
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
+  config:
+    personaPrefix: |
+      You are a coding assistant powered by the {{model}} model. Your working directory is {{cwd}}.
+
+      Verify your work by running the code or tests. Keep answers brief and factual.
+
+- insert:
+    - id: mcp-catalog
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        transport: stdio
+        serverName: catalog
+        command: !!js process.execPath
+        args: ['./catalog-mcp-server.mjs']
+        cwd: !!js process.cwd()
+        failOnStartupError: true
+        reconnect:
+          enabled: false
