@@ -5,14 +5,10 @@
  * Fiber + ctx.extend scope tag; one scope per session, agent id === session
  * id), stable SessionBinding cache, breadcrumb-route projection.
  *
- * Scope lifecycle is stage-driven: a scope is minted lazily on first
- * resolution (pure — resolution has no side effects and is render-safe);
- * the event window and deferred teardown key off the STAGED session, which
- * follows `list.current` exactly. Staging is the open signal: the window
- * opens ⟺ the session is on stage (the stage is `current`; the staged
- * state can widen to a multi-pane list later). A session leaving the list
- * tears its scope down immediately unless it is the staged one, whose scope
- * survives frozen (read-only view) until the stage moves on.
+ * Navigation retains warm history off-screen. Exact-session leases share that
+ * history without selecting it, and keep unlisted scopes alive until release.
+ * The last lease-only owner closes history. Removed staged scopes survive
+ * frozen until the stage moves on.
  */
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
@@ -28,7 +24,7 @@ import {
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionEventSource } from '../contract/events.ts'
 import type { SessionFace } from '../contract/session.ts'
-import type { AgentContext, ISessions } from '../contract/sessions.ts'
+import type { AgentContext, ISessions, SessionLease } from '../contract/sessions.ts'
 import { createScope, scopeOf as scopeTagOf } from '../scope.ts'
 import { SessionManager } from './manager.ts'
 import type { SessionRemotes } from './remotes.ts'
@@ -174,8 +170,11 @@ interface ScopeRecord {
   fiber: Fiber
   ctx: AgentContext
   binding: SessionBinding
-  /** The concrete Session for runtime-internal entry points (staging open()); the binding carries only the outward face. */
+  /** Controller-only history operations; the binding carries only the outward face. */
   session: Session
+  /** Navigation owns warm history until scope teardown, including off-screen. */
+  resident: boolean
+  leases: Set<AbortController>
 }
 
 /** Root sessions service: list store, current selection, object-layer manager, scope tree, bindings, and breadcrumb routes. */
@@ -202,6 +201,8 @@ export class ClientSessions implements ISessions {
   private readonly selection: SnapshotStore<SessionSelection>
 
   private readonly scopes = new Map<SessionId, ScopeRecord>()
+  private disposed = false
+  private readonly leaseDrops = new Set<Promise<void>>()
   /** In-flight scope drops remain here after records leave `scopes`, so root disposal can await quiescence. */
   private readonly scopeDrops = new Set<Promise<void>>()
   /**
@@ -211,7 +212,7 @@ export class ClientSessions implements ISessions {
    * keep the staged scope's frozen view alive until the stage moves on).
    */
   private watched: SessionId | undefined
-  /** Removed-while-staged sessions whose teardown waits for the stage to move away. */
+  /** Removed staged scopes awaiting navigation and lease release. */
   private readonly deferredRemovals = new Set<SessionId>()
 
   /**
@@ -250,14 +251,19 @@ export class ClientSessions implements ISessions {
       this.followCurrent()
     })
     rootCtx.effect(() => async () => {
+      this.disposed = true
       disposeStageFollower()
       disposeManagerProjection()
       const scopes = [...this.scopes]
+      for (const [, record] of scopes) {
+        for (const lease of record.leases) lease.abort(new Error('Session controller disposed'))
+      }
       this.scopes.clear()
       this.deferredRemovals.clear()
       this.watched = undefined
-      for (const [id, record] of scopes) this.startScopeDrop(id, record)
+      for (const [id, record] of scopes) void this.startScopeDrop(id, record)
       await this.drainScopeDrops()
+      await Promise.allSettled([...this.leaseDrops])
       await this.manager.dispose()
     }, 'session-controller.client.sessions')
     rootCtx.reflect.provide('sessions', this, undefined)
@@ -361,6 +367,10 @@ export class ClientSessions implements ISessions {
    */
   handleSessionRemoved(sessionId: Parameters<SessionManager['handleSessionRemoved']>[0]): void {
     this.manager.handleSessionRemoved(sessionId)
+    const record = this.scopes.get(sessionId)
+    if (record?.session.getSnapshot().removed) {
+      for (const lease of record.leases) lease.abort(new Error(`Session removed: ${sessionId}`))
+    }
   }
 
   /**
@@ -510,12 +520,92 @@ export class ClientSessions implements ISessions {
     return this.resolve(id)?.binding
   }
 
+  /** @inheritdoc */
+  async retain(sessionId: SessionId, signal?: AbortSignal): Promise<SessionLease> {
+    signal?.throwIfAborted()
+    if (this.disposed) throw new Error('Session controller disposed')
+    const record = this.scopes.get(sessionId) ?? this.materializeScope(sessionId)
+    if (record.session.getSnapshot().removed) throw new Error(`Session removed: ${sessionId}`)
+    const lifetime = new AbortController()
+    record.leases.add(lifetime)
+    let disposal: Promise<void> | undefined
+    const abort = (): void => { lifetime.abort(signal?.reason) }
+    const lease: SessionLease = {
+      binding: record.binding,
+      dispose: () => {
+        if (disposal !== undefined) return disposal
+        signal?.removeEventListener('abort', abort)
+        lifetime.signal.removeEventListener('abort', release)
+        lifetime.abort(new Error('Session lease disposed'))
+        record.leases.delete(lifetime)
+        const closing = Promise.resolve().then(() => this.releaseHistory(sessionId, record))
+        disposal = closing
+        this.leaseDrops.add(closing)
+        void closing.then(
+          () => { this.leaseDrops.delete(closing) },
+          () => { this.leaseDrops.delete(closing) },
+        )
+        return disposal
+      },
+    }
+    const release = (): void => { void lease.dispose() }
+    lifetime.signal.addEventListener('abort', release, { once: true })
+    signal?.addEventListener('abort', abort, { once: true })
+    try {
+      await this.waitForHistory(record.session, lifetime.signal)
+      lifetime.signal.throwIfAborted()
+      return lease
+    } catch (error) {
+      await lease.dispose()
+      throw error
+    }
+  }
+
+  private async waitForHistory(session: Session, signal: AbortSignal): Promise<void> {
+    let unsubscribe = (): void => {}
+    let aborted = (): void => {}
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const check = (): void => {
+          const snapshot = session.getSnapshot()
+          if (snapshot.openState === 'open') resolve()
+          else if (snapshot.openError !== null) reject(snapshot.openError)
+        }
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- Preserve the caller's AbortSignal.reason.
+        aborted = () => { reject(signal.reason) }
+        unsubscribe = session.subscribe(check)
+        signal.addEventListener('abort', aborted, { once: true })
+        void session.open().then(check, reject)
+        if (signal.aborted) aborted()
+      })
+    } finally {
+      unsubscribe()
+      signal.removeEventListener('abort', aborted)
+    }
+  }
+
+  private async releaseHistory(id: SessionId, record: ScopeRecord): Promise<void> {
+    if (this.hasHistoryOwner(record)) return
+    const closing = record.session.closeHistory()
+    let dropping: Promise<void> | undefined
+    if (!this.disposed && !this.eligible(id) && !this.hasHistoryOwner(record)
+      && this.scopes.get(id) === record) {
+      this.scopes.delete(id)
+      dropping = this.startScopeDrop(id, record)
+    }
+    await Promise.all([closing, dropping])
+  }
+
+  private hasHistoryOwner(record: ScopeRecord): boolean {
+    return record.leases.size > 0
+      || (record.resident && (this.eligible(record.binding.sessionId) || this.watched === record.binding.sessionId))
+  }
+
   /**
    * Move the stage to the list's current session: sweep teardowns deferred
    * behind the previous occupant and pull the new occupant's history window.
-   * Staging IS the open signal — the window opens ⟺ the session is on stage
-   * — and open() is idempotent (an in-flight or completed open no-ops; a
-   * failed one retries the next time current is touched).
+   * Navigation acquires resident history ownership; leases may have opened
+   * the same source already.
    */
   private followCurrent(): void {
     const snapshot = this.list.getSnapshot()
@@ -531,16 +621,16 @@ export class ClientSessions implements ISessions {
      * validates and the projection masks absent selections), so resolve
      * cannot miss; kept so a future current writer cannot crash the notify. */
     if (record !== undefined) {
+      record.resident = true
       void record.session.open()
       void this.manager.refreshSubagents(current)
     }
   }
 
   /**
-   * Lazily mint the scope + binding for an eligible session. Eligibility and
-   * prune share one predicate: listed on the host or selected
-   * through a retained subagent address. Breadcrumb-only ancestors remain
-   * summary data and do not keep scopes alive.
+   * Passive lookup mints only listed or currently addressed sessions.
+   * Explicit leases and Host Remote Events may already own an unlisted scope.
+   * Breadcrumb-only ancestors do not keep scopes alive.
    */
   private resolve(id: SessionId): ScopeRecord | undefined {
     const existing = this.scopes.get(id)
@@ -562,12 +652,14 @@ export class ClientSessions implements ISessions {
       ctx,
       binding,
       session,
+      resident: false,
+      leases: new Set(),
     }
     this.scopes.set(id, record)
     return record
   }
 
-  /** The one aliveness predicate shared by scope mint and prune: host-listed or currently addressed. */
+  /** Navigation eligibility; leases independently keep unlisted scopes alive. */
   private eligible(id: SessionId): boolean {
     const { ids, current } = this.list.getSnapshot()
     return current === id || ids.includes(id)
@@ -646,28 +738,29 @@ export class ClientSessions implements ISessions {
     this.pruneScopes()
   }
 
-  /** Tear down scope + instance for no-longer-eligible sessions off stage; the staged one defers until the stage moves. */
+  /** Prune unleased, ineligible scopes off stage; defer the staged scope until navigation moves. */
   private pruneScopes(): void {
     if (this.list.getSnapshot().phase === 'pending') return
     for (const [id, record] of this.scopes) {
-      if (this.eligible(id)) continue
+      if (this.eligible(id) || record.leases.size > 0) continue
       if (id === this.watched) {
         this.deferredRemovals.add(id)
         continue
       }
       this.scopes.delete(id)
       this.deferredRemovals.delete(id)
-      this.startScopeDrop(id, record)
+      void this.startScopeDrop(id, record)
     }
   }
 
-  private startScopeDrop(id: SessionId, record: ScopeRecord): void {
+  private startScopeDrop(id: SessionId, record: ScopeRecord): Promise<void> {
     const drop = this.dropScope(id, record)
     this.scopeDrops.add(drop)
     void drop.then(
       () => { this.scopeDrops.delete(drop) },
       () => { this.scopeDrops.delete(drop) },
     )
+    return drop
   }
 
   private async drainScopeDrops(): Promise<void> {
@@ -688,8 +781,8 @@ export class ClientSessions implements ISessions {
     // surviving instance — the live Intent — rebinds when resolve re-mints).
     record.session.unbindScope()
     await Promise.allSettled([
-      record.fiber.dispose(),
       this.manager.drop(id),
+      record.fiber.dispose(),
     ])
   }
 
@@ -706,13 +799,14 @@ export class ClientSessions implements ISessions {
         continue
       }
       const record = this.scopes.get(id)
+      if (record !== undefined && record.leases.size > 0) continue
       this.deferredRemovals.delete(id)
       /* v8 ignore next -- defensive: prune deletes a scope and its deferral
        * together, so a deferred id always still owns its record; kept so a
        * future teardown path cannot double-dispose. */
       if (record !== undefined) {
         this.scopes.delete(id)
-        this.startScopeDrop(id, record)
+        void this.startScopeDrop(id, record)
       }
     }
   }

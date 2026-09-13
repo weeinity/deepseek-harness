@@ -43,6 +43,8 @@ Each API controller package owns a paired Host and Client face. The Host side ow
 - `SessionManager` owns the list baseline, live list/control updates, lazy Session instances, queues, projection stores, subagent catalogs, and conflict ordering between pulls and later updates.
 - Each `Session` owns one contiguous logical-event window represented by `SessionEventLikeEntry` values, paging, follow, prompt/control state, and the observable snapshot consumed by adapters.
 
+`ISessions.retain(sessionId, signal?)` gives independent readers a `SessionLease` containing the native binding and asynchronous release, without changing `list.current`. Leases share the controller's history source with navigation and support exact unlisted root Sessions with valid, readable headers. Host address and history-read eligibility remain unchanged. The [Session Controller reference](../../packages/api/session-controller/README.md#client-history-leases) owns readiness, cancellation, removal, and warm-history ownership.
+
 The durable event path opens `follow()`, whose first frame contains the current header, tail page, cursor, and complete projection baseline. History records have an explicit `event` or `chunks` discriminator and an aligned inner `event`; the journal validates each inclusive logical sequence range before the Client retains the records as `SessionEventLikeEntry` values without per-record conversion. Each physical generation atomically replaces the retained window from that snapshot; standard live events then append by sequence. `page()` is reserved for older history and gap repair. The transient control stream starts every generation with a complete baseline and then applies queue, job, and projection updates.
 
 ### Workspaces

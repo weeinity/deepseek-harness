@@ -17,6 +17,18 @@ import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 
 export type { AgentContext } from '../scope.ts'
 
+/** One owner's read lifetime for an exact Session, independent of navigation. */
+export interface SessionLease {
+  /** Native binding shared with navigation and other leases; usable until release or removal. */
+  readonly binding: SessionBinding
+  /**
+   * Release this owner without cancelling Agent work or another owner's reads.
+   * Idempotent; the last lease-only owner waits for its history reads to stop.
+   * @returns completion of this lease's resource cleanup.
+   */
+  dispose(): Promise<void>
+}
+
 /** The sessions-service face injected as `ctx.sessions`. */
 export interface ISessions {
   /** The useSessions standard feed (list rows + current selection; read face — writes stay inside the domain). */
@@ -120,4 +132,18 @@ export interface ISessions {
    * @returns binding, or undefined for a session neither listed nor already scoped.
    */
   binding(id: SessionId): SessionBinding | undefined
+  /**
+   * Open and follow an exact Session without selecting it or requiring list membership.
+   * Resolves after the native follow baseline is installed, not after Agent completion.
+   * Navigation and leases share one history source; navigation keeps its warm-history
+   * ownership after switching away. Later stream failures appear in the Session snapshot.
+   * Removal or controller disposal releases the lease; list absence alone does not.
+   * Host address and history-read eligibility remain unchanged; a header without cwd
+   * or another unreadable Session cannot be opened through a lease.
+   * @param sessionId - Host-readable Session identity, including an unlisted root with a valid header.
+   * @param signal - optional lifetime cancellation, including after readiness.
+   * @returns a caller-owned lease; release it when the reader unmounts.
+   * @throws the opening Remote failure, cancellation reason, or removal/disposal error.
+   */
+  retain(sessionId: SessionId, signal?: AbortSignal): Promise<SessionLease>
 }

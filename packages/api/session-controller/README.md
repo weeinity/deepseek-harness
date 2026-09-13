@@ -13,6 +13,7 @@ English | [中文](README.zh.md)
 ## Table of Contents
 
 - [Use this package](#use-this-package)
+- [Client history leases](#client-history-leases)
 - [Session media references](#session-media-references)
 - [Configuration](#configuration)
 - [Model Experience](#model-experience)
@@ -36,6 +37,15 @@ The Session object also carries local submission echoes: `session.beginSubmissio
 
 
 `selectModel` changes the addressed Session and normally saves the selection as the default for future Sessions. Callers applying a task-specific choice pass `saveDefault: false` to preserve that deployment default.
+
+<a id="client-history-leases"></a>
+## Client history leases
+
+Client plugins call `await ctx.sessions.retain(sessionId, signal?)` to read an exact Host Session without selecting it or requiring a Client list row. Host address and history-read eligibility remain unchanged: a lease cannot make a Session with no header cwd or another unreadable Session accessible. Unlisted roots with valid, readable headers remain supported. The returned `SessionLease` exposes the native `binding` and an idempotent asynchronous `dispose()`. `binding(id)` alone does not open history. The [public Client declarations](src/client/contract/sessions.ts) define the API; Conversation consumers use the retained binding rather than opening another transport.
+
+Readiness means the native follow opening baseline is installed, including its tail history and active Assistant stream. It does not mean the Agent is idle or all older history is loaded; the binding's Session face supplies `loadOlder()` and `loadThrough(seq)`. Opening failures reject with the Remote failure. Later stream failures appear in `binding.session.getSnapshot().openError`; reacquiring can retry. The caller's signal cancels acquisition and releases a ready lease with the same lifetime.
+
+Leases share one history source with other leases and ordinary navigation. Navigation retains warm history after switching away; releasing a lease cannot close that source. The last lease-only owner clears its history window and waits for pending reads and follow teardown, without cancelling Agent work or clearing a listed Session's pending submissions. List absence does not release a lease. Explicit ordinary-Session removal or controller disposal releases leases and rejects pending acquisition; released bindings must not be reused. An unlisted scope is dropped after its final lease-only owner releases. [History ownership rationale](../../../.agents/notes/implemented/architecture/2026-09-12-client-session-history-leases.md) records the navigation trade-off.
 
 <a id="session-media-references"></a>
 ## Session media references

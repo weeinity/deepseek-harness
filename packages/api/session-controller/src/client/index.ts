@@ -48,7 +48,7 @@ export type {
   SessionFace,
   SubmissionHandle,
 } from './contract/session.ts'
-export type { ISessions } from './contract/sessions.ts'
+export type { ISessions, SessionLease } from './contract/sessions.ts'
 export { MutableSessionEventSource } from './contract/events.ts'
 export type {
   AssistantLiveChunkEvent,

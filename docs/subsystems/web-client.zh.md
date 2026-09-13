@@ -43,6 +43,8 @@ Connection 拥有 request correlation、`/api` carrier、trust check、精确 Fe
 - `SessionManager` 拥有 list baseline、实时 list/control update、惰性 Session instance、queue、projection store、subagent catalog，以及 pull 与后到 update 之间的冲突顺序。
 - 每个 `Session` 拥有一段由 `SessionEventLikeEntry` value 表示的连续逻辑 event window、pagination、follow、prompt/control state 与供 adapter 消费的 observable snapshot。
 
+`ISessions.retain(sessionId, signal?)` 为独立读取者提供包含原生 binding 与异步释放操作的 `SessionLease`，不会改变 `list.current`。租约与导航共享 controller 的历史 source，并支持按精确身份读取不在列表中但 header 有效且可读的 root Session。Host 地址与历史读取资格保持不变。[Session Controller 参考](../../packages/api/session-controller/README.zh.md#client-history-leases)定义就绪、取消、移除与已打开历史的所有权。
+
 持久 event 路径打开 `follow()`，其首帧包含当前 header、tail page、cursor 与完整 projection baseline。历史 record 带有显式 `event` 或 `chunks` 判别字段和字段对齐的内部 `event`；journal 先校验每条 record 的逻辑 seq 闭区间，Client 再直接把这些 record 保留为 `SessionEventLikeEntry`，无需逐 record 转换。每个物理 generation 都根据该 snapshot 原子替换保留窗口，随后按 seq append 标准实时 event。`page()` 只用于更早历史与 gap repair。瞬态 control stream 每代以完整 baseline 开始，随后应用 queue、job 与 projection update。
 
 ### Workspaces

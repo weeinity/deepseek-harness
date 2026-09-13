@@ -13,6 +13,7 @@ kind: "package-reference"
 ## 目录
 
 - [使用本包](#use-this-package)
+- [Client 历史租约](#client-history-leases)
 - [会话媒体引用](#session-media-references)
 - [配置](#configuration)
 - [模型体验](#model-experience)
@@ -36,6 +37,15 @@ Session 对象还承载本地提交回显：`session.beginSubmission` 在调用�
 
 
 `selectModel` 更改指定 Session，并通常将该选择保存为未来 Session 的默认模型。应用任务专用选择的调用方传入 `saveDefault: false`，即可保留部署默认值。
+
+<a id="client-history-leases"></a>
+## Client 历史租约
+
+Client 插件调用 `await ctx.sessions.retain(sessionId, signal?)` 即可读取精确的 Host Session，无需选中它，也不要求 Client 列表行。Host 地址与历史读取资格保持不变：租约不能让 header 缺少 cwd 的 Session 或其他不可读 Session 变得可访问。不在列表中但 header 有效且可读的 root Session 仍受支持。返回的 `SessionLease` 提供原生 `binding` 与幂等的异步 `dispose()`。单独调用 `binding(id)` 不会打开历史。[公开 Client 声明](src/client/contract/sessions.ts)定义此 API；Conversation 消费者使用保留的 binding，而不另开传输。
+
+就绪表示原生 follow 首帧 baseline 已安装，包括尾部历史与活跃 Assistant stream。它不表示 Agent 已空闲或全部更早历史已加载；binding 的 Session face 提供 `loadOlder()` 与 `loadThrough(seq)`。打开失败以 Remote failure 拒绝。后续 stream 失败通过 `binding.session.getSnapshot().openError` 呈现；重新获取租约可以重试。调用方的 signal 在同一生命周期内取消获取操作或释放已就绪的租约。
+
+多个租约与普通导航共享一个历史 source。导航在切换离开后仍保留已打开的历史；释放租约不会关闭该 source。最后一个仅由租约持有的 owner 会清空历史窗口，并等待进行中的读取与 follow 清理完成，但不会取消 Agent 工作或清除仍在列表中的 Session 的待处理提交。列表缺席不会释放租约。显式移除普通 Session 或销毁 controller 会释放租约并拒绝尚未完成的获取操作；已释放的 binding 不得复用。不在列表中的 scope 会在最后一个仅由租约持有的 owner 释放后删除。[历史所有权依据](../../../.agents/notes/implemented/architecture/2026-09-12-client-session-history-leases.zh.md)记录了导航方面的取舍。
 
 <a id="session-media-references"></a>
 ## 会话媒体引用

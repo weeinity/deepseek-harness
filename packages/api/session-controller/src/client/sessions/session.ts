@@ -1,4 +1,4 @@
-// Sessions remain resident after creation so their open Remote sources keep running off-screen.
+/** Native Session state with independently releasable history reads. */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
@@ -91,10 +91,13 @@ export class Session implements SessionFace {
   private openState: OpenState = 'cold'
   private openError: RemoteFailure | null = null
   private openPromise: Promise<void> | null = null
+  private readonly historyClosures = new Set<Promise<void>>()
+  private disposed = false
   /** Bumped by stream replacement to invalidate an in-flight doOpen. Stale
    *  passes drop all writes once the generation moves on. */
   private openGeneration = 0
   private loadingOlder = false
+  private olderPromise: Promise<void> | null = null
   /** Shared low-water target of the running jump loop; null when no jump is paging. */
   private jumpTargetSeq: SessionSeq | null = null
   /** The running jump loop's completion, shared by retargeting callers. */
@@ -377,6 +380,7 @@ export class Session implements SessionFace {
 
   /** First open: pull the tail page (idempotent — in-flight/already-open returns the existing promise). */
   open(): Promise<void> {
+    if (this.disposed) return Promise.reject(new Error(`Session disposed: ${this.sessionId}`))
     if (this.openState === 'open') return Promise.resolve()
     if (this.openPromise !== null) return this.openPromise
     const promise = this.doOpen(this.openGeneration).finally(() => {
@@ -388,22 +392,29 @@ export class Session implements SessionFace {
   }
 
   /** Page up: pull one earlier page with the window's first seq as beforeSeq and prepend. */
-  async loadOlder(): Promise<void> {
-    if (this.openState !== 'open' || !this.hasMore || this.loadingOlder) return
+  loadOlder(): Promise<void> {
+    if (this.openState !== 'open' || !this.hasMore || this.loadingOlder) return Promise.resolve()
     const events = this.events
-    if (events === undefined) return
+    if (events === undefined) return Promise.resolve()
+    const generation = this.openGeneration
     this.loadingOlder = true
     this.notifier.markDirty()
-    try {
-      await events.prepend({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES })
-    } catch (error) {
-      if (!isRemoteFailure(error)) {
-        console.error('[session-controller] loadOlder failed:', error)
+    this.olderPromise = (async () => {
+      try {
+        await events.prepend({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES })
+      } catch (error) {
+        if (generation === this.openGeneration && !isRemoteFailure(error)) {
+          console.error('[session-controller] loadOlder failed:', error)
+        }
+      } finally {
+        if (generation === this.openGeneration) {
+          this.olderPromise = null
+          this.loadingOlder = false
+          this.notifier.markDirty()
+        }
       }
-    } finally {
-      this.loadingOlder = false
-      this.notifier.markDirty()
-    }
+    })()
+    return this.olderPromise
   }
 
   /** Jump loader: page backwards until the window covers seq (see ISession.loadThrough). */
@@ -439,14 +450,16 @@ export class Session implements SessionFace {
           if (this.baseSeq >= before) return
         }
       } catch (error) {
-        if (!isRemoteFailure(error)) {
+        if (generation === this.openGeneration && !isRemoteFailure(error)) {
           console.error('[session-controller] loadThrough failed:', error)
         }
       } finally {
-        this.jumpTargetSeq = null
-        this.jumpPromise = null
-        this.loadingOlder = false
-        this.notifier.markDirty()
+        if (generation === this.openGeneration) {
+          this.jumpTargetSeq = null
+          this.jumpPromise = null
+          this.loadingOlder = false
+          this.notifier.markDirty()
+        }
       }
     })()
     return this.jumpPromise
@@ -457,16 +470,51 @@ export class Session implements SessionFace {
    *  reconnecting control stream and remains untouched. */
   async resync(): Promise<void> {
     if (this.openState === 'cold') return // never opened: no window to rebuild (doOpen flips to 'loading' synchronously, so cold implies no in-flight open)
+    const closing = this.stopHistory()
+    const generation = this.openGeneration
+    await closing
+    if (generation === this.openGeneration && !this.disposed) await this.open()
+  }
+
+  /**
+   * Release history and its window without touching prompt, queue, or Agent work.
+   * A later owner may open a fresh source while this generation finishes closing.
+   * @returns when all released history reads and iterators are quiescent.
+   */
+  closeHistory(): Promise<void> {
+    const closing = this.stopHistory()
+    this.assistantStream.replace([], undefined)
+    this.eventSource.replace([], false)
+    return closing
+  }
+
+  private async stopHistory(): Promise<void> {
     this.openGeneration++
     const events = this.events
+    const pending = [this.openPromise, this.olderPromise, this.jumpPromise]
     this.events = undefined
-    await events?.dispose()
     this.openPromise = null
+    this.olderPromise = null
+    this.jumpPromise = null
+    this.jumpTargetSeq = null
+    this.loadingOlder = false
     this.openState = 'cold'
     this.openError = null
     this.baseSeq = SessionLogOffset(0)
+    this.hasMore = false
     this.notifier.markDirty()
-    await this.open()
+    if (events !== undefined) pending.push(events.dispose())
+    const closing = Promise.allSettled([...pending, ...this.historyClosures]).then(() => undefined)
+    this.trackHistoryClosure(closing)
+    await closing
+  }
+
+  private trackHistoryClosure(closing: Promise<void>): void {
+    this.historyClosures.add(closing)
+    void closing.then(
+      () => { this.historyClosures.delete(closing) },
+      () => { this.historyClosures.delete(closing) },
+    )
   }
 
   // ---- Subscription API (useSyncExternalStore direct wiring) ----
@@ -588,16 +636,14 @@ export class Session implements SessionFace {
    * @returns when the Remote iterator has completed teardown.
    */
   async dispose(): Promise<void> {
+    this.disposed = true
     // Unsettled echoes retire as failed so their owners can restore or
     // release browser resources; echoes already scheduled as observed keep
     // that settlement.
     for (const requestId of [...this.submissionSettlements.keys()]) {
       this.retireFailedSubmission(requestId)
     }
-    this.openGeneration++
-    const events = this.events
-    this.events = undefined
-    await events?.dispose()
+    await this.stopHistory()
   }
 
   // ---- Private ----
@@ -788,7 +834,7 @@ export class Session implements SessionFace {
     this.openPromise = null
     this.openState = 'error'
     this.openError = error
-    void events.dispose()
+    this.trackHistoryClosure(events.dispose())
     this.notifier.markDirty()
   }
 
