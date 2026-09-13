@@ -278,7 +278,7 @@ The React adapter registers each Conversation binding snapshot as the Session st
 
 The package also owns the shell, input, composer chain, queue UI, drafts, View navigation, and phase composition. The core reads no React Context, Slot props, or component state.
 
-View selection order is a valid persisted selection, registered `chat`, then no View. An invalid selection does not overwrite the persisted value, and the system does not fall back to the first registered View.
+View selection order within the Session's visible roster is a valid persisted selection, registered `chat`, then no View. An invalid or hidden selection does not overwrite the persisted value, and the system does not fall back to the first registered View. [Exact-Session visibility policies](2026-09-12-session-exact-conversation-visibility.md) own optional View filtering without moving Session or Slot ownership.
 
 Without `ui-chat`, the shell can still activate and mount but does not implicitly select Trajectory or another target.
 

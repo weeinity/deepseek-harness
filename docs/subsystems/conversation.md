@@ -22,9 +22,11 @@ Chat and Trajectory may recognize the same durable event family, but each keeps 
 
 ## Target activation
 
-Each Session keeps a monotonic set of active targets. Creating or reading a target source does not activate it. The shell explicitly activates its persisted or newly selected View, while another consumer activates a target through its first source subscription. First activation creates that target's builder and calls `replace()` once from the current target-indexed Contexts. Later flushes call `apply()` for every active target, and unsubscription does not remove one.
+Each Session keeps a monotonic set of active targets. Creating or reading a target source does not activate it. The shell explicitly activates its persisted or newly selected View, while another consumer requests activation through its first source subscription. Activation checks the optional exact-Session visibility policy. First permitted activation creates that target's builder and calls `replace()` once from the current target-indexed Contexts. Later flushes call `apply()` for every active target; unsubscription and hiding do not remove an already active target.
 
-The shell owns View selection and resolves the registered preferred View or Chat fallback before rendering when a binding is created or selected as current, and after View-roster changes. The assembler receives only the resolved target id and does not select Chat or another default target. A third-party View participates through the same selection and activation operations.
+The shell owns View selection and resolves the visible registered preferred View or Chat fallback before rendering when a binding is created or selected as current. Slot, locale, and visibility changes refresh every live binding's roster, not only the current Session. The header, body, and programmatic tab or focus requests use that Session's filtering without overwriting a hidden preference. The assembler receives only the resolved target id and does not select Chat or another default target.
+
+Optional Views contribute a reactive policy through `ctx.uiConversation.visibility.register(viewId, source)`; the [package reference](../../packages/client/ui-conversation/README.md#shell-and-standard-props) defines exact matching, registration order, and disposal. The [visibility decision](../../.agents/notes/implemented/architecture/2026-09-12-session-exact-conversation-visibility.md) explains why policies do not mutate the global Slot roster or inherit through Session lineage. Visibility controls presentation and new activation, not data authorization.
 
 ## Replayable event families
 

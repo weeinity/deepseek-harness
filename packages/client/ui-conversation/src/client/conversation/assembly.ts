@@ -22,19 +22,21 @@ import { ConversationNodeAssembler } from './assembler.ts'
 import { ConversationEventRegistry } from './event-registry.ts'
 import { HistoricalImageCache } from './historical-images.ts'
 import { ConversationViewRegistry } from './view-registry.ts'
+import { ConversationVisibilityRegistry } from './visibility-registry.ts'
 
 /** Observable faces published for one Session's Conversation assembly. */
 export interface ConversationBinding {
   readonly snapshot: ObservableSnapshot<ConversationSnapshot>
   /**
-   * Add one selected target to the Session's monotonic active set.
+   * Add one allowed target to the Session's monotonic active set.
+   * A visibility policy can deny new activation but does not retire active targets.
    * @param target - registered or subsequently registered Conversation target.
    */
   activate(target: string): void
   /**
    * Resolve one target-owned snapshot source.
-   * The first subscriber activates the target unless shell selection already
-   * activated it; activation lasts for the remaining Session lifetime.
+   * The first subscriber requests activation under the current visibility policy;
+   * successful activation lasts for the remaining Session lifetime.
    * @param target - registered Conversation target.
    * @returns identity-stable source following the target.
    */
@@ -54,6 +56,7 @@ class BoundConversation implements ConversationBinding {
   constructor(
     feed: SessionEventSource,
     private readonly assembler: ConversationNodeAssembler,
+    private readonly allows: (target: string) => boolean,
   ) {
     this.viewStore = assembler
     this.snapshot = createSnapshotStore(this.currentSnapshot())
@@ -83,6 +86,7 @@ class BoundConversation implements ConversationBinding {
   }
 
   activate(target: string): void {
+    if (!this.allows(target)) return
     if (this.assembler.activateTarget(target)) this.snapshot.set(this.currentSnapshot())
   }
 
@@ -177,6 +181,8 @@ export class UiConversation extends Service {
   readonly events: ConversationEventRegistry
   /** Registry of target View definitions. */
   readonly views: ConversationViewRegistry
+  /** Reactive exact-Session visibility policies for optional Views. */
+  readonly visibility: ConversationVisibilityRegistry
   private readonly bindings = new Map<SessionId, BindingRecord>()
   private readonly images: HistoricalImageCache
 
@@ -188,6 +194,7 @@ export class UiConversation extends Service {
     super(ctx, 'uiConversation')
     this.events = new ConversationEventRegistry(ctx)
     this.views = new ConversationViewRegistry(ctx)
+    this.visibility = new ConversationVisibilityRegistry(ctx)
     this.images = new HistoricalImageCache(ctx, sessions)
     const rebuild = (): void => {
       for (const record of this.bindings.values()) record.binding.rebuild()
@@ -227,6 +234,7 @@ export class UiConversation extends Service {
     const binding = new BoundConversation(
       owner.eventSource,
       new ConversationNodeAssembler(this.events, this.views),
+      target => this.visibility.allows(target, owner.sessionId),
     )
     const record: BindingRecord = { source: owner, binding, disposeScope: () => {} }
     this.bindings.set(owner.sessionId, record)

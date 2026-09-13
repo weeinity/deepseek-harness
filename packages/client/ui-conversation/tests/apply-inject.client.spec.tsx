@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { createScope } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ISession } from '@deepseek-ai/dsh-api-session-controller/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import {
   SlotTestRuntime, stubSettingsScope, usePinnedBrowserLanguages,
 } from '@deepseek-ai/dsh-client-test-runtime'
@@ -15,6 +16,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { createConversationStore } from '../src/client/stores.ts'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { resolveActiveView } from '../src/client/view-selection.ts'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -33,6 +35,7 @@ function sessionFakeFor() {
 
 async function bench() {
   const runtime = await SlotTestRuntime.create()
+  onTestFinished(() => runtime.dispose())
   const rootUpload = vi.fn(() => Promise.resolve({
     ok: true as const,
     value: {
@@ -148,7 +151,7 @@ describe('Conversation inject API', () => {
     await b.runtime.dispose()
   })
 
-  it('restores the selected View when a cached Session becomes current', async () => {
+  it('restores a cached Session on roster updates and when it becomes current', async () => {
     const b = await bench()
     const binding = b.runtime.ctx.uiConversation.binding(ROOT)
     const activate = vi.spyOn(binding, 'activate')
@@ -172,7 +175,8 @@ describe('Conversation inject API', () => {
         (() => null) as never,
       )
       await b.runtime.flush()
-      expect(activate).not.toHaveBeenCalled()
+      expect(activate).toHaveBeenLastCalledWith('custom')
+      activate.mockClear()
 
       await b.runtime.sessions.setCurrent(ROOT)
       expect(activate).toHaveBeenLastCalledWith('custom')
@@ -181,6 +185,176 @@ describe('Conversation inject API', () => {
       removeChat()
       await b.runtime.dispose()
     }
+  })
+
+  it('shares exact-Session rosters between body and header without changing global Slots', async () => {
+    const b = await bench()
+    const other = 'other' as SessionId
+    const child = 'child' as SessionId
+    await b.runtime.sessions.add({ id: other }, { current: false })
+    await b.runtime.sessions.add({
+      id: child, summary: { origin: 'subagent', parentId: ROOT },
+    }, { current: false })
+    const allowed = createSnapshotStore<Readonly<Record<string, boolean>>>({ [ROOT]: true })
+    const feature = await b.runtime.mount({
+      inject: ['slots', 'uiConversation'],
+      apply: (ctx) => {
+        ctx.slots.inject('conversation.view', function* () {
+          yield ctx.uiConversation.visibility.register('custom', allowed)
+          yield ctx.slots.register({
+            name: 'conversation.view', id: 'custom', order: 10,
+            label: () => b.runtime.ctx.locale.getSnapshot().active,
+          }, (() => null) as never)
+        })
+      },
+    })
+    b.slots.register({ name: 'conversation.view', id: 'chat', order: 0 }, (() => null) as never)
+    await b.runtime.flush()
+    const a = b.viewSource(ROOT)
+    const aHeader = b.headerApi(ROOT).injected.hooks.conversationViews
+    const c = b.viewSource(child)
+    const otherSource = b.viewSource(other)
+    expect(aHeader).toBe(a)
+    expect(a.getSnapshot()).toEqual([{ id: 'chat', label: 'chat' }, { id: 'custom', label: 'zh' }])
+    expect(otherSource.getSnapshot()).toEqual([{ id: 'chat', label: 'chat' }])
+    expect(c.getSnapshot()).toEqual(otherSource.getSnapshot())
+    expect(b.slots.entries('conversation.view').map(row => row.options.id)).toEqual(['chat', 'custom'])
+
+    const otherBefore = otherSource.getSnapshot()
+    const otherListener = vi.fn()
+    onTestFinished(otherSource.subscribe(otherListener))
+    allowed.set({ [ROOT]: true, [other]: false })
+    expect(otherSource.getSnapshot()).toBe(otherBefore)
+    expect(otherListener).not.toHaveBeenCalled()
+
+    b.runtime.ctx.locale.setLocale('en')
+    expect(a.getSnapshot().at(1)?.label).toBe('en')
+    expect(otherSource.getSnapshot()).toBe(otherBefore)
+    await b.runtime.sessions.setCurrent(other)
+    allowed.set({ [ROOT]: false, [other]: true })
+    expect(a.getSnapshot()).toEqual([{ id: 'chat', label: 'chat' }])
+    expect(otherSource.getSnapshot()).toEqual([{ id: 'chat', label: 'chat' }, { id: 'custom', label: 'en' }])
+    expect(c.getSnapshot()).toEqual([{ id: 'chat', label: 'chat' }])
+    expect(b.viewSource(ROOT)).toBe(a)
+    expect(b.headerApi(other).injected.hooks.conversationViews).toBe(otherSource)
+
+    await feature.dispose()
+    expect(a.getSnapshot()).toEqual([{ id: 'chat', label: 'chat' }])
+    expect(otherSource.getSnapshot()).toEqual(a.getSnapshot())
+    allowed.set({ [child]: true })
+    expect(c.getSnapshot()).toEqual(a.getSnapshot())
+  })
+
+  it('restores hidden preferences only after enabling and falls back without overwriting them', async () => {
+    const b = await bench()
+    const other = 'other' as SessionId
+    await b.runtime.sessions.add({ id: other }, { current: false })
+    b.slots.register({ name: 'conversation.view', id: 'chat' }, (() => null) as never)
+    const allowed = createSnapshotStore<Readonly<Record<string, boolean>>>({})
+    const body = b.conversationApi(ROOT)
+    const otherBody = b.conversationApi(other)
+    body.instance.actions.setView('custom')
+    otherBody.instance.actions.setView('custom')
+    const createCustom = vi.fn(() => ({ empty: null, replace: () => null, apply: () => null }))
+    await b.runtime.mount({
+      inject: ['slots', 'uiConversation'],
+      apply: (ctx) => {
+        ctx.slots.inject('conversation.view', function* () {
+          yield ctx.uiConversation.visibility.register('custom', allowed)
+          yield ctx.uiConversation.views.register({ target: 'custom', create: createCustom })
+          yield ctx.slots.register({ name: 'conversation.view', id: 'custom' }, (() => null) as never)
+        })
+      },
+    })
+    await b.runtime.flush()
+    const aConversation = b.runtime.ctx.uiConversation.binding(ROOT)
+    const bConversation = b.runtime.ctx.uiConversation.binding(other)
+    const aActivate = vi.spyOn(aConversation, 'activate')
+    const bActivate = vi.spyOn(bConversation, 'activate')
+    expect(createCustom).not.toHaveBeenCalled()
+    expect(resolveActiveView(b.viewSource(ROOT).getSnapshot(), 'custom')?.id).toBe('chat')
+
+    body.injected.openView('custom', 'item')
+    b.headerApi(other).injected.selectView('custom')
+    expect(aActivate).toHaveBeenLastCalledWith('chat')
+    expect(bActivate).toHaveBeenLastCalledWith('chat')
+    expect(createCustom).not.toHaveBeenCalled()
+    expect(body.instance.store.getSnapshot()).toMatchObject({
+      view: 'custom', viewRequest: { view: 'custom', focus: 'item' },
+    })
+
+    allowed.set({ [ROOT]: true })
+    expect(aActivate).toHaveBeenLastCalledWith('custom')
+    expect(bActivate).toHaveBeenLastCalledWith('chat')
+    expect(createCustom).toHaveBeenCalledOnce()
+    allowed.set({ [other]: true })
+    expect(aActivate).toHaveBeenLastCalledWith('chat')
+    expect(bActivate).toHaveBeenLastCalledWith('custom')
+    expect(createCustom).toHaveBeenCalledTimes(2)
+    expect(body.instance.store.getSnapshot().view).toBe('custom')
+    expect(resolveActiveView(b.viewSource(ROOT).getSnapshot(), 'custom')?.id).toBe('chat')
+  })
+
+  it('invalidates every live roster when a policy unloads and detaches its source', async () => {
+    const b = await bench()
+    const allowed = createSnapshotStore<Readonly<Record<string, boolean>>>({})
+    const unsubscribe = vi.fn()
+    const source: typeof allowed = {
+      ...allowed,
+      subscribe: (listener) => {
+        const stop = allowed.subscribe(listener)
+        return () => { stop(); unsubscribe() }
+      },
+    }
+    b.slots.register({ name: 'conversation.view', id: 'custom' }, (() => null) as never)
+    const policy = await b.runtime.mount({
+      inject: ['uiConversation'],
+      apply: (ctx) => { ctx.uiConversation.visibility.register('custom', source) },
+    })
+    const roster = b.viewSource(ROOT)
+    expect(roster.getSnapshot()).toEqual([])
+    expect(() => b.runtime.ctx.uiConversation.visibility.register('custom', source))
+      .toThrow('already registered')
+    await policy.dispose()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    expect(roster.getSnapshot()).toEqual([{ id: 'custom', label: 'custom' }])
+    const afterUnload = roster.getSnapshot()
+    allowed.set({ [ROOT]: true })
+    expect(roster.getSnapshot()).toBe(afterUnload)
+  })
+
+  it('replaces same-id roster bindings without letting old cleanup remove the replacement', async () => {
+    const b = await bench()
+    const allowed = createSnapshotStore<Readonly<Record<string, boolean>>>({})
+    b.runtime.ctx.uiConversation.visibility.register('custom', allowed)
+    b.slots.register({ name: 'conversation.view', id: 'custom' }, (() => null) as never)
+    const oldBinding = b.runtime.sessions.binding(ROOT)!
+    const oldSource = b.viewSource(ROOT)
+    const oldChanged = vi.fn()
+    onTestFinished(oldSource.subscribe(oldChanged))
+    const replacementScope = createScope(b.runtime.ctx, ROOT)
+    onTestFinished(() => replacementScope.fiber.dispose())
+    const replacement = { ...oldBinding, ctx: replacementScope.ctx }
+    const originalBinding = b.runtime.sessions.binding.bind(b.runtime.sessions)
+    const bindingLookup = vi.spyOn(b.runtime.sessions, 'binding').mockImplementation(id =>
+      id === ROOT ? replacement : originalBinding(id))
+    onTestFinished(() => { bindingLookup.mockRestore() })
+
+    const nextSource = b.viewSource(ROOT)
+    expect(nextSource).not.toBe(oldSource)
+    await oldBinding.ctx.fiber.dispose()
+    allowed.set({ [ROOT]: true })
+    expect(nextSource.getSnapshot()).toEqual([{ id: 'custom', label: 'custom' }])
+    expect(oldSource.getSnapshot()).toEqual([])
+    expect(oldChanged).not.toHaveBeenCalled()
+    expect(b.viewSource(ROOT)).toBe(nextSource)
+
+    const nextChanged = vi.fn()
+    onTestFinished(nextSource.subscribe(nextChanged))
+    await replacementScope.fiber.dispose()
+    allowed.set({})
+    expect(nextChanged).not.toHaveBeenCalled()
+    expect(nextSource.getSnapshot()).toEqual([{ id: 'custom', label: 'custom' }])
   })
 
   it('submits through the provided input machine and mirrors accepted draft edits', async () => {

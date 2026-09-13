@@ -22,9 +22,11 @@ Chat 与 Trajectory 可以识别同一个持久 event family，但各自保留�
 
 ## Target 激活
 
-每个 Session 都保留单调增长的 active target 集合。创建或读取 target source 不会激活它。shell 会显式激活持久化选择或新选择的 View，其他消费者则通过 target source 的首个订阅激活 target。首次激活会创建该 target 的 builder，并从当前按 target 索引的 Context 调用一次 `replace()`。后续 flush 对每个 active target 调用 `apply()`，取消订阅不会移除 target。
+每个 Session 都保留单调增长的 active target 集合。创建或读取 target source 不会激活它。shell 会显式激活持久化选择或新选择的 View，其他消费者则通过 target source 的首个订阅请求激活。激活会检查可选的精确 Session 可见性策略。首次获准激活会创建该 target 的 builder，并从当前按 target 索引的 Context 调用一次 `replace()`。后续 flush 对每个 active target 调用 `apply()`；取消订阅和隐藏不会移除已激活的 target。
 
-shell 拥有 View 选择，并在 binding 创建、被选为 current 或 View roster 变化时，于渲染前解析已注册的偏好 View 或 Chat fallback。assembler 只接收解析后的 target id，不自行选择 Chat 或其他默认 target。第三方 View 使用相同的选择与激活操作。
+shell 拥有 View 选择，并在 binding 创建或被选为 current 时，于渲染前解析可见且已注册的偏好 View 或 Chat fallback。Slot、locale 和可见性变化刷新每个存活 binding 的列表，而不仅是当前 Session。Header、body 和程序触发的 tab 或 focus 请求使用该 Session 的过滤，不覆盖隐藏的偏好。assembler 只接收解析后的 target id，不自行选择 Chat 或其他默认 target。
+
+可选 View 通过 `ctx.uiConversation.visibility.register(viewId, source)` 提供响应式策略；[包参考](../../packages/client/ui-conversation/README.zh.md#shell-and-standard-props) 定义精确匹配、注册顺序和释放规则。[可见性决策](../../.agents/notes/implemented/architecture/2026-09-12-session-exact-conversation-visibility.zh.md) 解释为何策略不修改全局 Slot 列表，也不沿 Session 血缘继承。可见性控制呈现和新激活，而不是数据授权。
 
 ## 可回放 event family
 

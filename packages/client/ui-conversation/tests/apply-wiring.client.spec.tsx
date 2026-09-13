@@ -80,7 +80,7 @@ describe('target-neutral Conversation apply wiring', () => {
     await b.runtime.sessions.add({ id: SID }, { current: false })
     expect(b.runtime.ctx.uiSession.adapter.resolve(SID)?.hooks.conversationViews).toBeUndefined()
     const header = b.runtime.slots.entries('conversation.session.header')[0]
-    const source = (header?.inject?.() as {
+    const source = ((header?.inject as ((id: SessionId) => unknown) | undefined)?.(SID) as {
       hooks: { conversationViews: ObservableSnapshot<readonly ViewTab[]> }
     } | undefined)?.hooks.conversationViews
     expect(source).toBeDefined()

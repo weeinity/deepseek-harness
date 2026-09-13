@@ -1,8 +1,10 @@
 /** Registers the target-neutral Conversation assembly, shell, input, and docks. */
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
-import { createSnapshotStore, type BoundActions } from '@deepseek-ai/dsh-client-store'
+import type { ISessions, SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+import {
+  createSnapshotStore, type BoundActions, type SnapshotStore,
+} from '@deepseek-ai/dsh-client-store'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 // Type-only service and declaration merges used by this assembly.
@@ -10,7 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { UiConversation } from './conversation/assembly.ts'
+import { UiConversation, type ConversationBinding } from './conversation/assembly.ts'
 import type { ViewTab } from './contract/views.ts'
 import type {
   ComposerBarInjected, ConversationInjected, ConversationSessionHeaderInjected,
@@ -89,6 +91,13 @@ interface WorkspaceNavigation {
   ): Promise<SessionId>
 }
 
+interface ViewRoster {
+  readonly owner: SessionBinding
+  readonly conversation: ConversationBinding
+  readonly source: SnapshotStore<readonly ViewTab[]>
+  disposeScope: () => void
+}
+
 /** Resolve the session-scoped Conversation action face, failing loud. */
 function scopedConversation(sessions: ISessions, id: SessionId): IConversation {
   const scoped = sessions.scope(id)
@@ -149,35 +158,78 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     }
     return tabs
   }
-  const activateView = (sessionId: SessionId, preferred: string | null): void => {
-    const active = resolveActiveView(viewTabs(), preferred)
-    if (active !== undefined) uiConversation.binding(sessionId).activate(active.id)
+  const viewRosters = new Map<SessionId, ViewRoster>()
+  const allowedTabs = (sessionId: SessionId, tabs = viewTabs()): ViewTab[] =>
+    tabs.filter(tab => uiConversation.visibility.allows(tab.id, sessionId))
+  const activateRoster = (roster: ViewRoster, preferred: string | null): void => {
+    const active = resolveActiveView(roster.source.getSnapshot(), preferred)
+    if (active !== undefined) roster.conversation.activate(active.id)
   }
-  const restoreView = (sessionId: SessionId): void => {
-    activateView(sessionId, readConversationViewPreference(sessionId))
+  const restoreView = (roster: ViewRoster): void => {
+    activateRoster(roster, readConversationViewPreference(roster.owner.sessionId))
+  }
+  const dropRoster = (roster: ViewRoster, releaseScope: boolean): void => {
+    if (viewRosters.get(roster.owner.sessionId) !== roster) return
+    viewRosters.delete(roster.owner.sessionId)
+    if (releaseScope) roster.disposeScope()
+  }
+  const viewRoster = (binding: SessionBinding): ViewRoster => {
+    const current = viewRosters.get(binding.sessionId)
+    if (current?.owner === binding) return current
+    if (current !== undefined) dropRoster(current, true)
+    const roster: ViewRoster = {
+      owner: binding,
+      conversation: uiConversation.binding(binding),
+      source: createSnapshotStore<readonly ViewTab[]>(allowedTabs(binding.sessionId)),
+      disposeScope: () => {},
+    }
+    viewRosters.set(binding.sessionId, roster)
+    const disposeScope = binding.ctx.effect(
+      () => () => { dropRoster(roster, false) },
+      'ui-conversation: View roster',
+    )
+    roster.disposeScope = () => { void disposeScope() }
+    restoreView(roster)
+    return roster
+  }
+  const sessionRoster = (sessionId: SessionId): ViewRoster => {
+    const binding = sessions.binding(sessionId)
+    if (binding === undefined) throw new Error(`ui-conversation: session "${sessionId}" resolved no binding`)
+    return viewRoster(binding)
+  }
+  const activateView = (sessionId: SessionId, preferred: string | null): void => {
+    const roster = sessionRoster(sessionId)
+    // Slot structural notifications are batched; activation reads the current ledger.
+    const active = resolveActiveView(allowedTabs(sessionId), preferred)
+    if (active !== undefined) roster.conversation.activate(active.id)
   }
   const restoreCurrentView = (): void => {
     const sessionId = sessions.list.getSnapshot().current
     if (sessionId !== undefined && sessions.binding(sessionId) !== undefined) {
-      restoreView(sessionId)
+      restoreView(sessionRoster(sessionId))
     }
   }
-  const conversationViews = createSnapshotStore<readonly ViewTab[]>(viewTabs())
   const refreshViews = (): void => {
-    const current = conversationViews.getSnapshot()
-    const next = viewTabs()
-    const unchanged = current.length === next.length
-      && current.every((tab, index) => {
-        const candidate = next.at(index)
-        return candidate !== undefined && tab.id === candidate.id && tab.label === candidate.label
-      })
-    if (!unchanged) conversationViews.set(next)
-    restoreCurrentView()
+    const tabs = viewTabs()
+    for (const roster of viewRosters.values()) {
+      const current = roster.source.getSnapshot()
+      const next = allowedTabs(roster.owner.sessionId, tabs)
+      const unchanged = current.length === next.length
+        && current.every((tab, index) => {
+          const candidate = next.at(index)
+          return candidate !== undefined && tab.id === candidate.id && tab.label === candidate.label
+        })
+      // Activate before publishing the roster so renderers never see an unbuilt selection.
+      const active = resolveActiveView(next, readConversationViewPreference(roster.owner.sessionId))
+      if (active !== undefined) roster.conversation.activate(active.id)
+      if (!unchanged) roster.source.set(next)
+    }
   }
   ctx.effect(() => {
     let currentSessionId = sessions.list.getSnapshot().current
     const disposeViews = slots.subscribe('conversation.view', refreshViews)
     const disposeLocale = ctx.locale.subscribe(refreshViews)
+    const disposeVisibility = uiConversation.visibility.subscribe(refreshViews)
     const disposeCurrent = sessions.list.subscribe(() => {
       const nextSessionId = sessions.list.getSnapshot().current
       if (nextSessionId === currentSessionId) return
@@ -186,8 +238,10 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     })
     return () => {
       disposeCurrent()
+      disposeVisibility()
       disposeLocale()
       disposeViews()
+      for (const roster of [...viewRosters.values()]) dropRoster(roster, true)
     }
   }, 'ui-conversation: View selection')
 
@@ -201,11 +255,11 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     props: ['inputActions'],
     resolve: (binding) => {
       const shell = inputHub.shellFor(binding)
-      const conversation = uiConversation.binding(binding)
-      restoreView(binding.sessionId)
+      const roster = viewRoster(binding)
+      restoreView(roster)
       return {
         hooks: {
-          conversation: conversation.snapshot,
+          conversation: roster.conversation.snapshot,
           input: shell.state,
         },
         props: { inputActions: shell.actions },
@@ -263,7 +317,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     },
     store: conversationStore,
     inject: (sessionId: SessionId, actions: BoundActions<typeof conversationStore>): ConversationSessionInjected => ({
-      hooks: { conversationViews },
+      hooks: { conversationViews: sessionRoster(sessionId).source },
       bindDraftMirror: write => inputHub.shell(sessionId).bindMirror(write),
       openView: (view, focus) => {
         activateView(sessionId, view)
@@ -283,7 +337,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     },
     store: conversationStore,
     inject: (sessionId: SessionId, actions: BoundActions<typeof conversationStore>): ConversationSessionHeaderInjected => ({
-      hooks: { conversationViews },
+      hooks: { conversationViews: sessionRoster(sessionId).source },
       open: (id) => { sessions.open(id) },
       selectView: (view) => {
         activateView(sessionId, view)

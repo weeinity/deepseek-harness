@@ -278,7 +278,7 @@ React adapter 把每个 Conversation binding 的 snapshot 注册为 Session 标�
 
 同包还拥有 shell、input、composer chain、queue UI、draft、View navigation 和 phase 合成；Core 不读取 React Context、Slot props 或 component state。
 
-View 选择顺序固定为：有效的持久化 selection、已注册的 `chat`、无 View。无效 selection 不覆盖持久化值，系统不 fallback 到第一个已注册 View。
+View 选择顺序在 Session 的可见列表内固定为：有效的持久化 selection、已注册的 `chat`、无 View。无效或隐藏的 selection 不覆盖持久化值，系统不 fallback 到第一个已注册 View。[精确 Session 可见性策略](2026-09-12-session-exact-conversation-visibility.zh.md) 负责可选 View 的过滤，不改变 Session 或 Slot 的所有权。
 
 没有 `ui-chat` 时 shell 仍能激活和 mount，但不会隐式选择 Trajectory 或其他 target。
 

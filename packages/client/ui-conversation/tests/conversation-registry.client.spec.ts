@@ -409,4 +409,63 @@ describe('Conversation registries', () => {
     expect(trajectoryListener).toHaveBeenCalledTimes(2)
     unsubscribeTrajectory()
   })
+
+  it('denies hidden target activation through direct calls and subscriptions', async () => {
+    const { uiConversation, binding, views } = await bootRegistries()
+    const allowed = createSnapshotStore<Readonly<Record<string, boolean>>>({})
+    const removePolicy = uiConversation.visibility.register('chat', allowed)
+    const chat = viewDefinition('chat')
+    const create = vi.spyOn(chat, 'create')
+    views.register(chat)
+    await Promise.resolve()
+    const conversation = uiConversation.binding(binding)
+    const source = conversation.target('chat')
+    const unsubscribe = source.subscribe(vi.fn())
+    try {
+      conversation.activate('chat')
+      expect(create).not.toHaveBeenCalled()
+      expect(source.getSnapshot()).toBeUndefined()
+      allowed.set({ [SESSION_ID]: true })
+      conversation.activate('chat')
+      expect(create).toHaveBeenCalledOnce()
+      expect(source.getSnapshot()).toBeNull()
+      allowed.set({ [SESSION_ID]: false })
+      conversation.activate('chat')
+      expect(source.getSnapshot()).toBeNull()
+      expect(create).toHaveBeenCalledOnce()
+      removePolicy()
+      removePolicy()
+      expect(uiConversation.visibility.allows('chat', SESSION_ID)).toBe(true)
+    } finally {
+      unsubscribe()
+      await binding.ctx.fiber.dispose()
+    }
+  })
+
+  it('installs a visibility policy before its source can synchronously notify observers', async () => {
+    const { uiConversation, binding, views } = await bootRegistries()
+    const chat = viewDefinition('chat')
+    const create = vi.spyOn(chat, 'create')
+    views.register(chat)
+    await Promise.resolve()
+    const conversation = uiConversation.binding(binding)
+    const unsubscribe = uiConversation.visibility.subscribe(() => { conversation.activate('chat') })
+    const allowed = createSnapshotStore<Readonly<Record<string, boolean>>>({})
+    const removePolicy = uiConversation.visibility.register('chat', {
+      getSnapshot: () => allowed.getSnapshot(),
+      subscribe: (listener) => {
+        listener()
+        return allowed.subscribe(listener)
+      },
+    })
+    try {
+      expect(create).not.toHaveBeenCalled()
+      allowed.set({ [SESSION_ID]: true })
+      expect(create).toHaveBeenCalledOnce()
+    } finally {
+      unsubscribe()
+      removePolicy()
+      await binding.ctx.fiber.dispose()
+    }
+  })
 })

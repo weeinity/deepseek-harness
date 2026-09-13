@@ -29,7 +29,7 @@ kind: "package-reference"
 
 adapter 把每个 `SessionEventLikeEntry` 直接交给 assembler。外层 `type` 区分持久 event 与 Client-only transient event，内部 `event` 则统一公开 `type`、`seq`、`time` 与 `data`；Definition 接收这个内部 `SessionEventLike`。replacement window 可以包含两种 entry，历史 prepend 携带持久 entry，实时 append 则可以携带任一种。两种 event 都使用 Definition 的同一组 `match` 与 `update` 方法，`start` 只接收持久 event，assembler 会拒绝 transient start。不消费 Assistant delta 的 Definition 对 `assistant/live-chunk` 返回 `null`。replace window 或 revision 断档从完整已加载窗口重建；连续 revision 的 append、prepend 与 Assistant settlement 使用增量组装。settlement 只删除具名 attempt 的 transient match，应用可选持久 entry，并重放受影响的 Context 及其 dependent，不替换无关 target node。assembler 拥有 Context 匹配、Turn/Step location、target node 物化、target activity 和稳定 target source。`ConversationSnapshot` 只包含与 target 无关的 View 与 active-target 事实；Session lifecycle 状态仍属于 `SessionSnapshot`。
 
-shell 选择解析出 target 或 target source 收到首个 subscriber 时，该 target 进入 active 状态。assembler 从当前 Context 对它执行一次 replace，并使它参与后续增量 flush；创建 source 不会激活 target，取消订阅也不会停用 target。
+shell 选择解析出 target 或 target source 收到首个 subscriber 时，只有其可见性策略允许该 Session，target 才进入 active 状态。assembler 从当前 Context 对它执行一次 replace，并使它参与后续增量 flush；创建 source 不会激活 target，取消订阅或隐藏也不会停用已激活的 target。
 
 target package 通过 declaration merge 扩展 snapshot 与 Location data map，再调用 `ctx.uiConversation.events.register(...)` 和 `ctx.uiConversation.views.register(...)`。target 通过 `ctx.uiConversation.binding(binding).target(targetId)` 读取其 Session-owned source。注册属于 Cordis effect，返回的 disposer 从同一个 registry 移除 contribution。共享的请求检查服务于每个 target：`ctx.uiConversation.inspectSystemPrompt(previous, event)` 将系统消息与位置替换解释为不可变的已加载 surface 状态。它按 surface 顺序选择最后一个非空的存活系统节点，为连续重写只保留存活的替换位置；遇到未建立索引的更早端点后，提示词保持不可用，直到向前补页回放提供其顺序。target 自有的 Definition 独立保留历史卡片。`ctx.uiConversation.inspectRequestPrompt(previous, header, system)` 根据该有效提示词分类请求变更；普通消息与流式分片无需处理系统状态。
 
@@ -38,11 +38,15 @@ target package 通过 declaration merge 扩展 snapshot 与 Location data map，
 
 本包注册 optional-Session `conversation` shell、strict Session header/body、View list、composer chain 与 bar、输入区域、Hero 区域、queue dock、草稿持久化和 phase 计算。空白 Session 的 Hero 暴露 `conversation.hero.brand.mark`；其 34px 回退标志为共享的 MIP Autolabeling 标志，[官方品牌插件](../ui-brand-official/README.zh.md) 填充同一槽位。标题与 Preview 徽章组成一个可换行的组，位于标志旁。仅支持 hover 且未设置减少动态效果偏好的设备会在悬停时播放周期为 1.6 秒的连续 CSS 摆动。`ctx.uiSession.provide()` 从同一个 Session binding 物化 Conversation 与 input source，并将 `inputActions` 作为稳定标准 prop 提供。
 
-View 选择规则固定：有效且已注册的持久化选择优先，其次是已注册的 `chat`，否则不渲染 View；绝不选择第一个已注册 View。Shell phase 只组合 Session lifecycle 与 active-target set，不读取任何 target-specific snapshot。
+View 选择规则在每个 Session 的可见列表内固定：有效且已注册的持久化选择优先，其次是已注册的 `chat`，否则不渲染 View；绝不选择第一个已注册 View。Shell phase 只组合 Session lifecycle 与 active-target set，不读取任何 target-specific snapshot。
+
+可选 View 调用 `ctx.uiConversation.visibility.register(viewId, source)`，其中 `source` 是身份稳定的 `ObservableSnapshot<Readonly<Record<string, boolean>>>`。没有策略时 View 不受限制；存在策略时，只有 `source.getSnapshot()[sessionId] === true` 才允许该确切 Session。缺失或 false 条目会隐藏 View，父 Session 与 subagent 之间不继承权限。重复策略会抛错。在同一个声明 effect 内，先注册策略，再注册对应的 `conversation.view` 条目；注册策略时条目可以尚不存在。返回的幂等 disposer 和调用方卸载都会移除策略及其 source 订阅，恢复不受限制的可见性。
+
+Header 与 body 为每个 `SessionBinding` 共享稳定的列表 source。策略、Slot 和 locale 变化独立更新每个存活 binding；替换或释放 binding 会移除旧列表。隐藏的偏好仍保留在存储中，启用前回退到 Chat。程序触发的 tab 和 focus 请求使用相同过滤，直接激活 target 也检查可见性。可见性不会撤销数据访问，也不会停止已激活 target 的工作。
 
 layout 的 `active` owner 参数传递给常驻 composer 与附件槽位。其他主表面遮蔽 Conversation 时，composer 锁定编辑与文件入口，隐藏浮动覆盖层和通知，并关闭 Workspace picker。草稿、排队上传和 Session 执行仍由各自服务持有；返回 Conversation 后恢复常驻编辑器。
 
-Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染前读取持久化 View 偏好，激活已注册的偏好 View 或 Chat fallback，并在后续 tab 或 focus 选择写入 store 前先激活对应 target。blank Session 仍不渲染 `conversation.view` slot；未选中的 target 不会激活。
+Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染前读取持久化 View 偏好，在列表变化后重新解析，并在发布选择前激活可见的偏好 View 或 Chat fallback。后续 tab 或 focus 请求在偏好写入 store 前先激活解析出的 target。blank Session 仍不渲染 `conversation.view` slot；shell 绝不激活未选中的 target。
 
 常驻 composer 在无 Session 与有 Session 之间保持挂载。无 Session 时，同一个编辑器表面保持 inert，Workspace picker 连接 blank Session。该表面是 shell 所有的 Lexical 编辑器：引用 chip 是携带 owner 序列化身份的原子 decorator 节点（提交时经 owner codec 展开），已认领的 slash command 保持为带样式的行首文本，文件夹文本引用以图标前缀携带文件夹图形，草稿的剪贴板投影镜像到逐 Session Conversation store。Queue 操作通过 scoped `ctx.conversation` service 寻址准确的 queue occurrence；queue 预览经 `ui-primitives` 的共享行内引用投影渲染已发送文本（wire 会话形式折叠为其标签），并按原始附件顺序展示本地或持久化的图片和文件。图片使用缩略图，文件使用紧凑的名称与大小卡片。编辑态展示字面发送文本，持久化缩略图通过会话图片 URL 缓存解析。繁忙时 Enter 行为保存在 Host-backed `ui-conversation` settings namespace。
 

@@ -114,7 +114,7 @@ export type RenderMessageImages = (owner: Omit<MessageImagesOwnerProps, 'loadIma
 
 /** Selector hook over the current Session's assembled Conversation. */
 export type UseConversation = SnapshotSelectorHook<ConversationSnapshot>
-/** Selector hook over the registered Conversation View roster. */
+/** Selector hook over the current Session's visible Conversation View roster. */
 export type UseConversationViews = SnapshotSelectorHook<readonly ViewTab[]>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
