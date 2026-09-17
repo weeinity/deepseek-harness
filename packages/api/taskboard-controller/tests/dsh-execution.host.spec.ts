@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
@@ -25,11 +26,14 @@ import SessionQuery from '@deepseek-ai/dsh-session-query'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import * as StorageJson from '@deepseek-ai/dsh-storage-json'
+import TaskboardService, { TaskRunRequestId } from '@deepseek-ai/dsh-taskboard'
 import type { TaskExecution, TaskExecutionReceipt } from '@deepseek-ai/dsh-taskboard/types'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import Approval from '@deepseek-ai/dsh-user-approval'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
+import { MemorySettings } from '../../../settings/settings/tests/memory.ts'
+import TaskboardController from '../src/index.ts'
 import { createDshExecutionAdapter } from '../src/runtime/dsh.ts'
 import type { TaskExecutionAdapter } from '../src/runtime/adapter.ts'
 
@@ -147,6 +151,57 @@ async function harness(root?: string) {
   }
   return { ctx, model, workspace, adapter, execution, signal, directory }
 }
+
+describe('Loader Taskboard execution', () => {
+  it('runs with a pinned model and preset through the scoped controller', async () => {
+    const test = await harness()
+    const { ctx, directory, model, workspace } = test
+    await ctx.plugin(MemorySettings)
+    await ctx.plugin(TaskboardService)
+    // Loader entries enforce the controller's inject list; root-Context adapter tests do not.
+    ctx.loader.builtins.include = { default: Include }
+    ctx.loader.builtins['taskboard-controller'] = { default: TaskboardController }
+    await writeFile(join(directory, 'cordis.yml'), [
+      '- name: cordis:taskboard-controller',
+      '  config:',
+      '    timeZone: UTC',
+      '    pollIntervalMs: 1',
+      `    lockPath: ${JSON.stringify(join(directory, 'taskboard-owner'))}`,
+      '',
+    ].join('\n'))
+    await ctx.loader.create({ name: 'cordis:include', config: { path: 'cordis.yml' } })
+    await ctx.loader.await()
+    const task = await ctx.taskboard.create({
+      workspaceId: workspace.id,
+      title: 'Synthetic Taskboard run',
+      prompt: 'Reply with finished. Do not use tools.',
+      executionSettings: test.execution.executionSettings,
+    })
+    const requestId = TaskRunRequestId(randomUUID())
+    const settled = Promise.withResolvers<TaskExecution>()
+    const unwatch = ctx.on('domain/changed', () => {
+      const execution = ctx.taskboard.get(task.id)?.executions.find(value => value.requestId === requestId)
+      if (execution?.status === 'succeeded' || execution?.status === 'failed' || execution?.status === 'cancelled') {
+        settled.resolve(execution)
+      }
+    })
+    try {
+      model.scripts.push(async () => answer())
+      const result = await ctx.taskboardController.run({
+        taskId: task.id, expectedRevision: task.revision, requestId,
+      }, test.signal)
+      const execution = await settled.promise
+      expect(execution).toMatchObject({ id: result.executionId, status: 'succeeded' })
+      expect(model.calls).toHaveLength(1)
+      expect(model.calls[0]).toMatchObject({ provider: 'script', model: 'task-model' })
+      const agent = agentFor(test, execution)
+      expect(ctx.sessionProjections.stateOf(agent.session, 'agentPreset')).toBe('fixture')
+      expect(ownInsertions(agent.session.snapshotEvents(), execution)).toHaveLength(1)
+    } finally {
+      unwatch()
+    }
+  })
+})
 
 async function prepared(test: Awaited<ReturnType<typeof harness>>): Promise<TaskExecution> {
   await test.adapter.create(test.execution, test.signal)

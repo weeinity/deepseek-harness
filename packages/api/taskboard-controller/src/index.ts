@@ -110,7 +110,8 @@ export class TaskboardController extends TypertRemoteService {
 
   static inject = [
     'typert', 'taskboard', 'workspaceRegistry', 'sessionController', 'sessionPersistence',
-    'sessions', 'agents', 'agentPresets', 'permissionPresets', 'settings', 'systemPrompt',
+    'sessions', 'sessionProjections', 'agents', 'agentPresets', 'permissionPresets',
+    'settings', 'systemPrompt', 'llm',
   ]
 
   private readonly feed: TaskboardFeed
@@ -124,7 +125,7 @@ export class TaskboardController extends TypertRemoteService {
   private readonly opens = new Map<AgencyCopilotSessionId, AgencyOpenAdmission>()
 
   /**
-   * @param ctx - Host context supplying the planning, Session, and settings services.
+   * @param ctx - Host context supplying the planning, Session, LLM, and settings services.
    * @param config - Deployment policy, resolved before any operation starts.
    * @param internals - Native integrations used by isolated Host tests.
    */

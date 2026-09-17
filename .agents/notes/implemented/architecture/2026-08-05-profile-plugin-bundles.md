@@ -28,6 +28,8 @@ Two supporting refactors: the webserver's built-in static dist serving became th
 
 ## Consequences
 
+Profile-scoped MCP enablement is covered by the [connector controls decision](../feature/2026-09-13-profile-owned-mcp-connector-controls.md).
+
 - New composition surfaces (a TUI, provider packs) ship as ordinary npm packages installable per profile, without a repository row for every deployment shape.
 - Users can start an independent custom profile from any shipped application template without copying machine-local profile state.
 - `apps/cli` shrank to argv parsing, profile machinery consumption, and the pnpm forwarder; `AppCLIEntry` and the per-surface boot paths are gone.

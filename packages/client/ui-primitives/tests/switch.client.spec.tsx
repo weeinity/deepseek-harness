@@ -10,6 +10,7 @@ describe('Switch', () => {
     render(<Switch checked label="Subagent model selection" onChange={() => {}} />)
     const control = screen.getByRole('switch', { name: 'Subagent model selection' })
     expect(control.getAttribute('aria-checked')).toBe('true')
+    expect(control.getAttribute('aria-disabled')).toBe('false')
   })
 
   it('reports the state the click asks for, not the state it has', () => {
@@ -29,6 +30,7 @@ describe('Switch', () => {
     render(<Switch checked={false} disabled label="Toggle" onChange={onChange} />)
     const control = screen.getByRole('switch')
     expect((control as HTMLButtonElement).disabled).toBe(true)
+    expect(control.getAttribute('aria-disabled')).toBe('true')
     fireEvent.click(control)
     expect(onChange).not.toHaveBeenCalled()
   })

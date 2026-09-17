@@ -635,6 +635,18 @@ export const IconCordisPluginOutline14 = ({ size = 14, className }: IconProps) =
   </svg>
 )
 
+/** Four outlined tiles identifying the Connectors settings section. */
+export const IconConnectorsOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <g stroke="currentColor" strokeWidth="1.25">
+      <rect x="1.625" y="1.625" width="4.75" height="4.75" rx="1" />
+      <rect x="9.625" y="1.625" width="4.75" height="4.75" rx="1" />
+      <rect x="1.625" y="9.625" width="4.75" height="4.75" rx="1" />
+      <rect x="9.625" y="9.625" width="4.75" height="4.75" rx="1" />
+    </g>
+  </svg>
+)
+
 /** ic_ds_api_outline (figma extract) */
 export const IconApiOutline14 = ({ size = 14, className }: IconProps) => (
   <svg width={size} height={size} className={className} viewBox="0 0 14 14" fill="none">

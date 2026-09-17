@@ -3,6 +3,59 @@ import type { Branded } from '@deepseek-ai/dsh-brand'
 /** Stable Loader-tree identity of one configured plugin entry. */
 export type PluginEntryId = Branded<'PluginEntryId'>
 
+/** Opaque revision of the profile layers and mounted composition. */
+export type ConnectorRevision = Branded<'ConnectorRevision'>
+
+/** A configured global MCP server; fiber phase is not connection health. */
+export interface ConnectorEntry {
+  readonly id: PluginEntryId
+  readonly serverName: string
+  readonly transport: 'stdio' | 'streamable-http' | null
+  /** Effective Loader enablement, not persisted intent or MCP connection health. */
+  readonly enabled: boolean
+  readonly fiberPhase: PluginFiberPhase
+  readonly canToggle: boolean
+  readonly blockedReason?: 'unsupported-context' | 'unsupported-target' | 'higher-precedence' | 'local-only'
+}
+
+/** Redacted MCP inventory and this launch's editing capability. */
+export interface ConnectorSnapshot {
+  readonly revision: ConnectorRevision
+  readonly capability: 'live' | 'read-only'
+  readonly entries: readonly ConnectorEntry[]
+}
+
+/** One revision-fenced profile flag write. */
+export interface ConnectorSetEnabledRequest {
+  readonly id: PluginEntryId
+  readonly enabled: boolean
+  readonly expectedRevision: ConnectorRevision
+}
+
+/** Persistence succeeds before application is attempted; failed application does not roll back disk. */
+export interface ConnectorMutationReceipt {
+  /** The requested flag reached the profile patch before application was attempted. */
+  readonly persisted: true
+  /** The Loader applied the requested flag and completed its activation or teardown; not connection health. */
+  readonly applied: boolean
+  /** The saved change needs restart or configuration repair because application was not confirmed. */
+  readonly restartRequired: boolean
+  /**
+   * Observed Loader state, which may retain the previous enabled value after failed application.
+   * The caller retains its requested enabled intent separately and must not substitute it for these rows.
+   */
+  readonly snapshot: ConnectorSnapshot
+}
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    'connectors/conflict': Record<never, never>
+    'connectors/rejected': Record<never, never>
+    'connectors/persist-failed': Record<never, never>
+    'connectors/local-only': Record<never, never>
+  }
+}
+
 /** Lifecycle state of an entry's root Fiber, or null when it has no live root Fiber. */
 export type PluginFiberPhase =
   | 'pending'

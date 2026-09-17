@@ -83,7 +83,7 @@ The model sees `mcp__github__create_issue`, `mcp__github__search_code`, `mcp__we
 
 ### Lifecycle
 
-Boot-time from `cordis.yml`. HMR (`@cordisjs/plugin-hmr`) provides hot-swap: editing the yml entry triggers dispose of the old instance (disconnects, unregisters tools) and creation of a new one (connects, discovers, registers). No runtime-dynamic API is provided. Public names are pure functions of `(serverName, rawName)`, so an HMR swap that keeps `serverName` recreates identical model-facing names — session history and permission rules stay valid — and adding or removing an unrelated server never renames an existing tool.
+Boot-time from `cordis.yml`. HMR (`@cordisjs/plugin-hmr`) provides hot-swap: editing the yml entry triggers dispose of the old instance (disconnects, unregisters tools) and creation of a new one (connects, discovers, registers). The client has no server-directory mutation API; [profile-owned connector controls](2026-09-13-profile-owned-mcp-connector-controls.md) change configured global entries through Loader. Public names are pure functions of `(serverName, rawName)`, so an HMR swap that keeps `serverName` recreates identical model-facing names — session history and permission rules stay valid — and adding or removing an unrelated server never renames an existing tool.
 
 ### Tool discovery and registration
 

@@ -56,6 +56,8 @@ Your machine-local preferences also live in the Harness home:
 
 Profiles with `patchReload: live` watch both user patch files: a valid edit recomposes without restart, while a rejected edit leaves the last good app running. A `startup` profile installs neither those watchers nor the launcher's watch-only HMR fallback.
 
+The launcher also installs profile-owned [MCP connector control](../../client/ui-settings-connectors/README.md). It edits only supported top-level MCP flags in the profile patch, serializes writes with user-file refreshes, and rejects stale observed revisions or higher-priority overrides. Startup-only and unsupported launch contexts remain read-only. Disk persistence and Loader application are separate outcomes; the [decision record](../../../.agents/notes/implemented/feature/2026-09-13-profile-owned-mcp-connector-controls.md) explains the ownership and failure guarantees.
+
 Inserted plugin names may be absolute filesystem paths, file URLs, or package specifiers. Patch loading converts absolute paths and patch-relative `./` or `../` paths to file URLs within `insert` rows and their nested groups; existing-entry name assertions and replacement `config` values remain literal.
 
 ### Previewing the effective configuration
@@ -100,7 +102,8 @@ The exports each own one stage of the boot: config resolution and snapshot repla
 |---|---|
 | [`src/index.ts`](src/index.ts) | Boot helpers: config resolution, environment loading, fail-loud guard, activation audit, patch parsing, config dump, harness-source section |
 | [`src/profile.ts`](src/profile.ts) | Profile discovery, initialization, bundle resolution, module fallback |
-| — | No runtime invariant companion is published; this presentation adapter owns no durable package-local event stream; boundary and replay tests cover its protocol mapping. |
+| [`src/profile-connectors.ts`](src/profile-connectors.ts) | Revision-fenced MCP flag writes and serialized profile reconciliation |
+| — | No runtime invariant companion is published; authored patches and mounted state may legitimately differ after rejected reconciliation. |
 
 </details>
 

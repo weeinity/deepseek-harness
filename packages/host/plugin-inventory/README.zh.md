@@ -1,5 +1,5 @@
 ---
-description: "当前 Cordis Loader 插件状态的只读投影，并附带每个 Agent 预设的组合：面向 web GUI 宿主客户端的 pluginInventory 服务及其 pluginInventory/list Remote。"
+description: "检查 Cordis Loader 插件与 Agent 预设组合，并从受信任的 Web 客户端控制由配置方案持有的 MCP 启用状态。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-客户端可以调用 `pluginInventory/list`，按加载顺序展示宿主的当前插件，包括每个条目的标识符、模块标识、有效启用状态与存活阶段。部署组合了 Agent 预设 roster 时，还会报告各预设的元数据、健康状态与压平后的插件组合；没有 roster 时，预设数据缺席。每次响应都是供展示和诊断使用的只读即时快照：它不能修改插件，也不提供历史、来源信息或变更订阅。
+使用 `pluginInventory/list` 检查当前 Host 插件以及可选的各预设组合。它以只读即时快照报告标识符、模块、启用状态与 Loader 阶段。独立的 `connectors` API 列出已配置的全局 MCP 服务器，并能为支持的实时配置方案持久保存启用状态更改。连接器写入要求 Web 部署仅监听回环地址，并保留更高优先级配置。
 
 ## 目录
 
@@ -39,6 +39,14 @@ kind: "package-reference"
 
 该清单是供展示与诊断的快照：客户端可以渲染名单、标出失败条目，并通过比较快照检测变化。它不能启用、停用、添加或移除插件，也不携带历史——已经失败并被移除的 fiber 缺席。由于服务每次调用都读取 Loader，答案总是反映当前组合，而不是缓存视图。
 
+### 持久 MCP 连接器控制
+
+`connectors/list` 返回已配置全局 MCP 条目的允许公开元数据，包括已禁用条目，以及不透明修订号和写入能力说明。它绝不返回连接命令、端点、请求头、环境值或可执行表达式。字面服务器名称和传输类型无需执行已禁用配置即可投影。
+
+`connectors/setEnabled` 接受列表中的标识、请求的启用状态和最近修订号。[配置方案启动所有者](../../boot/app-boot/README.zh.md#profiles)持久保存标志并等待 Loader 协调完成。过期读取、不支持的目标、更高优先级覆盖、仅启动时生效的配置方案，以及未绑定 `127.0.0.1` 的 Web 服务器均不能写入。
+
+回执区分持久化与应用。`enabled` 始终描述观察到的 Loader 状态，而不是已保存意图；应用失败时，旧值可能继续显示，并需要修复配置或重启。即使 Loader 阶段为活跃，也不能证明 MCP 已连接。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -61,6 +69,7 @@ Fiber 状态映射到公共阶段词汇，其中 `disposed` 折叠为 `null`—�
 |---|---|
 | [`src/index.ts`](src/index.ts) | `PluginInventoryGateway`：`pluginInventory` Remote 服务与 Loader 投影 |
 | [`src/types.ts`](src/types.ts) | 公共 payload 类型：`PluginInventoryEntry`、`PluginInventorySnapshot`、`PluginFiberPhase` |
+| [`src/connectors.ts`](src/connectors.ts) | 经脱敏的连接器读取与受保护的配置方案命令 |
 | — | 不发布运行时不变式伴生入口；每个快照都投影 Loader 持有的状态。 |
 
 Typert 生成由 `./typert` 与 `./remote` 导出的 Host 和 Client Remote 产物。
@@ -77,17 +86,18 @@ Typert 生成由 `./typert` 与 `./remote` 导出的 Host 和 Client Remote 产�
 - [Remote 组合](../../api/remotes/README.zh.md)——客户端如何在不导入 Host 实现的情况下消费 `pluginInventory/list`。
 - [Cordis 插件 loader](../../../vendor/loader/README.md)——本包所投影条目的那个 Loader。
 - [插件清单设置界面](../../client/ui-settings-plugin-inventory/README.zh.md)——渲染该清单的浏览器侧投影。
+- [连接器设置](../../client/ui-settings-connectors/README.zh.md)——搜索与持久启用状态控制。
 
 -----
 
 <a id="model-experience"></a>
 ## 模型体验
 
-无。这个仅限 Host 的只读 Loader 投影不注册任何面向模型的内容。
+通过 [MCP 客户端](../../mcp/mcp-client/README.zh.md)间接影响模型；连接器启用状态所影响的工具注册由该客户端负责。
 
 #### KV Cache 影响
 
-无；该包既不组装也不发送提供方请求。
+应用连接器启用状态会改变后续请求可用的工具定义；提供商缓存复用由请求组装和提供商负责。
 
 ## 已知限制与延期工作
 
@@ -97,7 +107,7 @@ Typert 生成由 `./typert` 与 `./remote` 导出的 Host 和 Client Remote 产�
 这些限制说明一个点时刻清单无法告诉客户端什么。它们是当前包约束，不是任务积压。
 
 - **仅表示调用当下**——结果不包含持久的失败历史或订阅；只要不存在存活的根 Fiber，就会报告 `null`，而不区分其原因。
-- **无来源与修改能力**——服务不识别条目由哪个 bundle、profile 或 override 引入，也不能在任一平面启用、停用、添加或移除插件。
+- **不是通用插件编辑器**——`pluginInventory` 保持只读；连接器写入仅覆盖支持的、具有显式且唯一标识的顶层 MCP 条目。
 - **预设仅随 roster 出现**——未装 `dsh-agent-presets` 的部署只提供 Loader 条目；`agentPresets` 字段缺席而非为空。
 
 <a id="dev-note"></a>

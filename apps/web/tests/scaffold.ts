@@ -33,8 +33,7 @@ import { expect } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { DSH_LAUNCH_ENVIRONMENT_KEY, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
-import Include, { type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
-import Group from '@deepseek-ai/cordis-plugin-group'
+import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import {
   captureExpectedWorkspaceSnapshot,
   captureWorkspaceSnapshot,
@@ -60,7 +59,10 @@ import {
   assertEntriesLoaded,
   composeEntries,
   healProfilesModuleFallback,
+  installProfileConnectorControl,
+  loadOptionalPatches,
   loadOverlayPatches,
+  mountRootInclude,
   type Profile,
 } from '@deepseek-ai/dsh-app-boot'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
@@ -285,6 +287,8 @@ export interface WebScaffold {
 
 /** Options for {@link launchWebScaffold}. */
 export interface LaunchOptions {
+  /** Install live-profile MCP flag persistence; the scaffold's fixed patches act as bundle layers. */
+  profileConnectorControls?: boolean
   /** Enable the real Open In rows with deterministic launch-environment facts. */
   openInAppEnvironment?: LaunchEnvironmentSnapshot
   /** Compare the replayed root session with `replayFixture`; defaults on for a manifest-owned canonical recording. */
@@ -689,7 +693,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
         layers: extraLayers,
         patchPath: join(profileDir, 'cordis.patch.yml'),
         patches: [],
-        patchReload: 'startup',
+        patchReload: options.profileConnectorControls === true ? 'live' : 'startup',
       },
     })
     await mkdir(profileDir, { recursive: true })
@@ -709,17 +713,19 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       },
     })
     await ctx.plugin(Loader)
-    ctx.loader.builtins.include = Include
-    // `cordis:group` beside it, exactly as `boot()` registers it: a group row is
-    // how a preset gives one `isolate` realm to a provider and its consumers,
-    // and a preset resolving package names from its own directory cannot reach
-    // `@deepseek-ai/cordis-plugin-group` by name.
-    ctx.loader.builtins.group = Group
-    await ctx.loader.create({
-      name: 'cordis:include',
-      config: { path: pathToFileURL(rootConfig).href, patches },
-    })
+    await mountRootInclude(ctx, rootConfig, structuredClone(patches))
     await ctx.loader.await()
+    if (options.profileConnectorControls === true) {
+      installProfileConnectorControl(ctx, {
+        configPath: rootConfig,
+        profilePatchPath: join(profileDir, 'cordis.patch.yml'),
+        homePatchPath: join(harnessHome, 'cordis.patch.yml'),
+        bundlePatches: structuredClone(patches),
+        overlays: [],
+        live: true,
+        readPatches: filename => loadOptionalPatches('web scaffold', filename) ?? [],
+      })
+    }
     assertEntriesLoaded(ctx, 'web e2e scaffold')
     if (options.welcomeNoticePending !== true) {
       await ctx.settings.mutate(WELCOME_NOTICE_SETTINGS_NAMESPACE, [{

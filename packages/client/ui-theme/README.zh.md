@@ -37,6 +37,8 @@ kind: "package-reference"
 
 `--dsw-alias-taskboard-*` token 独立控制任务看板的状态颜色，不影响通用业务强调色。
 
+`--dsw-alias-connector-*` token 提供图形类连接器的颜色、高光以及随主题变化的中性后备色；打包的标志自带颜色。服务颜色在两个主题中保持固定，不表达启用状态或健康状态。
+
 ### 插件前调色板
 
 当主机组合包含 HTTP 服务器时，宿主侧会把已注册的 `ui-theme` 设置或 schema 默认值嵌入每份 index 响应。浏览器在加载页面渲染前设置 `color-scheme`、`body[data-ds-dark-theme]` 与 `--dsh-content-font-size`，因此首帧绘制就采用所选调色板与字号。

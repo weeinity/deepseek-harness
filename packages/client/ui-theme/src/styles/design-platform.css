@@ -2,6 +2,17 @@
    font-weight: 500 in this UI — non-variable webfonts snap intermediate
    weights unpredictably across platforms. */
 body {
+  --dsw-static-connector-workiq: #b5651f;
+  --dsw-static-connector-reference-memory: #b0477f;
+  --dsw-static-connector-exa: #2b2b33;
+  --dsw-static-connector-bluebird: #2f9fd4;
+  --dsw-static-connector-neutral-light-bg: #f4f4f6;
+  --dsw-static-connector-neutral-light-label: #4d5260;
+  --dsw-static-connector-neutral-light-border: rgba(0, 0, 0, 0.12);
+  --dsw-static-connector-neutral-dark-bg: #3a3a3a;
+  --dsw-static-connector-neutral-dark-label: #cfcfd6;
+  --dsw-static-connector-neutral-dark-border: #4a4a4a;
+  --dsw-static-connector-highlight: rgba(255, 255, 255, 0.14);
   --dsw-static-amber-100: rgb(254, 245, 231);
   --dsw-static-amber-400: rgb(247, 173, 49);
   --dsw-static-amber-500: rgb(245, 158, 11);
@@ -236,6 +247,15 @@ body {
   --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
   --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-100);
   --dsw-alias-taskboard-backlog: var(--dsw-static-gray-400);
+  --dsw-alias-connector-workiq: var(--dsw-static-connector-workiq);
+  --dsw-alias-connector-reference-memory: var(--dsw-static-connector-reference-memory);
+  --dsw-alias-connector-exa: var(--dsw-static-connector-exa);
+  --dsw-alias-connector-bluebird: var(--dsw-static-connector-bluebird);
+  --dsw-alias-connector-glyph: var(--dsw-static-neutral-00);
+  --dsw-alias-connector-highlight: var(--dsw-static-connector-highlight);
+  --dsw-alias-connector-neutral-bg: var(--dsw-static-connector-neutral-light-bg);
+  --dsw-alias-connector-neutral-label: var(--dsw-static-connector-neutral-light-label);
+  --dsw-alias-connector-neutral-border: var(--dsw-static-connector-neutral-light-border);
   --dsw-alias-taskboard-todo: var(--dsw-static-indigo-500);
   --dsw-alias-taskboard-in-progress: var(--dsw-static-blue-600);
   --dsw-alias-taskboard-in-review: var(--dsw-static-amber-500);
@@ -257,6 +277,9 @@ body {
 
 body[data-ds-dark-theme] {
   --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+  --dsw-alias-connector-neutral-bg: var(--dsw-static-connector-neutral-dark-bg);
+  --dsw-alias-connector-neutral-label: var(--dsw-static-connector-neutral-dark-label);
+  --dsw-alias-connector-neutral-border: var(--dsw-static-connector-neutral-dark-border);
   --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
   --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
   --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);

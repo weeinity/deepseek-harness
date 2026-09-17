@@ -13,6 +13,21 @@
   border-color: var(--dsw-alias-brand-primary);
 }
 
+.search {
+  height: 48px;
+  gap: 10px;
+  padding: 0 16px;
+  border-color: transparent;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.search .input::placeholder {
+  color: var(--dsw-alias-label-secondary);
+  opacity: 1;
+}
+
 .icon {
   display: inline-flex;
   width: 16px;

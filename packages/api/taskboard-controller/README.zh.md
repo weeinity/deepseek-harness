@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-[Web 应用包](../../bundle/web-app/README.zh.md) 将本 controller 与其 Session、Workspace、settings 和传输服务一起挂载。展示包注入无 React 的 Client `taskboard` 服务，而不是直接调用传输层。
+[Web 应用包](../../bundle/web-app/README.zh.md) 将本 controller 与其 Session、Session 投影、LLM、Workspace、settings 和传输服务一起挂载。固定任务模型和预设需要 LLM 和 Session 投影服务。展示包注入无 React 的 Client `taskboard` 服务，而不是直接调用传输层。
 
 <a id="execution-and-connections"></a>
 ### 执行与关联

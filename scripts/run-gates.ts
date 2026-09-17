@@ -226,6 +226,8 @@ function pnpmExec(id: string, args: string[], options: Partial<Gate> = {}): Gate
 
 /**
  * Construct the complete gate list for a named aggregate.
+ * Aggregates with a complete build reuse its Web artifacts; artifact consumers
+ * depend on that build rather than a separate Web build.
  * @param selected - aggregate mode to construct.
  * @returns the aggregate's gate graph.
  */
@@ -272,7 +274,6 @@ export function gatesForMode(selected: Mode): Gate[] {
         snapshotGate(),
         expectedOutputGate(),
         pnpmScript('build', 'build'),
-        pnpmScript('build:web', 'build:web'),
         ...hygieneLeafGates({ artifactNeeds: ['build'] }),
         ...docSyncLeafGates({
           docTypecheckNeeds: ['build'],
@@ -356,10 +357,6 @@ function nodeCompatGates(): Gate[] {
     pnpmScript('build', 'build', {
       ...typecheck.length === 0 ? {} : { needs: ['typecheck'] },
     }),
-    pnpmScript('build:web', 'build:web', {
-      label: 'Web frontend build',
-      needs: ['build'],
-    }),
     ...nodeCompatSmokeGates({ cliSmoke: true }),
   ]
 }
@@ -396,7 +393,7 @@ function nodeCompatSmokeGates(options: { cliSmoke?: boolean } = {}): Gate[] {
       ], {
         label: 'CLI lazy-search startup smoke',
         env: { DSH_REQUIRE_BUILT_CLI_SMOKE: '1' },
-        needs: ['build:web'],
+        needs: ['build'],
       }),
     )
   }

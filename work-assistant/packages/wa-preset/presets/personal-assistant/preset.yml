@@ -1,0 +1,3 @@
+name: Personal assistant
+description: Read-only personal scheduling assistant that uses configured calendar tools only.
+order: 10

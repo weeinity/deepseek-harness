@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@deepseek-ai/dsh-wa-calendar": [
+        "./packages/wa-calendar/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-wa-gateway": [
+        "./packages/wa-gateway/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-wa-preset": [
+        "./packages/wa-preset/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-wa-memory": [
+        "./packages/wa-memory/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-wa-briefing": [
+        "./packages/wa-briefing/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/tests/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}

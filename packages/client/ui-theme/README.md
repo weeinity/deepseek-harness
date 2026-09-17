@@ -37,6 +37,8 @@ A composition can register a third-party theme id with alias-token overrides thr
 
 The `--dsw-alias-taskboard-*` tokens control Taskboard status colors independently of the general business accent.
 
+The `--dsw-alias-connector-*` tokens provide glyph-based connector colors, highlights, and theme-aware neutral fallbacks; bundled logos carry their own colors. Service colors stay fixed in both themes and do not convey enablement or health.
+
 ### Pre-plugin palette
 
 When the host composition includes an HTTP server, the host half embeds the registered `ui-theme` settings, or schema defaults, into each index response. Before the loading page renders, the browser sets `color-scheme`, `body[data-ds-dark-theme]`, and `--dsh-content-font-size`, so the first paint uses the selected palette and text size.

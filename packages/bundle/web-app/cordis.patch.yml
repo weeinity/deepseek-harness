@@ -266,6 +266,9 @@
     - id: ui-settings-models
       name: '@deepseek-ai/dsh-client-ui-settings-models'
 
+    - id: ui-settings-connectors
+      name: '@deepseek-ai/dsh-client-ui-settings-connectors'
+
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
 

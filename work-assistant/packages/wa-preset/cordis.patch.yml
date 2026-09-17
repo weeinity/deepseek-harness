@@ -1,0 +1,5 @@
+- id: agent-presets
+  config:
+    default: personal-assistant
+    includeShippedRoot: false
+    includeUserRoot: true

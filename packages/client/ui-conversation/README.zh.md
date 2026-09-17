@@ -36,7 +36,7 @@ target package 通过 declaration merge 扩展 snapshot 与 Location data map，
 <a id="shell-and-standard-props"></a>
 ## Shell 与标准 props
 
-本包注册 optional-Session `conversation` shell、strict Session header/body、View list、composer chain 与 bar、输入区域、Hero 区域、queue dock、草稿持久化和 phase 计算。空白 Session 的 Hero 暴露 `conversation.hero.brand.mark`；其 34px 回退标志为共享的 MIP Autolabeling 标志，[官方品牌插件](../ui-brand-official/README.zh.md) 填充同一槽位。标题与 Preview 徽章组成一个可换行的组，位于标志旁。仅支持 hover 且未设置减少动态效果偏好的设备会在悬停时播放周期为 1.6 秒的连续 CSS 摆动。`ctx.uiSession.provide()` 从同一个 Session binding 物化 Conversation 与 input source，并将 `inputActions` 作为稳定标准 prop 提供。
+本包注册 optional-Session `conversation` shell、strict Session header/body、View list、composer chain 与 bar、输入区域、Hero 区域、queue dock、草稿持久化和 phase 计算。空白 Session 的 Hero 暴露 `conversation.hero.brand.mark`；其 34px 回退标志为共享的 MIP Autolabeling 标志，[官方品牌插件](../ui-brand-official/README.zh.md) 填充同一槽位。本地化的“标记一切”标题与 Preview 徽章组成一个可换行的组，位于标志旁。仅支持 hover 且未设置减少动态效果偏好的设备会在悬停时播放周期为 1.6 秒的连续 CSS 摆动。`ctx.uiSession.provide()` 从同一个 Session binding 物化 Conversation 与 input source，并将 `inputActions` 作为稳定标准 prop 提供。
 
 View 选择规则在每个 Session 的可见列表内固定：有效且已注册的持久化选择优先，其次是已注册的 `chat`，否则不渲染 View；绝不选择第一个已注册 View。Shell phase 只组合 Session lifecycle 与 active-target set，不读取任何 target-specific snapshot。
 

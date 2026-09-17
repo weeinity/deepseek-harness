@@ -9,8 +9,7 @@ import css from './Switch.module.css'
  * @param props.checked - the current state; the control is fully controlled.
  * @param props.onChange - called with the state the click asks for.
  * @param props.label - localized accessible name, owned by the render site.
- * @param props.disabled - whether the control refuses input; owners also set it
- * while a write is in flight, not only when a deployment locks the toggle.
+ * @param props.disabled - native and ARIA disabled state; also applies during pending writes.
  * @param props.title - localized hover text, typically why the toggle is locked.
  * @param props.className - extra class for layout placement.
  * @returns the switch element.
@@ -31,6 +30,7 @@ export function Switch({ checked, onChange, label, disabled = false, title, clas
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      aria-disabled={disabled}
       title={title}
       disabled={disabled}
       className={clsx(css.switch, className)}

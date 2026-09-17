@@ -41,7 +41,7 @@ describe('web e2e: startup auto-selection', () => {
   it('keeps the resident Hero and composer nodes when the first Workspace session appears', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-first-workspace-stable-tree'))
     await page.locator(`${ROOT_PHASE}[data-phase="hero"]`).waitFor({ timeout: 15_000 })
-    const headline = page.getByText('Into the Unknown', { exact: true })
+    const headline = page.getByText('Label everything', { exact: true })
     const markHitbox = headline.locator('xpath=../preceding-sibling::span[1]')
     const mark = markHitbox.locator('svg')
     expect(await mark.getAttribute('data-brand')).toBe('mip-autolabeling')
@@ -130,7 +130,7 @@ describe('web e2e: startup auto-selection', () => {
       // seat with `visibility:hidden`, which Playwright reports as not visible).
       await page.waitForSelector(ROOT_PHASE, { timeout: 15_000 })
       expect(await page.locator(ROOT_PHASE).first().getAttribute('data-phase')).toBe('hero')
-      expect(await page.getByText('Into the Unknown').isVisible()).toBe(true)
+      expect(await page.getByText('Label everything').isVisible()).toBe(true)
       expect(await page.locator('[data-composer-input]').first().isVisible()).toBe(true)
 
       releaseOpening()

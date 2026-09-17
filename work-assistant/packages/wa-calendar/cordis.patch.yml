@@ -1,0 +1,3 @@
+- insert:
+    - id: wa-calendar
+      name: '@deepseek-ai/dsh-wa-calendar'

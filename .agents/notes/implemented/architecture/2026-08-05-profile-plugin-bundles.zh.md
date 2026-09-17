@@ -28,6 +28,8 @@ Status: implemented
 
 ## Consequences
 
+配置方案范围内的 MCP 启用状态由[连接器控制决策](../feature/2026-09-13-profile-owned-mcp-connector-controls.zh.md)说明。
+
 - 新的组合表层（TUI、提供方扩展包）以普通 npm 包形式交付，可按 profile 安装，无需在仓库中为每种部署形态各留一行。
 - 用户可以从任意随附应用模板启动一个独立的自定义 profile，而不会复制机器本地的 profile 状态。
 - `apps/cli` 收缩为 argv 解析、profile 机制的消费方和 pnpm 转发器；`AppCLIEntry` 与各表层专属的启动路径全部移除。

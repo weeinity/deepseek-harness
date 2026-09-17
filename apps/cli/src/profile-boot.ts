@@ -23,6 +23,7 @@ import {
   healProfilesModuleFallback,
   initProfile,
   installFailLoud,
+  installProfileConnectorControl,
   loadOptionalPatches,
   loadOverlayPatches,
   loadProfile,
@@ -313,26 +314,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   })
 
   const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)
-  // Recomposition for the live user layers: bundle layers below, overlays
-  // above, so a user edit can never displace them. Parsed app arguments are
-  // not in here at all — they live in app-provided services that survive a
-  // recomposition. BOTH
-  // user files are re-read per generation (the HMR watcher hands us only the
-  // changed file's patches, which one of the reads duplicates — fresh reads
-  // keep the two watchers from stitching in each other's stale copy).
-  // Fresh clones per generation: the include pushes `insert` rows into the
-  // mounted tree BY REFERENCE and later id-targeted patches mutate those
-  // objects in place. Reusing one parsed patch object across applications
-  // would bake a user override into the bundle's in-memory insert row, so
-  // removing the override could never revert the row to the bundle default.
-  const composeLive = (): PatchOptions[] => structuredClone([
-    ...composed.bundlePatches,
-    ...loadOptionalPatches(NAME, composed.profile.patchPath) ?? [],
-    ...loadOptionalPatches(NAME, homePatchPath()) ?? [],
-    ...composed.overlays,
-  ])
-  // Cloned for the same insert-aliasing reason as composeLive: the boot
-  // application must not mutate the objects later reloads recompose from.
+  // The Include may mutate inserted rows; boot must not alter the layers retained for reload.
   const ctx = await boot(NAME, rootConfig, structuredClone(allPatches(composed)), (hostCtx) => {
     app.current = hostCtx
     // Before any config-tree entry mounts, so plugins resolve all launch-time
@@ -347,12 +329,23 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     })
   })
   app.current = ctx
+  const connectors = ctx.fiber.state !== FiberState.ACTIVE || ctx.get('loader') === undefined
+    ? undefined : installProfileConnectorControl(ctx, {
+      configPath: rootConfig,
+      profilePatchPath: composed.profile.patchPath,
+      homePatchPath: homePatchPath(),
+      bundlePatches: composed.bundlePatches,
+      overlays: composed.overlays,
+      live: composed.profile.patchReload === 'live',
+      readPatches: filename => loadOptionalPatches(NAME, filename) ?? [],
+    })
   // A live-reload profile can dispose the whole tree while post-boot watcher
   // setup is in flight — a signal or appExit. Loader presence and fiber state
   // own liveness; the initial check skips a tree that already exited, and the
   // catch below re-checks for an exit that landed mid-setup. Startup-frozen
   // profiles apply every user layer above but install no HMR fallback or watcher.
   if (composed.profile.patchReload === 'live'
+    && connectors !== undefined
     && !signalShutdown.signal.aborted
     && ctx.fiber.state === FiberState.ACTIVE
     && ctx.get('loader') !== undefined) {
@@ -372,12 +365,12 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       await watchUserPatches(ctx, {
         binName: NAME,
         filename: composed.profile.patchPath,
-        compose: composeLive,
+        refresh: () => connectors.refresh(),
       })
       await watchUserPatches(ctx, {
         binName: NAME,
         filename: homePatchPath(),
-        compose: composeLive,
+        refresh: () => connectors.refresh(),
       })
     } catch (error) {
       suppressShutdownError(ctx, signalShutdown.signal, error)

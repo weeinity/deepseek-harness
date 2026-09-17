@@ -7,6 +7,7 @@
     - button "模型":
       - img
       - text: 模型
+    - button "连接器"
     - button "插件":
       - img
       - text: 插件

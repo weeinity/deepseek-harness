@@ -1,0 +1,5 @@
+- insert:
+    - id: wa-gateway
+      name: '@deepseek-ai/dsh-wa-gateway'
+      config:
+        ownerId: personal

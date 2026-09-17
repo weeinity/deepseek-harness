@@ -19,6 +19,12 @@ import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/cordis-plugin-hmr'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import { ProfileConnectorControl, type ProfileConnectorOptions } from './profile-connectors.ts'
+
+export type {
+  ProfileConnectorControl, ProfileConnectorOptions, ProfileConnectorSnapshot,
+  ProfileConnectorRevision, ProfileConnectorId, ProfileConnectorWrite,
+} from './profile-connectors.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -238,6 +244,25 @@ export interface UserPatchWatchOptions {
    * is the whole patch list.
    */
   compose?: (userPatches: PatchOptions[]) => PatchOptions[]
+  /** Profile-owned reconciliation queue shared with persistent MCP flag writes. */
+  refresh?: () => Promise<void>
+}
+
+/**
+ * Publish the launched profile's narrowly scoped MCP patch capability.
+ * @param ctx - Settled profile root.
+ * @param options - Launcher-owned paths, layers, and reload policy.
+ * @returns The control shared by Host consumers and both user-layer watchers.
+ */
+export function installProfileConnectorControl(ctx: Context, options: ProfileConnectorOptions): ProfileConnectorControl {
+  const entry = bootstrapIncludes.get(ctx)
+  if (entry?.subtree === undefined) throw new Error('Profile connector control requires the root Include')
+  const control = new ProfileConnectorControl(ctx, entry.subtree, options, async (patches) => {
+    const { patches: _previousPatches, ...includeConfig } = entry.options.config as Include.Config
+    await entry.update({ config: { ...includeConfig, patches } })
+  })
+  ctx.provide('profileConnectors', control)
+  return control
 }
 
 /**
@@ -257,6 +282,7 @@ export async function watchUserPatches(
   const entry = bootstrapIncludes.get(ctx)
   if (entry === undefined) throw new Error(`${binName}: user patch-layer watching requires the root Include entry`)
   const register = hmr.registerConfig(filename, async () => {
+    if (options.refresh !== undefined) return options.refresh()
     // Re-read the include's non-patch options per refresh so a writer that
     // updates another option between refreshes is not silently reverted.
     const { patches: _previousPatches, ...includeConfig } = entry.options.config as Include.Config

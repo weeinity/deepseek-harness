@@ -7,6 +7,7 @@
     - button "Models":
       - img
       - text: Models
+    - button "Connectors"
     - button "Plugins":
       - img
       - text: Plugins

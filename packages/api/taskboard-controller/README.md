@@ -25,7 +25,7 @@ Run saved tasks without keeping a browser open. Repeated runs continue the task'
 <a id="use-this-package"></a>
 ## Use this package
 
-The [Web app bundle](../../bundle/web-app/README.md) mounts this controller with its Session, Workspace, settings, and transport services. Presentation packages inject the React-free Client `taskboard` service instead of calling transport directly.
+The [Web app bundle](../../bundle/web-app/README.md) mounts this controller with its Session, Session projection, LLM, Workspace, settings, and transport services. The LLM and Session projection services are required for pinned task models and presets. Presentation packages inject the React-free Client `taskboard` service instead of calling transport directly.
 
 <a id="execution-and-connections"></a>
 ### Execution and connections

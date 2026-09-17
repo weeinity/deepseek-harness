@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-host-plugin-inventory",
-  "description": "Read-only Remote projection of current Cordis Loader plugin state",
+  "description": "Configured plugin inventory and profile-backed MCP controls for trusted clients",
   "version": "0.1.5-alpha.1",
   "publishConfig": {
     "access": "public"
@@ -44,6 +44,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@deepseek-ai/dsh-util-values": "workspace:^",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
@@ -59,6 +60,15 @@
     }
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-app-boot": "workspace:^",
+    "@deepseek-ai/dsh-host-webserver": "workspace:^",
+    "@deepseek-ai/dsh-mcp-client": "workspace:^",
+    "@deepseek-ai/dsh-system-prompt": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:^",
+    "@deepseek-ai/cordis-plugin-include": "workspace:^",
+    "@deepseek-ai/cordis-plugin-hmr": "workspace:^",
+    "@deepseek-ai/cordis-plugin-timer": "workspace:^",
+    "@modelcontextprotocol/sdk": "^1.12.0",
     "@deepseek-ai/cordis-plugin-loader": "workspace:^",
     "@deepseek-ai/dsh-agent-presets": "workspace:^",
     "@deepseek-ai/dsh-brand": "workspace:^",

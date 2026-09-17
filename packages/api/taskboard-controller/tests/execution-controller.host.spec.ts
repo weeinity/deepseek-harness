@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import AgentPresets, { COMPOSITION_FILE, METADATA_FILE } from '@deepseek-ai/dsh-agent-presets'
 import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
+import LlmRuntime from '@deepseek-ai/dsh-llm'
 import PermissionPresets from '@deepseek-ai/dsh-permission-presets'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import { TaskRunRequestId } from '@deepseek-ai/dsh-taskboard'
@@ -68,6 +69,8 @@ function catalog(): ModelCatalog {
 
 async function services(ctx: Context): Promise<void> {
   await ctx.plugin(MemorySettings)
+  await ctx.plugin(LlmRuntime)
+  await ctx.plugin(SessionProjections)
   ctx.provide('sessions', { list: () => [] } as never)
   ctx.provide('agents', { get: vi.fn() } as never)
   ctx.provide('systemPrompt', { section: vi.fn(() => vi.fn()) } as never)

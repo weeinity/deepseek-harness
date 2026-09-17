@@ -83,7 +83,7 @@ type Config = StdioConfig | StreamableHttpConfig
 
 ### 生命周期
 
-启动时从 `cordis.yml` 加载。HMR（热模块替换）（`@cordisjs/plugin-hmr`）提供热替换：编辑 yml 条目触发旧实例的 dispose（资源释放）（断开连接、注销工具），并创建新实例（连接、发现、注册）。不提供运行时动态 API。公开名称是 `(serverName, rawName)` 的纯函数，因此保持 `serverName` 不变的 HMR 替换会重建完全相同的模型可见名称——会话历史和权限规则保持有效——而添加或移除不相关的服务器永远不会重命名已有工具。
+启动时从 `cordis.yml` 加载。HMR（热模块替换）（`@cordisjs/plugin-hmr`）提供热替换：编辑 yml 条目触发旧实例的 dispose（资源释放）（断开连接、注销工具），并创建新实例（连接、发现、注册）。客户端不提供服务器目录修改 API；[由配置方案持有的连接器控制](2026-09-13-profile-owned-mcp-connector-controls.zh.md)通过 Loader 更改已配置的全局条目。公开名称是 `(serverName, rawName)` 的纯函数，因此保持 `serverName` 不变的 HMR 替换会重建完全相同的模型可见名称——会话历史和权限规则保持有效——而添加或移除不相关的服务器永远不会重命名已有工具。
 
 ### 工具发现与注册
 

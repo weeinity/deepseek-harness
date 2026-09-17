@@ -1,5 +1,5 @@
 ---
-description: "Read-only projection of the current Cordis Loader plugin state with each agent preset's composition beside it: the pluginInventory service and its pluginInventory/list Remote for web GUI host clients."
+description: "Inspect Cordis Loader plugins and agent-preset compositions, and control profile-owned MCP enablement from trusted Web clients."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Clients can call `pluginInventory/list` to display the host’s current plugins in load order, including each entry’s identifier, module specifier, effective enablement, and live phase. Deployments with an agent-preset roster also report each preset’s metadata, health, and flattened plugin composition; without a roster, preset data is absent. Each response is a point-in-time, read-only snapshot for display and diagnostics: it cannot mutate plugins and provides no history, provenance, or change subscription.
+Use `pluginInventory/list` to inspect current Host plugins and optional per-preset compositions. It reports identifiers, modules, enablement, and Loader phases as a read-only point-in-time snapshot. The separate `connectors` API lists configured global MCP servers and can persist enablement changes for supported live profiles. Connector writes require a loopback-only Web deployment and preserve higher-priority configuration.
 
 ## Table of Contents
 
@@ -39,6 +39,14 @@ With a roster composed, `agentPresets` carries one group per preset in roster or
 
 The inventory is a snapshot for display and diagnostics: a client can render the roster, flag failed entries, and detect changes by comparing snapshots. It cannot enable, disable, add, or remove plugins, and it carries no history — a fiber that already failed and was removed is absent. Because the service reads the Loader on every call, the answer always reflects the current composition rather than a cached view.
 
+### Persistent MCP connectors
+
+`connectors/list` returns allowlisted metadata for configured global MCP entries, including disabled entries, plus an opaque revision and a write-capability description. It never returns connection commands, endpoints, headers, environment values, or executable expressions. Literal server names and transports are projected without evaluating disabled configuration.
+
+`connectors/setEnabled` accepts a listed identity, requested enablement, and the last revision. The [profile boot owner](../../boot/app-boot/README.md#profiles) persists the flag and awaits Loader reconciliation. Stale reads, unsupported targets, higher-priority overrides, startup-only profiles, and Web servers not bound to `127.0.0.1` cannot write.
+
+A receipt distinguishes persistence from application. `enabled` always describes observed Loader state, not saved intent; failed application can leave the previous value visible and require configuration repair or restart. Even an active Loader phase does not establish an MCP connection.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -61,6 +69,7 @@ Fiber states map onto the public phase vocabulary, with `disposed` folding into 
 |---|---|
 | [`src/index.ts`](src/index.ts) | `PluginInventoryGateway`: the `pluginInventory` Remote service and the Loader projection |
 | [`src/types.ts`](src/types.ts) | Public payload types: `PluginInventoryEntry`, `PluginInventorySnapshot`, `PluginFiberPhase` |
+| [`src/connectors.ts`](src/connectors.ts) | Redacted connector reads and guarded profile commands |
 | — | No runtime invariant companion is published; every snapshot is projected directly from Loader-owned state. |
 
 Typert generates the Host and Client Remote artifacts exposed by `./typert` and `./remote`.
@@ -77,17 +86,18 @@ Read these when the inventory contract is not enough: how the Remote reaches cli
 - [Remote assembly](../../api/remotes/README.md) — how clients consume `pluginInventory/list` without importing the Host implementation.
 - [Cordis plugin loader](../../../vendor/loader/README.md) — the Loader whose entries this package projects.
 - [Plugin inventory settings surface](../../client/ui-settings-plugin-inventory/README.md) — the browser-side projection that renders the inventory.
+- [Connectors settings](../../client/ui-settings-connectors/README.md) — search and persistent enablement controls.
 
 -----
 
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as the host-side read-only Loader projection registers nothing model-facing.
+Indirectly, through the [MCP client](../../mcp/mcp-client/README.md), which owns the tool registrations affected by connector enablement.
 
 #### KV Cache effect
 
-None; this package neither assembles nor sends a provider request.
+Applying connector enablement changes the tool definitions available to subsequent requests; provider cache reuse belongs to request assembly and the provider.
 
 ## Known Limitations and Deferred Work
 
@@ -97,7 +107,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define what a point-in-time inventory cannot tell a client. They are current package constraints, not a task backlog.
 
 - **Point-in-time state only** — the result contains no durable failure history or subscription; a missing root Fiber is reported as `null`, regardless of why no live root exists.
-- **No provenance or mutation** — the service does not identify which bundle, profile, or override introduced an entry, and it cannot enable, disable, add, or remove plugins in either plane.
+- **No general plugin editor** — `pluginInventory` remains read-only; connector writes cover only supported explicit, unique, top-level MCP entries.
 - **Presets appear only with a roster** — a deployment without `dsh-agent-presets` serves Loader entries alone; the `agentPresets` field is absent rather than empty.
 
 <a id="dev-note"></a>

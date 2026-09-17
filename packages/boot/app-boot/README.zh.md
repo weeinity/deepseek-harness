@@ -56,6 +56,8 @@ profile 是同一套 dsh 安装提供不同应用界面的方式：`web`、`head
 
 带 `patchReload: live` 的 profile 会监视两份用户 patch 文件：有效编辑无需重启即可重新组合，被拒绝的编辑则让最后一个可用应用继续运行。`startup` profile 既不安装这些监视器，也不安装 launcher 的仅监视 HMR 回退。
 
+launcher 还安装由配置方案持有的 [MCP 连接器控制](../../client/ui-settings-connectors/README.zh.md)。它只编辑配置方案补丁中受支持的顶层 MCP 标志，将写入与用户文件刷新串行执行，并拒绝已观察到的过期修订号或更高优先级覆盖。仅启动时生效的配置方案和不支持的启动环境保持只读。磁盘持久化与 Loader 应用是独立结果；[决策记录](../../../.agents/notes/implemented/feature/2026-09-13-profile-owned-mcp-connector-controls.zh.md)说明所有权和失败保证。
+
 插入条目的插件名可以是绝对文件系统路径、文件 URL 或包标识符。patch 加载会把 `insert` 条目及其嵌套分组中的绝对路径以及相对于 patch 文件的 `./` 或 `../` 路径转换为文件 URL；对已有条目名称的断言及替换用的 `config` 值保持原样。
 
 ### 预览生效配置
@@ -100,7 +102,8 @@ profile 是同一套 dsh 安装提供不同应用界面的方式：`web`、`head
 |---|---|
 | [`src/index.ts`](src/index.ts) | 启动 helper：配置解析、环境加载、会明确报错的保护机制、激活审计、patch 解析、配置 dump、harness 源码段落 |
 | [`src/profile.ts`](src/profile.ts) | profile 发现、初始化、组合包解析、模块后备机制 |
-| — | 不发布运行时不变式伴生入口；边界与回放测试覆盖其协议映射。 |
+| [`src/profile-connectors.ts`](src/profile-connectors.ts) | 按修订号保护的 MCP 标志写入与串行配置方案协调 |
+| — | 不发布运行时不变量伴随入口；协调被拒绝后，已编写补丁与挂载状态可以合法地不一致。 |
 
 </details>
 

@@ -134,6 +134,16 @@ function withEnv<T>(name: string, value: string | undefined, action: () => T): T
   }
 }
 
+function withNodeVersion<T>(version: string, action: () => T): T {
+  const previous = process.versions.node
+  Object.defineProperty(process.versions, 'node', { value: version })
+  try {
+    return action()
+  } finally {
+    Object.defineProperty(process.versions, 'node', { value: previous })
+  }
+}
+
 describe('gate graph validation', () => {
   it.each([
     'ci-primary',
@@ -527,6 +537,109 @@ describe('Node compatibility graph', () => {
         'scripts/vitest-environment.compat.spec.ts',
       ],
     })
+  })
+})
+
+describe('Web build ownership', () => {
+  it.each([undefined, '0'])('restores Node metadata after graph construction with skip-typecheck=%s', (skipTypecheck) => {
+    const previous = Object.getOwnPropertyDescriptor(process.versions, 'node')
+    const construct = () => withNodeVersion('22.19.0', () =>
+      withEnv('DSH_NODE_COMPAT_SKIP_TYPECHECK', skipTypecheck, () =>
+        withPnpmEntrypoint(() => gatesForMode('node-compat'))))
+
+    if (skipTypecheck === undefined) construct()
+    else expect(construct).toThrow('DSH_NODE_COMPAT_SKIP_TYPECHECK')
+
+    expect(Object.getOwnPropertyDescriptor(process.versions, 'node')).toEqual(previous)
+  })
+
+  describe.each([
+    {
+      name: 'check-all',
+      mode: 'check-all',
+      version: '24.0.0',
+      skipTypecheck: undefined,
+      consumers: ['snapshot', 'expected-output', 'publint', 'built-package-invariants', 'node-next-types', 'doc-typecheck'],
+    },
+    {
+      name: 'Node 22 with typecheck',
+      mode: 'node-compat',
+      version: '22.19.0',
+      skipTypecheck: undefined,
+      consumers: ['cli-lazy-search-startup-smoke'],
+    },
+    {
+      name: 'Node 22 with typecheck skipped',
+      mode: 'node-compat',
+      version: '22.19.0',
+      skipTypecheck: '1',
+      consumers: ['cli-lazy-search-startup-smoke'],
+    },
+  ] as const)('$name', ({ mode, version, skipTypecheck, consumers }) => {
+    const graph = () => withNodeVersion(version, () =>
+      withEnv('DSH_NODE_COMPAT_SKIP_TYPECHECK', skipTypecheck, () =>
+        withPnpmEntrypoint(() => gatesForMode(mode))))
+
+    it('schedules one complete build without a Web-only build', () => {
+      const subject = graph()
+      const builds = subject.filter(item => item.args[1] === 'run'
+        && (item.args[2] === 'build' || item.args[2] === 'build:web'))
+
+      expect(builds).toHaveLength(1)
+      expect(builds[0]?.id).toBe('build')
+      expect(builds[0]?.args.slice(1)).toEqual(['run', 'build'])
+      for (const id of consumers) {
+        expect(subject.find(item => item.id === id)?.needs).toEqual(['build'])
+      }
+      if (mode === 'node-compat') {
+        expect(subject.some(item => item.id === 'typecheck')).toBe(skipTypecheck !== '1')
+        expect(builds[0]?.needs).toEqual(skipTypecheck === '1' ? undefined : ['typecheck'])
+      }
+    })
+
+    it.each(['passed', 'failed'] as const)(
+      'starts artifact consumers only after the complete build passes (%s build)',
+      async (buildStatus) => {
+        const subject = graph()
+        const settled = new Map<string, GateResult['status']>()
+        const execute = vi.fn(async (item: Gate) => {
+          if (consumers.some(id => id === item.id)) expect(settled.get('build')).toBe('passed')
+          return resultFor(item, item.id === 'build' ? buildStatus : 'passed')
+        })
+
+        const results = await runGates(subject, subject.length, execute, (result) => {
+          settled.set(result.gate.id, result.status)
+        })
+
+        expect(execute.mock.calls.filter(([item]) => item.id === 'build')).toHaveLength(1)
+        for (const id of consumers) {
+          expect(results.find(result => result.gate.id === id)?.status)
+            .toBe(buildStatus === 'passed' ? 'passed' : 'skipped')
+          if (buildStatus === 'failed') {
+            expect(execute.mock.calls.some(([item]) => item.id === id)).toBe(false)
+          }
+        }
+      },
+    )
+  })
+
+  it.each([
+    ['24.0.0', undefined],
+    ['24.0.0', '1'],
+    ['26.0.0', undefined],
+    ['26.0.0', '1'],
+  ] as const)('keeps Node %s compatibility build-free with skip-typecheck=%s', (version, skipTypecheck) => {
+    const subject = withNodeVersion(version, () =>
+      withEnv('DSH_NODE_COMPAT_SKIP_TYPECHECK', skipTypecheck, () =>
+        withPnpmEntrypoint(() => gatesForMode('node-compat'))))
+
+    expect(subject.map(item => item.id)).toEqual([
+      ...skipTypecheck === '1' ? [] : ['typecheck'],
+      'source-worker-smoke',
+      'jsonl-zstd-smoke',
+      'dsh-source-launch-smoke',
+      'vitest-jsdom-smoke',
+    ])
   })
 })
 

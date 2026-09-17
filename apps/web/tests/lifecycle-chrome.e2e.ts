@@ -189,8 +189,8 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     }
     // The blank frame renders the hero, not the resident composer: the
     // headline plus the guidance placeholder are the empty state's anchors.
-    await expect.poll(() => page.getByText('Into the Unknown', { exact: false }).count(), { timeout: 15_000 }).toBe(1)
-    const headline = page.getByText('Into the Unknown', { exact: true })
+    await expect.poll(() => page.getByText('Label everything', { exact: false }).count(), { timeout: 15_000 }).toBe(1)
+    const headline = page.getByText('Label everything', { exact: true })
     const heroMark = headline.locator('xpath=../preceding-sibling::span[1]').locator('svg')
     expect(await heroMark.getAttribute('data-brand')).toBe('mip-autolabeling')
     const input = page.locator('[data-composer-input]').first()

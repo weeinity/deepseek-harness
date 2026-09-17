@@ -69,6 +69,7 @@ kind: "package-group"
 | [`ui-agent-preset/`](ui-agent-preset/README.zh.md) | 选择会话的 agent 预设并编写预设组合 | — |
 | [`ui-settings/`](ui-settings/README.zh.md) | 承载设置界面及其扩展区域 | — |
 | [`ui-settings-general/`](ui-settings-general/README.zh.md) | 提供常规设置分区 | — |
+| [`ui-settings-connectors/`](ui-settings-connectors/README.zh.md) | 搜索已配置的 MCP 服务器并持久控制其启用状态 | — |
 | [`ui-settings-models/`](ui-settings-models/README.zh.md) | 提供模型提供方配置与 DeepSeek 引导 | — |
 | [`ui-settings-plugin-inventory/`](ui-settings-plugin-inventory/README.zh.md) | 向“插件”设置贡献只读的 Host Loader 清单标签页 | — |
 | [`ui-deliverables/`](ui-deliverables/README.zh.md) | 生成已产出文件的轮次尾部与可点击的最终响应文件引用 | — |

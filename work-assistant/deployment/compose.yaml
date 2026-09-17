@@ -1,0 +1,26 @@
+services:
+  work-assistant:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    ports:
+      - "127.0.0.1:3081:3080"
+    environment:
+      DSH_HOME: /data/dsh-home
+      WA_PROFILE: personal-assistant
+      WA_WORKSPACE: /workspace
+      WA_MEMORY_ROOT: /workspace/memory
+      WA_OWNER_ID: personal
+      WA_PROVIDER: ${WA_PROVIDER:?set WA_PROVIDER}
+      WA_MODEL: ${WA_MODEL:?set WA_MODEL}
+      WA_TIME_ZONE: ${WA_TIME_ZONE:?set WA_TIME_ZONE}
+      WA_CALENDAR_FILE: /workspace/calendar.ics
+      WA_SCHEDULE_ENABLED: "false"
+    volumes:
+      - ../data/dsh-home:/data/dsh-home
+      - ../workspace:/workspace
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

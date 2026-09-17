@@ -8,6 +8,9 @@
     "src"
   ],
   "references": [
+    { "path": "../../boot/app-boot" },
+    { "path": "../webserver" },
+    { "path": "../../util/values" },
     {
       "path": "../../../vendor/cordis"
     },

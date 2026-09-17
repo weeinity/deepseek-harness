@@ -48,6 +48,16 @@ describe('Pill', () => {
 })
 
 describe('Input', () => {
+  it('keeps the search variant named and editable without forwarding its variant to the native input', () => {
+    const onChange = vi.fn()
+    render(<Input variant="search" type="search" aria-label="Search connectors" value="mcp" onChange={onChange} />)
+    const input = screen.getByRole<HTMLInputElement>('searchbox', { name: 'Search connectors' })
+    expect(input.value).toBe('mcp')
+    expect(input.hasAttribute('variant')).toBe(false)
+    fireEvent.change(input, { target: { value: 'obsidian' } })
+    expect(onChange).toHaveBeenCalledOnce()
+  })
+
   it('forwards value/onChange and renders the leading icon', () => {
     const onChange = vi.fn()
     render(<Input icon={<svg data-testid="ic" />} value="q" onChange={onChange} placeholder="search" />)

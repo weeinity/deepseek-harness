@@ -233,7 +233,7 @@ Source: [`packages/api/settings-controller/src/index.ts:36`](../packages/api/set
 
 ## `@deepseek-ai/dsh-api-taskboard-controller`
 
-Requires: `typert` · `taskboard` · `workspaceRegistry` · `sessionController` · `sessionPersistence` · `sessions` · `agents` · `agentPresets` · `permissionPresets` · `settings` · `systemPrompt`
+Requires: `typert` · `taskboard` · `workspaceRegistry` · `sessionController` · `sessionPersistence` · `sessions` · `sessionProjections` · `agents` · `agentPresets` · `permissionPresets` · `settings` · `systemPrompt` · `llm`
 
 ```ts config-catalog
 /** Deployment policy for Taskboard execution, scheduling, and native integrations. */
@@ -3540,6 +3540,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-schedule` ([`packages/client/ui-schedule/src/index.ts`](../packages/client/ui-schedule/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-session` ([`packages/client/ui-session/src/index.ts`](../packages/client/ui-session/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings` ([`packages/client/ui-settings/src/index.ts`](../packages/client/ui-settings/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-settings-connectors` ([`packages/client/ui-settings-connectors/src/index.ts`](../packages/client/ui-settings-connectors/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-general` ([`packages/client/ui-settings-general/src/index.ts`](../packages/client/ui-settings-general/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-models` ([`packages/client/ui-settings-models/src/index.ts`](../packages/client/ui-settings-models/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-plugin-inventory` ([`packages/client/ui-settings-plugin-inventory/src/index.ts`](../packages/client/ui-settings-plugin-inventory/src/index.ts))

@@ -3,7 +3,10 @@ import { Context, FiberState, type Plugin } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import type { AgentPresets } from '@deepseek-ai/dsh-agent-presets'
+import WebServer from '@deepseek-ai/dsh-host-webserver'
 import PluginInventoryGateway from '../src/index.ts'
+import { ConnectorsGateway } from '../src/connectors.ts'
+import type { ConnectorRevision, PluginEntryId } from '../src/types.ts'
 
 const contexts: Context[] = []
 
@@ -32,6 +35,25 @@ async function harness(): Promise<{
 }
 
 describe('PluginInventoryGateway', () => {
+  it('keeps unprofiled MCP entries readable and disposes the connector namespace with its owner', async () => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(Loader)
+    const fiber = ctx.plugin(PluginInventoryGateway)
+    await fiber
+    await ctx.loader.create({ name: '@deepseek-ai/dsh-mcp-client', disabled: true, config: { serverName: 'fixture', transport: 'stdio' } })
+    await ctx.loader.create({ name: 'cordis:irrelevant', disabled: true })
+    await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
+    const gateway = ctx.get('connectors') as ConnectorsGateway
+    expect((await gateway.list()).entries).toHaveLength(1)
+    expect((await gateway.list()).entries[0]).toMatchObject({ canToggle: false, blockedReason: 'unsupported-context' })
+    await expect(gateway.setEnabled({
+      id: 'missing' as PluginEntryId, enabled: true, expectedRevision: '' as ConnectorRevision,
+    })).rejects.toMatchObject({ code: 'connectors/rejected' })
+    await fiber.dispose()
+    expect(ctx.get('connectors')).toBeUndefined()
+  })
+
   it('publishes one direct list method under the pluginInventory namespace', async () => {
     const { inventory } = await harness()
     expect(inventory.typertRemote).toMatchObject({
