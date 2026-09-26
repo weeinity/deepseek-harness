@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Open **Settings → Connectors** to find the MCP servers configured for the current DSH profile and enable or disable them. Search matches server names, entry identifiers, and transports across the Enabled and Disabled groups. Each connector has an identity mark and an enablement switch. Changes wait for Host acknowledgment; failures remain visible instead of appearing successful. The page follows the current language and light or dark theme.
+Open **Settings → Connectors** to find the MCP servers configured for the current DSH profile and enable or disable them. Search matches server names, entry identifiers, and transports in one list. Each connector has an identity mark and an enablement switch that keeps its row in place. Changes wait for Host acknowledgment; failures remain visible instead of appearing successful. The page follows the current language and light or dark theme.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ Open **Settings → Connectors** to find the MCP servers configured for the curr
 
 The [Web bundle](../../bundle/web-app/README.md) mounts this page in the Settings navigation. It lists configured global MCP entries, including disabled entries, but does not list per-agent preset instances or install new servers.
 
-Type in **Search connectors** to filter both groups. **Refresh connectors** reads the current Host state; an empty search result differs from a profile with no configured connectors.
+Type in **Search connectors** to filter the list. Entries retain their configured order regardless of enablement. **Refresh connectors** reads the current Host state; an empty search result differs from a profile with no configured connectors.
 
 Use a connector's switch to change its persistent enablement. Other switches remain disabled while that write is pending. A concurrent configuration edit rejects the stale write; refresh before retrying. If saving succeeds but activation fails, the page reports that distinction and asks for configuration review and a DSH restart.
 

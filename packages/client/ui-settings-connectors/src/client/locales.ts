@@ -2,7 +2,7 @@
 
 /** Copy keys used by the Connectors page and its navigation label. */
 export type ConnectorsKey =
-  | 'title' | 'intro' | 'search' | 'enabled' | 'disabled' | 'toggle'
+  | 'title' | 'intro' | 'search' | 'toggle'
   | 'loading' | 'loadFailed' | 'retry' | 'refresh' | 'empty' | 'noMatches'
   | 'saving' | 'saveFailed' | 'conflict' | 'restartRequired'
   | 'blocked.unsupported-context' | 'blocked.unsupported-target' | 'blocked.higher-precedence' | 'blocked.local-only'
@@ -15,8 +15,6 @@ export const en: Record<ConnectorsKey, string> = {
   title: 'Connectors',
   intro: 'Manage the MCP servers configured for this DSH profile. Enabled servers may still be connecting.',
   search: 'Search connectors',
-  enabled: 'Enabled ({count})',
-  disabled: 'Disabled ({count})',
   toggle: 'Enable {name}',
   loading: 'Loading connectors...',
   loadFailed: 'Connectors could not be loaded.',
@@ -49,8 +47,6 @@ export const zh: Record<ConnectorsKey, string> = {
   title: '连接器',
   intro: '管理此 DSH 配置方案中的 MCP 服务器。已启用的服务器仍可能正在连接。',
   search: '搜索连接器',
-  enabled: '已启用（{count}）',
-  disabled: '已禁用（{count}）',
   toggle: '启用 {name}',
   loading: '正在加载连接器...',
   loadFailed: '无法加载连接器。',

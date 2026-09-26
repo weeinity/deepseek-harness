@@ -4,57 +4,52 @@
   - paragraph: 管理此 DSH 配置方案中的 MCP 服务器。已启用的服务器仍可能正在连接。
   - img
   - searchbox "搜索连接器"
-  - region "已启用（1）":
-    - heading "已启用（1）" [level=3]
-    - list:
-      - listitem "WorkIQ":
-        - strong: WorkIQ
-        - text: 本地进程 已启用
-        - switch "启用 WorkIQ" [checked]
-  - region "已禁用（11）":
-    - heading "已禁用（11）" [level=3]
-    - list:
-      - listitem "ado":
-        - strong: ado
-        - text: HTTP 已禁用
-        - switch "启用 ado"
-      - listitem "icm":
-        - strong: icm
-        - text: HTTP 已禁用
-        - switch "启用 icm"
-      - listitem "kusto":
-        - strong: kusto
-        - text: HTTP 已禁用
-        - switch "启用 kusto"
-      - listitem "enghub":
-        - strong: enghub
-        - text: HTTP 已禁用
-        - switch "启用 enghub"
-      - listitem "ecs":
-        - strong: ecs
-        - text: HTTP 已禁用
-        - switch "启用 ecs"
-      - listitem "teams":
-        - strong: teams
-        - text: HTTP 已禁用
-        - switch "启用 teams"
-      - listitem "reference_memory":
-        - strong: reference_memory
-        - text: HTTP 已禁用
-        - switch "启用 reference_memory"
-      - listitem "obsidian":
-        - strong: obsidian
-        - text: HTTP 已禁用
-        - switch "启用 obsidian"
-      - listitem "exa":
-        - strong: exa
-        - text: HTTP 已禁用 更高优先级的配置覆盖了此连接器。
-        - switch "启用 exa" [disabled]
-      - listitem "bluebird":
-        - strong: bluebird
-        - text: HTTP 已禁用
-        - switch "启用 bluebird"
-      - listitem "mrd":
-        - strong: mrd
-        - text: HTTP 已禁用
-        - switch "启用 mrd"
+  - list:
+    - listitem "ado":
+      - strong: ado
+      - text: HTTP 已禁用
+      - switch "启用 ado"
+    - listitem "icm":
+      - strong: icm
+      - text: HTTP 已禁用
+      - switch "启用 icm"
+    - listitem "kusto":
+      - strong: kusto
+      - text: HTTP 已禁用
+      - switch "启用 kusto"
+    - listitem "enghub":
+      - strong: enghub
+      - text: HTTP 已禁用
+      - switch "启用 enghub"
+    - listitem "ecs":
+      - strong: ecs
+      - text: HTTP 已禁用
+      - switch "启用 ecs"
+    - listitem "teams":
+      - strong: teams
+      - text: HTTP 已禁用
+      - switch "启用 teams"
+    - listitem "reference_memory":
+      - strong: reference_memory
+      - text: HTTP 已禁用
+      - switch "启用 reference_memory"
+    - listitem "obsidian":
+      - strong: obsidian
+      - text: HTTP 已禁用
+      - switch "启用 obsidian"
+    - listitem "exa":
+      - strong: exa
+      - text: HTTP 已禁用 更高优先级的配置覆盖了此连接器。
+      - switch "启用 exa" [disabled]
+    - listitem "bluebird":
+      - strong: bluebird
+      - text: HTTP 已禁用
+      - switch "启用 bluebird"
+    - listitem "mrd":
+      - strong: mrd
+      - text: HTTP 已禁用
+      - switch "启用 mrd"
+    - listitem "WorkIQ":
+      - strong: WorkIQ
+      - text: 本地进程 已启用
+      - switch "启用 WorkIQ" [checked]

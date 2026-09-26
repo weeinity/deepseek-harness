@@ -10,7 +10,7 @@ A browser toggle must survive restart without changing a different plugin or ove
 
 ## Decision
 
-The Connectors settings page lists configured global MCP entries, including disabled entries, and groups them by enablement. It projects allowlisted names, identifiers, transports, and Loader phases; commands, arguments, endpoints, headers, environment values, and executable configuration expressions are not browser metadata.
+The Connectors settings page lists configured global MCP entries, including disabled entries, in their configured order. Enablement changes preserve row identity and position in the single list. It projects allowlisted names, identifiers, transports, and Loader phases; commands, arguments, endpoints, headers, environment values, and executable configuration expressions are not browser metadata.
 
 The client resolves names to locally bundled identity marks; unknown names use monograms. Logo pixels ship in the client bundle; profile data cannot choose an image URL. Mark colors do not indicate enablement or transport health. Read-only controls show a padlock without muting the mark; pending writes disable controls without implying a configuration restriction.
 
@@ -38,4 +38,4 @@ The page supports persistent controls for writable configured targets while expl
 
 The profile owner carries the persistence complexity; the browser carries no connection secrets or configuration serializer. Tool availability changes through the existing MCP lifecycle, without model requests from Settings.
 
-Focused coverage includes real Loader composition and MCP tool registration, stale and concurrent writes, configuration preservation, application failure, and owner disposal. Browser component coverage includes filtering, localized refusal messages, pending writes, stale responses, and focus after regrouping.
+Focused coverage includes real Loader composition and MCP tool registration, stale and concurrent writes, configuration preservation, application failure, and owner disposal. Browser component coverage includes filtering, localized refusal messages, pending writes, stale responses, stable row order, and keyboard focus after toggling.

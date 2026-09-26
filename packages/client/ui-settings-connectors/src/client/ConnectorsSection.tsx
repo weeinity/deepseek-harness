@@ -1,4 +1,4 @@
-/** Searchable, grouped MCP entries with revision-fenced enablement controls. */
+/** Searchable MCP entries with stable row order and revision-fenced enablement controls. */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { LockSimpleIcon } from '@phosphor-icons/react/ssr'
 import type { ConnectorEntry, ConnectorSnapshot } from '@deepseek-ai/dsh-api-remotes/client'
@@ -16,12 +16,11 @@ type ReadState =
 /**
  * Render configured MCP servers without reading their private connection configuration.
  * @param props - Settings slot inputs, localized copy, and Host operations.
- * @returns Search, enabled/disabled groups, and explicit read/write outcomes.
+ * @returns Search, one ordered connector list, and explicit read/write outcomes.
  */
 export function ConnectorsSection({ list, setEnabled, t }: ConnectorsSectionProps) {
   const headingId = useId()
-  const root = useRef<HTMLElement>(null)
-  const pendingFocus = useRef<{ id: ConnectorEntry['id']; element: Element } | null>(null)
+  const pendingFocus = useRef<HTMLButtonElement | null>(null)
   const [state, setState] = useState<ReadState>({ status: 'loading' })
   const [query, setQuery] = useState('')
   const [refresh, setRefresh] = useState(0)
@@ -44,23 +43,19 @@ export function ConnectorsSection({ list, setEnabled, t }: ConnectorsSectionProp
 
   useLayoutEffect(() => {
     if (busy !== null || pendingFocus.current === null) return
-    const { id, element } = pendingFocus.current
+    const element = pendingFocus.current
     pendingFocus.current = null
     if (document.activeElement !== element && document.activeElement !== document.body) return
-    // Moving between groups replaces the switch; preserve keyboard focus unless the user moved it.
-    for (const row of root.current?.querySelectorAll<HTMLElement>('[data-connector-id]') ?? []) {
-      if (row.dataset.connectorId !== id) continue
-      row.querySelector<HTMLButtonElement>('[role="switch"]')?.focus()
-      break
-    }
-  }, [busy, state])
+    // Native disabling can blur the switch while its write is pending.
+    element.focus({ preventScroll: true })
+  }, [busy])
 
   const change = (entry: ConnectorEntry, enabled: boolean, expectedRevision: ConnectorSnapshot['revision']) => {
     const current = ++generation.current
     const element = document.activeElement
-    pendingFocus.current = element?.matches('[role="switch"]')
+    pendingFocus.current = element instanceof HTMLButtonElement && element.matches('[role="switch"]')
       && element.closest('[data-connector-id]')?.getAttribute('data-connector-id') === entry.id
-      ? { id: entry.id, element }
+      ? element
       : null
     setBusy(entry.id)
     setNotice(null)
@@ -85,7 +80,7 @@ export function ConnectorsSection({ list, setEnabled, t }: ConnectorsSectionProp
     [entry.serverName, entry.id, entry.transport ?? 'MCP'].some(value => value.toLowerCase().includes(normalized))) ?? []
 
   return (
-    <section ref={root} className={css.section} aria-labelledby={headingId}>
+    <section className={css.section} aria-labelledby={headingId}>
       <div className={css.header}>
         <h2 id={headingId} className={css.title}>{t('title')}</h2>
         <Button size="sm" variant="ghost" disabled={state.status === 'loading' || busy !== null}
@@ -101,45 +96,37 @@ export function ConnectorsSection({ list, setEnabled, t }: ConnectorsSectionProp
         <Button variant="outline" size="sm" onClick={() => { setRefresh(value => value + 1) }}>{t('retry')}</Button>
       </div>}
       {notice !== null && <p className={css.failure} role="alert">{t(notice)}</p>}
-      {busy !== null && <p className={css.status} role="status">{t('saving')}</p>}
       {snapshot !== undefined && <>
         {snapshot.capability === 'read-only' && <p className={css.status}>{t('blocked.unsupported-context')}</p>}
         {entries.length === 0
           ? <p className={css.status} role="status">{t(snapshot.entries.length === 0 ? 'empty' : 'noMatches')}</p>
-          : [true, false].map((enabled) => {
-            const group = entries.filter(entry => entry.enabled === enabled)
-            if (group.length === 0) return null
-            const groupId = `${headingId}-${enabled ? 'enabled' : 'disabled'}`
-            return <section key={String(enabled)} className={css.group} aria-labelledby={groupId}>
-              <h3 id={groupId} className={css.groupTitle}>{t(enabled ? 'enabled' : 'disabled', { count: group.length })}</h3>
-              <ul className={css.list}>
-                {group.map((entry) => {
-                  const blocked = entry.blockedReason === undefined ? undefined : t(`blocked.${entry.blockedReason}`)
-                  const readOnly = !entry.canToggle || snapshot.capability !== 'live'
-                  const status = t(!entry.enabled ? 'phase.disabled' : `phase.${entry.fiberPhase ?? 'unobserved'}`)
-                  return <li key={entry.id} className={css.row} data-connector-id={entry.id}
-                    aria-label={entry.serverName} aria-busy={busy === entry.id}>
-                    <ConnectorMark name={entry.serverName} />
-                    <div className={css.details}>
-                      <strong className={css.name}>{entry.serverName}</strong>
-                      <span className={css.metadata}>
-                        {t(entry.transport === 'stdio' ? 'stdio' : entry.transport === 'streamable-http' ? 'http' : 'unknownTransport')}
-                        {' '}<span aria-hidden="true">·</span>{' '}{status}
-                      </span>
-                      {blocked !== undefined && <span className={css.metadata}>{blocked}</span>}
-                    </div>
-                    <span className={css.controls}>
-                      {readOnly && <LockSimpleIcon className={css.lock} size={12} aria-hidden="true" focusable="false" />}
-                      <Switch checked={entry.enabled} label={t('toggle', { name: entry.serverName })}
-                        disabled={busy !== null || readOnly}
-                        title={blocked} onChange={(next) => { change(entry, next, snapshot.revision) }} />
-                    </span>
-                  </li>
-                })}
-              </ul>
-            </section>
-          })}
+          : <ul className={css.list}>
+            {entries.map((entry) => {
+              const blocked = entry.blockedReason === undefined ? undefined : t(`blocked.${entry.blockedReason}`)
+              const readOnly = !entry.canToggle || snapshot.capability !== 'live'
+              const status = t(!entry.enabled ? 'phase.disabled' : `phase.${entry.fiberPhase ?? 'unobserved'}`)
+              return <li key={entry.id} className={css.row} data-connector-id={entry.id}
+                aria-label={entry.serverName} aria-busy={busy === entry.id}>
+                <ConnectorMark name={entry.serverName} />
+                <div className={css.details}>
+                  <strong className={css.name}>{entry.serverName}</strong>
+                  <span className={css.metadata}>
+                    {t(entry.transport === 'stdio' ? 'stdio' : entry.transport === 'streamable-http' ? 'http' : 'unknownTransport')}
+                    {' '}<span aria-hidden="true">·</span>{' '}{status}
+                  </span>
+                  {blocked !== undefined && <span className={css.metadata}>{blocked}</span>}
+                </div>
+                <span className={css.controls}>
+                  {readOnly && <LockSimpleIcon className={css.lock} size={12} aria-hidden="true" focusable="false" />}
+                  <Switch checked={entry.enabled} label={t('toggle', { name: entry.serverName })}
+                    disabled={busy !== null || readOnly}
+                    title={blocked} onChange={(next) => { change(entry, next, snapshot.revision) }} />
+                </span>
+              </li>
+            })}
+          </ul>}
       </>}
+      {busy !== null && <p className={css.status} role="status">{t('saving')}</p>}
     </section>
   )
 }

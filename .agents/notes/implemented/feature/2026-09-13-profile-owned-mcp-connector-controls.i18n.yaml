@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-13-profile-owned-mcp-connector-controls.md
-2026-09-13-profile-owned-mcp-connector-controls.md: 4d2118772c7af323c2d51a315a70cb6f55207920
-2026-09-13-profile-owned-mcp-connector-controls.zh.md: 107f28d334865751f1bb07920969f58fd2e20891
+2026-09-13-profile-owned-mcp-connector-controls.md: ae742995b5de8e00c226eb63c889e0701dbbb7f2
+2026-09-13-profile-owned-mcp-connector-controls.zh.md: 82c4013ed2c6c2f7a213f84c5079caf1c8104fa3

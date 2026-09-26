@@ -4,57 +4,52 @@
   - paragraph: Manage the MCP servers configured for this DSH profile. Enabled servers may still be connecting.
   - img
   - searchbox "Search connectors"
-  - region "Enabled (1)":
-    - heading "Enabled (1)" [level=3]
-    - list:
-      - listitem "WorkIQ":
-        - strong: WorkIQ
-        - text: Local process Enabled
-        - switch "Enable WorkIQ" [checked]
-  - region "Disabled (11)":
-    - heading "Disabled (11)" [level=3]
-    - list:
-      - listitem "ado":
-        - strong: ado
-        - text: HTTP Disabled
-        - switch "Enable ado"
-      - listitem "icm":
-        - strong: icm
-        - text: HTTP Disabled
-        - switch "Enable icm"
-      - listitem "kusto":
-        - strong: kusto
-        - text: HTTP Disabled
-        - switch "Enable kusto"
-      - listitem "enghub":
-        - strong: enghub
-        - text: HTTP Disabled
-        - switch "Enable enghub"
-      - listitem "ecs":
-        - strong: ecs
-        - text: HTTP Disabled
-        - switch "Enable ecs"
-      - listitem "teams":
-        - strong: teams
-        - text: HTTP Disabled
-        - switch "Enable teams"
-      - listitem "reference_memory":
-        - strong: reference_memory
-        - text: HTTP Disabled
-        - switch "Enable reference_memory"
-      - listitem "obsidian":
-        - strong: obsidian
-        - text: HTTP Disabled
-        - switch "Enable obsidian"
-      - listitem "exa":
-        - strong: exa
-        - text: HTTP Disabled A higher-priority configuration overrides this connector.
-        - switch "Enable exa" [disabled]
-      - listitem "bluebird":
-        - strong: bluebird
-        - text: HTTP Disabled
-        - switch "Enable bluebird"
-      - listitem "mrd":
-        - strong: mrd
-        - text: HTTP Disabled
-        - switch "Enable mrd"
+  - list:
+    - listitem "ado":
+      - strong: ado
+      - text: HTTP Disabled
+      - switch "Enable ado"
+    - listitem "icm":
+      - strong: icm
+      - text: HTTP Disabled
+      - switch "Enable icm"
+    - listitem "kusto":
+      - strong: kusto
+      - text: HTTP Disabled
+      - switch "Enable kusto"
+    - listitem "enghub":
+      - strong: enghub
+      - text: HTTP Disabled
+      - switch "Enable enghub"
+    - listitem "ecs":
+      - strong: ecs
+      - text: HTTP Disabled
+      - switch "Enable ecs"
+    - listitem "teams":
+      - strong: teams
+      - text: HTTP Disabled
+      - switch "Enable teams"
+    - listitem "reference_memory":
+      - strong: reference_memory
+      - text: HTTP Disabled
+      - switch "Enable reference_memory"
+    - listitem "obsidian":
+      - strong: obsidian
+      - text: HTTP Disabled
+      - switch "Enable obsidian"
+    - listitem "exa":
+      - strong: exa
+      - text: HTTP Disabled A higher-priority configuration overrides this connector.
+      - switch "Enable exa" [disabled]
+    - listitem "bluebird":
+      - strong: bluebird
+      - text: HTTP Disabled
+      - switch "Enable bluebird"
+    - listitem "mrd":
+      - strong: mrd
+      - text: HTTP Disabled
+      - switch "Enable mrd"
+    - listitem "WorkIQ":
+      - strong: WorkIQ
+      - text: Local process Enabled
+      - switch "Enable WorkIQ" [checked]

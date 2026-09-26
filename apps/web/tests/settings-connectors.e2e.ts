@@ -39,6 +39,10 @@ describe('web e2e: MCP connector settings', () => {
     directory = await mkdtemp(join(tmpdir(), 'dsh-connectors-web-'))
     const overlay = join(directory, 'connectors.patch.yml')
     await writeFile(overlay, JSON.stringify([{ insert: [
+      ...[...MARKS.filter(mark => mark.name !== 'workiq').map(mark => mark.name), 'mrd'].map(serverName => ({
+        id: `connector-${serverName}`, name: MCP, disabled: true,
+        config: { serverName, transport: 'streamable-http', url: 'http://127.0.0.1:1/mcp' },
+      })),
       {
         id: 'connector-workiq', name: MCP,
         config: {
@@ -47,10 +51,6 @@ describe('web e2e: MCP connector settings', () => {
           failOnStartupError: true, reconnect: { enabled: false },
         },
       },
-      ...[...MARKS.filter(mark => mark.name !== 'workiq').map(mark => mark.name), 'mrd'].map(serverName => ({
-        id: `connector-${serverName}`, name: MCP, disabled: true,
-        config: { serverName, transport: 'streamable-http', url: 'http://127.0.0.1:1/mcp' },
-      })),
     ] }]) + '\n')
     scaffold = await launchWebScaffold({ extraOverlayPath: overlay, profileConnectorControls: true })
     await writeFile(join(scaffold.harnessHome, 'cordis.patch.yml'),
@@ -157,7 +157,7 @@ describe('web e2e: MCP connector settings', () => {
     }
   }
 
-  it('searches styled groups and persists keyboard toggles through the real Host API', async () => {
+  it('keeps one ordered list while persisting keyboard toggles through the real Host API', async () => {
     if (browser === undefined || scaffold === undefined) throw new Error('Connector scaffold is not ready')
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, locale: 'en-US', colorScheme: 'light' })
     onTestFailed(() => saveFailureShot(page, 'web-e2e-connectors'))
@@ -166,8 +166,13 @@ describe('web e2e: MCP connector settings', () => {
     const section = page.getByRole('region', { name: 'Connectors', exact: true })
     const workiq = page.getByRole('switch', { name: 'Enable WorkIQ' })
     const search = page.getByRole('searchbox', { name: 'Search connectors' })
+    const rows = section.getByRole('listitem')
+    const order = await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-connector-id')))
     expect(await workiq.getAttribute('aria-checked')).toBe('true')
-    expect(await section.getByRole('listitem').count()).toBe(12)
+    expect(await section.getByRole('list').count()).toBe(1)
+    expect(await section.getByRole('heading', { level: 3 }).count()).toBe(0)
+    expect(await rows.count()).toBe(12)
+    expect(await rows.last().getAttribute('aria-label')).toBe('WorkIQ')
     expect(await section.locator('[data-connector-mark] svg').count()).toBe(4)
     expect(await section.locator('[data-connector-mark] img').count()).toBe(7)
     await assertMarks(page)
@@ -184,9 +189,9 @@ describe('web e2e: MCP connector settings', () => {
     await compareOrRefreshGolden(join(EXPECTED, 'connectors.expected.md'),
       await captureStableAria(page, `section[aria-labelledby=${JSON.stringify(await section.getAttribute('aria-labelledby'))}]`, scaffold.workspaceCwd), MODE)
 
-    const light = await section.getByRole('list').first().evaluate(element => getComputedStyle(element).backgroundColor)
+    const light = await section.getByRole('list').evaluate(element => getComputedStyle(element).backgroundColor)
     await page.emulateMedia({ colorScheme: 'dark' })
-    await expect.poll(() => section.getByRole('list').first().evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(light)
+    await expect.poll(() => section.getByRole('list').evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(light)
     await assertMarks(page)
     expect(await monogram.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(58, 58, 58)')
     await search.fill('  EXA  ')
@@ -197,18 +202,46 @@ describe('web e2e: MCP connector settings', () => {
     await search.fill('')
 
     await workiq.focus()
-    await page.keyboard.press('Space')
+    const originalSwitch = (await workiq.elementHandle())!
+    const enabledPosition = await workiq.boundingBox()
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve })
+    await page.route('**/api/connectors/setEnabled', async (route) => {
+      await writeGate
+      await route.continue()
+    })
+    try {
+      await page.keyboard.press('Space')
+      await expect.poll(() => workiq.isDisabled()).toBe(true)
+      expect(await workiq.boundingBox()).toEqual(enabledPosition)
+      expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-connector-id')))).toEqual(order)
+    } finally {
+      releaseWrite()
+    }
     await page.getByRole('switch', { name: 'Enable WorkIQ', checked: false }).waitFor()
+    await page.unroute('**/api/connectors/setEnabled')
+    await expect.poll(() => workiq.isDisabled()).toBe(false)
+    expect(await workiq.evaluate((element, original) => element === original, originalSwitch)).toBe(true)
+    expect(await workiq.boundingBox()).toEqual(enabledPosition)
+    expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-connector-id')))).toEqual(order)
     expect(await workiq.evaluate(element => document.activeElement === element)).toBe(true)
     expect(await section.locator('[data-connector-mark="workiq"]').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(181, 101, 31)')
     const profilePatch = join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml')
     expect(loadOptionalPatches('connector browser test', profilePatch)).toEqual([
       { id: 'connector-workiq', name: MCP, disabled: true },
     ])
+    await originalSwitch.dispose()
     await open(page, 'en')
     expect(await workiq.getAttribute('aria-checked')).toBe('false')
+    expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-connector-id')))).toEqual(order)
+    await workiq.scrollIntoViewIfNeeded()
+    const disabledPosition = await workiq.boundingBox()
     await workiq.click()
     await page.getByRole('switch', { name: 'Enable WorkIQ', checked: true }).waitFor()
+    await expect.poll(() => workiq.isDisabled()).toBe(false)
+    expect(await workiq.boundingBox()).toEqual(disabledPosition)
+    expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-connector-id')))).toEqual(order)
+    expect(await workiq.evaluate(element => document.activeElement === element)).toBe(true)
     expect(loadOptionalPatches('connector browser test', profilePatch)).toEqual([
       { id: 'connector-workiq', name: MCP, disabled: false },
     ])
@@ -225,7 +258,8 @@ describe('web e2e: MCP connector settings', () => {
     await open(page, 'zh')
     const section = page.getByRole('region', { name: '连接器', exact: true })
     expect(await section.getByRole('searchbox', { name: '搜索连接器' }).count()).toBe(1)
-    expect(await section.getByRole('region', { name: '已启用（1）' }).count()).toBe(1)
+    expect(await section.getByRole('list').count()).toBe(1)
+    expect(await section.getByRole('heading', { level: 3 }).count()).toBe(0)
     await compareOrRefreshGolden(join(EXPECTED, 'connectors-zh.expected.md'),
       await captureStableAria(page, `section[aria-labelledby=${JSON.stringify(await section.getAttribute('aria-labelledby'))}]`, scaffold.workspaceCwd), MODE)
     expect(tripwire.pageErrors).toEqual([])

@@ -21,7 +21,7 @@ export function entry(name: string, enabled: boolean, patch: Partial<ConnectorEn
   }
 }
 
-/** Mixed enablement and transport metadata for the grouped list. */
+/** Configured order interleaves enabled and disabled connectors. */
 export const SNAPSHOT: ConnectorSnapshot = {
   revision: revision('revision-1'),
   capability: 'live',
