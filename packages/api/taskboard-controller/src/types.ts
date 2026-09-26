@@ -2,7 +2,7 @@
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   AgencyCopilotSessionId, TaskboardConnectInput, TaskboardCreateInput, TaskboardDuplicateInput,
-  TaskboardMoveInput, TaskboardTask, TaskboardUpdateInput, TaskConnection, TaskExecutionId, TaskId, TaskRunRequestId, TaskStatus,
+  TaskboardMoveInput, TaskboardTask, TaskboardUpdateInput, TaskConnection, TaskExecutionId, TaskId, TaskRunRequestId,
 } from '@deepseek-ai/dsh-taskboard/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { TaskboardRuntimeState, TaskboardSettings } from './runtime-types.ts'
@@ -116,12 +116,6 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'taskboard/session-invalid': { readonly workspaceId: WorkspaceId; readonly sessionId: SessionId }
     /** The task's destination cannot use the requested anchor. */
     'taskboard/move-invalid': { readonly beforeTaskId: TaskId }
-    /** The task's current status does not permit the requested manual destination. */
-    'taskboard/manual-status-not-allowed': {
-      readonly taskId: TaskId
-      readonly currentStatus: TaskStatus
-      readonly requestedStatus: TaskStatus
-    }
     /** Agency discovery is unavailable or incomplete. */
     'taskboard/agency-unavailable': Record<never, never>
     /** This Host deployment does not permit native Agency launch. */

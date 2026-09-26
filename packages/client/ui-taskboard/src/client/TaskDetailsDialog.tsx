@@ -108,7 +108,7 @@ export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
     setBusy(true)
     setLocalError(undefined)
     void operation().catch((reason: unknown) => {
-      setLocalError(t('error', { message: taskboardErrorText(reason, t) }))
+      setLocalError(t('error', { message: taskboardErrorText(reason) }))
     }).finally(() => { setBusy(false) })
   }
   const planningPatch = (): PlanningPatch => ({

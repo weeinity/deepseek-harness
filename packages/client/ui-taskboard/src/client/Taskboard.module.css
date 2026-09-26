@@ -36,6 +36,8 @@
 }
 
 .headerActions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.sessionTaskButton { height: 26px; gap: 6px; border-radius: 8px; corner-shape: round; font-weight: 500; white-space: nowrap; }
+.sessionTaskIcon { display: flex; }
 .search {
   display: flex;
   align-items: center;
@@ -130,6 +132,7 @@
 .column[data-status='done'],
 .statusBadge[data-status='done'] { --taskboard-status: var(--dsw-alias-taskboard-done); }
 .column[data-status='in_progress'] { border-color: color-mix(in srgb, var(--taskboard-status) 24%, transparent); }
+.column[data-drop-target] { border-color: var(--taskboard-status); background: var(--taskboard-status-bg); }
 .columnHeader { flex: none; height: 46px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 12px; }
 .statusDot { width: 8px; height: 8px; border-radius: 50%; background: var(--taskboard-status); box-shadow: 0 0 0 3px var(--taskboard-status-bg); }
 .count { min-width: 20px; height: 19px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--dsw-alias-label-tertiary); background: var(--dsw-alias-bg-overlay); font-size: 10px; }
@@ -152,6 +155,9 @@
 .card[data-selected] { border-color: var(--dsw-alias-state-business-primary); box-shadow: 0 0 0 2px var(--dsw-alias-state-business-tertiary); }
 .card[data-running] { border-color: var(--dsw-alias-state-warn-primary); }
 .card[data-blocked] { border-color: var(--dsw-alias-state-error-primary); }
+.card[draggable='true'] { cursor: grab; }
+.card[data-dragging] { cursor: grabbing; opacity: .5; transform: none; }
+.card[aria-busy='true'] { cursor: progress; }
 .cardTop { display: flex; align-items: center; min-height: 18px; }
 .taskCode { color: var(--dsw-alias-label-tertiary); font-family: var(--ds-font-family-code); font-size: 10px; font-weight: 600; }
 .priority { margin-left: auto; display: inline-flex; align-items: flex-end; gap: 1px; color: var(--dsw-alias-label-tertiary); }

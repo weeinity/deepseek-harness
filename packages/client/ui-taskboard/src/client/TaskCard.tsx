@@ -16,6 +16,8 @@ export interface TaskCardProps {
   readonly now: number
   readonly selected: boolean
   readonly draggable: boolean
+  readonly dragging: boolean
+  readonly moving: boolean
   readonly onOpen: () => void
   readonly onDragStart: (event: DragEvent<HTMLElement>) => void
   readonly onDragEnd: () => void
@@ -40,7 +42,10 @@ export function TaskCard(props: TaskCardProps) {
     <article
       className={css.card}
       aria-label={props.task.title}
+      aria-busy={props.moving || undefined}
+      title={props.draggable ? props.t('dragToMove') : undefined}
       data-selected={props.selected || undefined}
+      data-dragging={props.dragging || undefined}
       data-archived={archived || undefined}
       data-running={!archived && (activity.running || props.agencyStatus === 'in_use') || undefined}
       data-blocked={!archived && activity.blocked || undefined}
@@ -50,7 +55,6 @@ export function TaskCard(props: TaskCardProps) {
       onKeyDown={openOnKey}
       onDragStart={props.draggable ? props.onDragStart : undefined}
       onDragEnd={props.draggable ? props.onDragEnd : undefined}
-      onDragOver={props.draggable ? (event) => { event.preventDefault(); event.stopPropagation() } : undefined}
       onDrop={props.draggable ? props.onDropBefore : undefined}
     >
       {!archived && <div className={css.cardTop}>

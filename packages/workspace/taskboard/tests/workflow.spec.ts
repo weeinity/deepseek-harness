@@ -1,8 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
-import {
-  currentTaskRecord, TaskboardInputError, TaskboardManualStatusError,
-} from '../src/index.ts'
+import { currentTaskRecord, TaskboardInputError } from '../src/index.ts'
 import type { TaskStatus, TaskboardTask } from '../src/index.ts'
 import { cleanup, dsh, harness, request } from './harness.ts'
 
@@ -10,7 +8,7 @@ afterEach(cleanup)
 
 const destinations: Record<TaskStatus, readonly TaskStatus[]> = {
   backlog: ['todo', 'in_progress', 'in_review', 'done'],
-  todo: ['backlog'],
+  todo: ['backlog', 'in_progress', 'in_review', 'done'],
   in_progress: ['backlog', 'todo', 'in_review', 'done'],
   in_review: ['backlog', 'todo', 'in_progress', 'done'],
   done: ['backlog', 'todo', 'in_progress', 'in_review'],
@@ -25,57 +23,14 @@ it.each(Object.entries(destinations) as [TaskStatus, readonly TaskStatus[]][])(
       expect(task.allowedManualStatuses).toEqual(allowed)
       expect(task.allowedManualStatuses).not.toContain(status)
       expect(facility.get('taskboard')!.table('tasks').get(task.id)).not.toHaveProperty('allowedManualStatuses')
+      ;(task.allowedManualStatuses as TaskStatus[]).push(status)
+      expect(board.get(task.id)?.allowedManualStatuses).toEqual(allowed)
       const moved = await board.move({ taskId: task.id, expectedRevision: task.revision, status: destination })
       expect(moved.status).toBe(destination)
       expect(moved.allowedManualStatuses).toEqual(destinations[destination])
     }
   },
 )
-
-it.each(['in_progress', 'in_review', 'done'] as const)('rejects a manual Todo to %s transition before writing', async (status) => {
-  const { board, workspaceId, pool, ctx } = await harness()
-  const task = await board.create({ workspaceId, title: 'Todo' })
-  ;(task.allowedManualStatuses as TaskStatus[]).push(status)
-  const before = board.get(task.id)
-  const writes = vi.spyOn(pool, 'consumeInjectedFailure')
-  const changes = vi.fn()
-  ctx.on('domain/changed', changes)
-  const moving = board.move({ taskId: task.id, expectedRevision: task.revision, status })
-  await expect(moving).rejects.toBeInstanceOf(TaskboardManualStatusError)
-  await expect(moving).rejects.toMatchObject({
-    code: 'manual-status-not-allowed', taskId: task.id, currentStatus: 'todo', requestedStatus: status,
-  })
-  expect(board.get(task.id)).toEqual(before)
-  expect(board.get(task.id)?.allowedManualStatuses).toEqual(['backlog'])
-  expect(writes).not.toHaveBeenCalled()
-  expect(changes).not.toHaveBeenCalled()
-})
-
-it('checks the manual rule against the revision reached by the serialized executor', async () => {
-  const { board, workspaceId, facility } = await harness()
-  const task = await board.create({ workspaceId, title: 'Deferred', status: 'backlog' })
-  const table = facility.get('taskboard')!.table('tasks')
-  const put = table.put.bind(table)
-  const entered = Promise.withResolvers<undefined>()
-  const resume = Promise.withResolvers<undefined>()
-  vi.spyOn(table, 'put').mockImplementationOnce(async (id, value) => {
-    entered.resolve(undefined)
-    await resume.promise
-    return put(id, value)
-  })
-  const accepting = board.move({ taskId: task.id, expectedRevision: task.revision, status: 'todo' })
-  try {
-    await Promise.race([entered.promise, accepting])
-    const skipping = board.move({ taskId: task.id, expectedRevision: task.revision + 1, status: 'done' })
-    const completed = Promise.all([accepting, expect(skipping).rejects.toBeInstanceOf(TaskboardManualStatusError)])
-    resume.resolve(undefined)
-    await completed
-    expect(board.get(task.id)).toMatchObject({ status: 'todo', revision: task.revision + 1 })
-  } finally {
-    resume.resolve(undefined)
-    await Promise.allSettled([accepting])
-  }
-})
 
 it('commits execution state and tail placement together through waiting, resume and exact success', async () => {
   const { board, workspaceId, workspaces, ctx } = await harness()

@@ -37,6 +37,8 @@ A composition can register a third-party theme id with alias-token overrides thr
 
 The `--dsw-alias-taskboard-*` tokens control Taskboard status colors independently of the general business accent.
 
+The `--dsw-alias-button-accent-*` tokens supply the shared Button's blue fill, darker hover, and white foreground in both built-in themes.
+
 The `--dsw-alias-connector-*` tokens provide glyph-based connector colors, highlights, and theme-aware neutral fallbacks; bundled logos carry their own colors. Service colors stay fixed in both themes and do not convey enablement or health.
 
 ### Pre-plugin palette

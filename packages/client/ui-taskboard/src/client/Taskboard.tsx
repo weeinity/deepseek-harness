@@ -25,6 +25,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
   const taskboard = props.useTaskboard(snapshot => snapshot)
   const sessions = props.useSessions(snapshot => snapshot)
   const workspaces = props.useWorkspaces(snapshot => snapshot)
+  const requestedTaskId = props.useStore(state => state.requestedTaskId)
   const currentSession = sessions.current
   const currentWorkspace = currentSession === undefined
     ? undefined
@@ -34,6 +35,8 @@ export function Taskboard(props: TaskboardSurfaceProps) {
   const [showArchived, setShowArchived] = useState(false)
   const [selectedId, setSelectedId] = useState<TaskId>()
   const [draggedId, setDraggedId] = useState<TaskId>()
+  const [dropStatus, setDropStatus] = useState<TaskStatus>()
+  const [movingId, setMovingId] = useState<TaskId>()
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>()
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
@@ -64,7 +67,9 @@ export function Taskboard(props: TaskboardSurfaceProps) {
       : [],
   ))
   const running = runningDsh.size + runningCopilot.size
-  const dragEnabled = !showArchived && workspaceFilter !== 'all' && search.trim() === ''
+  const dragEnabled = !showArchived && movingId === undefined
+  const reorderEnabled = workspaceFilter !== 'all' && search.trim() === ''
+  const draggedTask = tasks.find(task => task.id === draggedId)
   const sourceError = taskboard.state === 'error'
     ? taskboard.error
     : workspaces.state === 'error' ? workspaces.error : null
@@ -78,6 +83,24 @@ export function Taskboard(props: TaskboardSurfaceProps) {
     if (selectedId !== undefined && selected === undefined) setSelectedId(undefined)
   }, [selected, selectedId])
   useEffect(() => { rootRef.current?.focus() }, [])
+  useEffect(() => {
+    if (requestedTaskId === undefined || taskboard.phase !== 'ready') return
+    const task = taskboard.tasks.find(row => row.id === requestedTaskId)
+    props.actions.completeTaskRequest(requestedTaskId)
+    setNewTaskStatus(undefined)
+    setCopy(undefined)
+    setSettingsOpen(false)
+    setNotice(undefined)
+    setSelectedId(task?.id)
+    if (task === undefined) {
+      setError(props.t('taskMissing'))
+      return
+    }
+    setError(undefined)
+    setSearch('')
+    setWorkspaceFilter(task.workspaceId)
+    setShowArchived(task.archivedAt !== undefined)
+  }, [requestedTaskId, taskboard.phase, taskboard.tasks, props.actions, props.t])
   useEffect(() => {
     let active = true
     setOptionsError(undefined)
@@ -106,7 +129,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
     try {
       await operation()
     } catch (reason) {
-      setError(props.t('error', { message: taskboardErrorText(reason, props.t) }))
+      setError(props.t('error', { message: taskboardErrorText(reason) }))
     }
   }
   useEffect(() => {
@@ -119,19 +142,35 @@ export function Taskboard(props: TaskboardSurfaceProps) {
     // The stable identity key deliberately controls refresh; task content/reorder changes do not rerun Agency.
   }, [agencyTaskKey])
 
-  const drop = (status: TaskStatus, event: DragEvent<HTMLElement>, beforeTaskId?: TaskId) => {
-    const payload = event.dataTransfer.getData(TASK_DRAG_MIME)
-    const task = payload !== '' && payload === draggedId
-      ? taskboard.tasks.find(candidate => candidate.id === payload && candidate.archivedAt === undefined)
-      : undefined
+  const endDrag = () => {
     setDraggedId(undefined)
-    if (!dragEnabled || task === undefined || (task.status === status && task.id === beforeTaskId)) return
-    if (task.status !== status && !task.allowedManualStatuses.includes(status)) return
-    const anchor = beforeTaskId === undefined ? undefined : taskboard.tasks.find(candidate => candidate.id === beforeTaskId)
-    if (anchor !== undefined && anchor.workspaceId !== task.workspaceId) return
-    void attempt(() => props.moveTask(task, status, beforeTaskId))
+    setDropStatus(undefined)
+  }
+  const canDrop = (status: TaskStatus) => dragEnabled && draggedTask !== undefined
+    && (draggedTask.status === status ? reorderEnabled : draggedTask.allowedManualStatuses.includes(status))
+  const dragOver = (status: TaskStatus, event: DragEvent<HTMLElement>) => {
+    if (!canDrop(status)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setDropStatus(status)
+  }
+  const drop = (status: TaskStatus, event: DragEvent<HTMLElement>, beforeTaskId?: TaskId) => {
+    const task = draggedTask
+    endDrag()
+    if (!canDrop(status) || task === undefined || event.dataTransfer.getData(TASK_DRAG_MIME) !== task.id) return
+    const effectiveBeforeTaskId = reorderEnabled ? beforeTaskId : undefined
+    if (task.id === effectiveBeforeTaskId) return
+    setMovingId(task.id)
+    void attempt(async () => {
+      try {
+        await props.moveTask(task, status, effectiveBeforeTaskId)
+      } finally {
+        setMovingId(undefined)
+      }
+    })
   }
   const dragStart = (task: TaskboardTask, event: DragEvent<HTMLElement>) => {
+    setDropStatus(undefined)
     setDraggedId(task.id)
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData(TASK_DRAG_MIME, task.id)
@@ -146,13 +185,15 @@ export function Taskboard(props: TaskboardSurfaceProps) {
       now={now}
       selected={selectedId === task.id}
       draggable={dragEnabled}
+      dragging={draggedId === task.id}
+      moving={movingId === task.id}
       onOpen={() => {
         setError(undefined)
         setNotice(undefined)
         setSelectedId(task.id)
       }}
       onDragStart={(event) => { dragStart(task, event) }}
-      onDragEnd={() => { setDraggedId(undefined) }}
+      onDragEnd={endDrag}
       onDropBefore={(event) => {
         event.preventDefault()
         event.stopPropagation()
@@ -191,7 +232,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
           <button type="button" className={showArchived ? css.primaryButton : css.secondaryButton} onClick={() => {
             setShowArchived(!showArchived)
             setSelectedId(undefined)
-            setDraggedId(undefined)
+            endDrag()
           }}>{showArchived ? props.t('backToBoard') : props.t('archivedCount', { count: archiveCount })}</button>
           <button
             type="button"
@@ -205,7 +246,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
           ><IconPlusOutline16 />{props.t('newTask')}</button>
         </div>
       </header>
-      {error !== undefined && <div className={css.errorBanner}>{error}</div>}
+      {error !== undefined && <div className={css.errorBanner} role="alert">{error}</div>}
       {notice !== undefined && <div className={css.noticeBanner}>{notice}</div>}
       {taskboard.runtime?.error !== undefined && <div className={css.errorBanner} role="alert">
         {props.t('runtimeError', { message: taskboard.runtime.error })}
@@ -214,7 +255,7 @@ export function Taskboard(props: TaskboardSurfaceProps) {
         {props.t('optionsError', { message: optionsError })}
         <button type="button" className={css.secondaryButton} onClick={() =>{  setOptionsRefresh(value => value + 1) }}>{props.t('optionsRetry')}</button>
       </div>}
-      {sourceError !== null ? <div className={css.errorBanner} role="alert">{taskboardErrorText(sourceError, props.t)}</div>
+      {sourceError !== null ? <div className={css.errorBanner} role="alert">{taskboardErrorText(sourceError)}</div>
         : taskboard.phase === 'pending' || workspaces.phase === 'pending' || taskboard.runtime === undefined
           ? <div className={css.centerMessage} role="status">{props.t('loading')}</div>
           : !taskboard.runtime.settings.enabled ? <div className={css.centerMessage}>{props.t('boardDisabled')}</div>
@@ -236,17 +277,24 @@ export function Taskboard(props: TaskboardSurfaceProps) {
                     {TASK_STATUSES.map((status) => {
                       const columnTasks = tasks.filter(task => task.status === status)
                       return (
-                        <section key={status} className={css.column} data-status={status}>
+                        <section
+                          key={status}
+                          className={css.column}
+                          data-status={status}
+                          data-drop-target={dropStatus === status && canDrop(status) || undefined}
+                          onDragOver={(event) => { dragOver(status, event) }}
+                          onDragLeave={(event) => {
+                            if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+                            setDropStatus(current => current === status ? undefined : current)
+                          }}
+                          onDrop={(event) => { event.preventDefault(); drop(status, event) }}
+                        >
                           <div className={css.columnHeader}>
                             <span className={css.statusDot} />
                             <strong>{statusLabel(props.t, status)}</strong>
                             <span className={css.count}>{columnTasks.length}</span>
                           </div>
-                          <div
-                            className={css.cards}
-                            onDragOver={(event) => { event.preventDefault() }}
-                            onDrop={(event) => { event.preventDefault(); drop(status, event) }}
-                          >
+                          <div className={css.cards}>
                             {columnTasks.map(renderCard)}
                             {columnTasks.length === 0 && <div className={css.empty}>{props.t('empty')}</div>}
                           </div>

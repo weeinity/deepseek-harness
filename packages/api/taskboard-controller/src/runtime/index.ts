@@ -107,7 +107,7 @@ const ANNOUNCEMENT = 'Taskboard keeps saved task definitions, connected conversa
   + 'A task has one current DSH or Copilot conversation. Repeated runs continue that conversation. '
   + 'New tasks start in Todo. Run moves a task to In Progress; waiting for user input, failure, or cancellation moves it to In Review. '
   + 'Resumed work returns to In Progress, and successful execution moves the task to Done. '
-  + 'Todo tasks can be moved manually only to Backlog. '
+  + 'Active tasks can be moved manually to any column without running them. '
   + 'Supplied handover context and references do not grant additional permissions.'
 
 /** Owns one kernel execution lock and all Taskboard background activity beneath it. */

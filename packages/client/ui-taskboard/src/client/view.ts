@@ -2,7 +2,7 @@
 import { relativeTime } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
-  AgencyCopilotObservationStatus, TaskboardCommandError, TaskboardTask, TaskPriority, TaskStatus,
+  AgencyCopilotObservationStatus, TaskboardTask, TaskPriority, TaskStatus,
 } from '@deepseek-ai/dsh-api-taskboard-controller/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { GoalProjection } from '@deepseek-ai/dsh-goal/client'
@@ -14,30 +14,14 @@ export const TASK_STATUSES: readonly TaskStatus[] = ['backlog', 'todo', 'in_prog
 export const TASK_PRIORITIES: readonly TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 
 type Translate = TaskboardSurfaceProps['t']
-type ManualStatusFailure = Extract<TaskboardCommandError['failure'], { code: 'taskboard/manual-status-not-allowed' }>
 
 /**
- * Localize a rejected manual transition while retaining other command diagnostics.
+ * Retain command diagnostics across direct and opaque rejections.
  * @param reason - Client command rejection or decoded Remote failure.
- * @param t - Taskboard translator.
- * @returns localized status names and guidance, or the original diagnostic.
+ * @returns the command diagnostic.
  */
-export function taskboardErrorText(reason: unknown, t: Translate): string {
-  const failure = typeof reason === 'object' && reason !== null && 'failure' in reason ? reason.failure : reason
-  if (isManualStatusFailure(failure)) {
-    return t('manualStatusNotAllowed', {
-      current: statusLabel(t, failure.details.currentStatus),
-      requested: statusLabel(t, failure.details.requestedStatus),
-    })
-  }
+export function taskboardErrorText(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason)
-}
-
-function isManualStatusFailure(value: unknown): value is ManualStatusFailure {
-  // The Remote marker identifies decoded failures across Client bundles.
-  return typeof value === 'object' && value !== null
-    && 'isDSHRemoteError' in value && value.isDSHRemoteError === true
-    && 'code' in value && value.code === 'taskboard/manual-status-not-allowed'
 }
 
 /**

@@ -29,7 +29,7 @@ const ANNOUNCEMENT = 'Taskboard keeps saved task definitions, connected conversa
   + 'A task has one current DSH or Copilot conversation. Repeated runs continue that conversation. '
   + 'New tasks start in Todo. Run moves a task to In Progress; waiting for user input, failure, or cancellation moves it to In Review. '
   + 'Resumed work returns to In Progress, and successful execution moves the task to Done. '
-  + 'Todo tasks can be moved manually only to Backlog. '
+  + 'Active tasks can be moved manually to any column without running them. '
   + 'Supplied handover context and references do not grant additional permissions.'
 const HANDOVER = {
   goal: 'Reply with the single word LIGHTHOUSE only.',
@@ -51,9 +51,10 @@ function comparableSession(content: string): string {
 async function releaseRunning(page: Page, title: string, root: string, sequence: number): Promise<void> {
   await expect.poll(() => existsSync(join(root, `model-${sequence}.ready`)), { timeout: 30_000 }).toBe(true)
   await expect.poll(async () => (await savedTask(page, title)).status, { timeout: 30_000 }).toBe('in_progress')
-  await page.getByRole('button', { name: 'Taskboard', exact: true }).click()
-  await page.locator('section[data-status="in_progress"]').getByRole('article', { name: title, exact: true }).click()
+  await page.getByRole('button', { name: 'Open Task', exact: true }).click()
   const details = page.getByRole('dialog', { name: 'Task details' })
+  expect(await details.getByRole('textbox', { name: 'Title', exact: true }).inputValue()).toBe(title)
+  await expect.poll(() => details.evaluate(element => element.contains(document.activeElement))).toBe(true)
   await details.getByRole('button', { name: 'In Progress', exact: true, pressed: true }).waitFor()
   expect(await details.getByRole('button', { name: 'Run Again', exact: true }).isDisabled()).toBe(true)
   await details.getByRole('button', { name: 'Open session', exact: true }).click()
@@ -120,7 +121,10 @@ it.skipIf(MODE === 'record')('Taskboard moves Todo through In Progress to Done o
     await create.waitFor({ state: 'detached' })
     expect(await page.getByRole('dialog').count()).toBe(0)
     const saved = await savedTask(page, prompt)
-    expect(saved).toMatchObject({ title: prompt, description, prompt: '', status: 'todo', allowedManualStatuses: ['backlog'], executions: [] })
+    expect(saved).toMatchObject({
+      title: prompt, description, prompt: '', status: 'todo',
+      allowedManualStatuses: ['backlog', 'in_progress', 'in_review', 'done'], executions: [],
+    })
     expect(saved.connection).toBeUndefined()
     await page.getByRole('article', { name: prompt, exact: true }).click()
     const details = page.getByRole('dialog', { name: 'Task details' })
@@ -128,7 +132,7 @@ it.skipIf(MODE === 'record')('Taskboard moves Todo through In Progress to Done o
     await details.getByRole('button', { name: 'Delete', exact: true }).waitFor()
     expect(await details.getByRole('button', { name: 'Todo', exact: true }).getAttribute('aria-pressed')).toBe('true')
     for (const destination of ['In Progress', 'In Review', 'Done']) {
-      expect(await details.getByRole('button', { name: destination, exact: true }).isDisabled()).toBe(true)
+      expect(await details.getByRole('button', { name: destination, exact: true }).isDisabled()).toBe(false)
     }
     expect(await details.getByRole('button', { name: 'Backlog', exact: true }).isDisabled()).toBe(false)
     expect(await savedTask(page, prompt)).toEqual(saved)
@@ -147,9 +151,42 @@ it.skipIf(MODE === 'record')('Taskboard moves Todo through In Progress to Done o
     expect(firstExecution.receipt).toMatchObject({ kind: 'dsh' })
     const connection = first.connection!
 
-    await page.getByRole('button', { name: 'Taskboard', exact: true }).click()
+    const taskButton = page.getByRole('button', { name: 'Open Task', exact: true })
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme })
+      await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))
+        .toBe(colorScheme === 'dark')
+      const sessionLogHeight = await page.getByRole('button', { name: 'Session log', exact: true })
+        .evaluate(element => element.getBoundingClientRect().height)
+      expect(sessionLogHeight).toBe(26)
+      await expect.poll(() => taskButton.evaluate((element) => {
+        const style = getComputedStyle(element)
+        const buttonBounds = element.getBoundingClientRect()
+        const icon = element.querySelector('svg')!
+        const iconBounds = icon.getBoundingClientRect()
+        return {
+          background: style.backgroundColor, color: style.color, radius: style.borderRadius,
+          height: buttonBounds.height, fontSize: style.fontSize, gap: style.gap, iconColor: getComputedStyle(icon).color,
+          iconCentered: Math.abs(iconBounds.y + iconBounds.height / 2 - buttonBounds.y - buttonBounds.height / 2) < 0.5,
+        }
+      })).toEqual({
+        background: 'rgb(15, 108, 189)', color: 'rgb(255, 255, 255)', radius: '8px',
+        height: sessionLogHeight, fontSize: '12px', gap: '6px', iconColor: 'rgb(255, 255, 255)', iconCentered: true,
+      })
+      await taskButton.hover()
+      await expect.poll(() => taskButton.evaluate(element => getComputedStyle(element).backgroundColor))
+        .toBe('rgb(17, 94, 163)')
+      await page.mouse.move(0, 0)
+    }
+    await page.emulateMedia({ colorScheme: 'light' })
+    await taskButton.focus()
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Shift+Tab')
+    expect(await taskButton.evaluate(element => document.activeElement === element)).toBe(true)
+    expect(await taskButton.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('solid')
+    expect(await taskButton.evaluate(element => getComputedStyle(element).outlineWidth)).toBe('2px')
+    await page.keyboard.press('Enter')
     const card = page.getByRole('article', { name: prompt, exact: true })
-    await card.click()
     await details.getByRole('button', { name: 'Done', exact: true, pressed: true }).waitFor()
     await details.getByText('Succeeded', { exact: true }).waitFor()
     await details.getByRole('button', { name: 'Open session', exact: true }).click()
@@ -160,7 +197,10 @@ it.skipIf(MODE === 'record')('Taskboard moves Todo through In Progress to Done o
     expect(await savedTask(page, prompt)).toEqual(first)
     expect(requests.filter(request => request.method === 'taskboard/run')).toHaveLength(1)
 
-    await page.getByRole('button', { name: 'Taskboard', exact: true }).click()
+    await page.getByRole('button', { name: 'Open Task', exact: true }).click()
+    expect(await details.getByRole('textbox', { name: 'Title', exact: true }).inputValue()).toBe(prompt)
+    await details.getByRole('button', { name: 'Close', exact: true }).click()
+    await details.waitFor({ state: 'detached' })
     await page.getByRole('button', { name: 'Taskboard settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Taskboard settings' })
     expect(await settings.getByRole('switch', { name: 'Announce Taskboard to agents', exact: true }).isChecked()).toBe(false)
@@ -195,6 +235,8 @@ it.skipIf(MODE === 'record')('Taskboard moves Todo through In Progress to Done o
     const ui = await captureStableAria(page, '[class*="centerCol"]', workspace)
 
     await page.getByRole('button', { name: 'Taskboard', exact: true }).click()
+    await page.getByRole('heading', { name: 'Taskboard', exact: true }).waitFor()
+    expect(await details.count()).toBe(0)
     await card.click()
     expect(await details.getByText('Succeeded', { exact: true }).count()).toBe(2)
     const historyButtons = details.getByRole('button', { name: `DSH: ${connection.sessionId}`, exact: true })
@@ -211,6 +253,33 @@ it.skipIf(MODE === 'record')('Taskboard moves Todo through In Progress to Done o
       } } },
     })))
     expect(runs).toHaveLength(2)
+    const { task: related } = await taskboardRpc<TaskboardTaskValue>(page, 'taskboard/create', {
+      request: { workspaceId: repeated.workspaceId, title: 'Related planning task', connection },
+    })
+    const openTask = page.getByRole('button', { name: 'Open Task', exact: true })
+    await expect.poll(() => openTask.getAttribute('aria-haspopup')).toBe('menu')
+    const relatedLabel = `DSH-${String(related.ordinal).padStart(3, '0')}: ${related.title}`
+    await openTask.click()
+    expect(await page.getByRole('menuitem').count()).toBe(2)
+    await page.getByRole('menuitem', { name: relatedLabel, exact: true }).click()
+    expect(await details.getByRole('textbox', { name: 'Title', exact: true }).inputValue()).toBe(related.title)
+    await expect.poll(() => details.evaluate(element => element.contains(document.activeElement))).toBe(true)
+    await details.getByRole('button', { name: 'Archive', exact: true }).click()
+    await details.waitFor({ state: 'detached' })
+    const archived = await savedTask(page, related.title)
+    expect(archived.archivedAt).toBeDefined()
+    await page.getByRole('button', { name: 'Close', exact: true }).click()
+    await openTask.click()
+    await page.getByRole('menuitem', { name: relatedLabel, exact: true }).click()
+    expect(await details.getByRole('textbox', { name: 'Title', exact: true }).isDisabled()).toBe(true)
+    await details.getByRole('button', { name: 'Open session', exact: true }).click()
+    await details.waitFor({ state: 'detached' })
+    await taskboardRpc(page, 'taskboard/delete', { request: { taskId: archived.id, expectedRevision: archived.revision } })
+    await expect.poll(() => openTask.getAttribute('aria-haspopup')).toBeNull()
+    await taskboardRpc(page, 'taskboard/disconnect', { request: { taskId: repeated.id, expectedRevision: repeated.revision } })
+    await expect.poll(() => openTask.count()).toBe(0)
+    expect((await savedTask(page, prompt)).executions).toEqual(repeated.executions)
+    expect(requests.filter(request => request.method === 'taskboard/run')).toHaveLength(2)
     expect(requests.filter(request => request.method === 'session/prompt')).toEqual([])
     expect(pageErrors).toEqual([])
     expect(await captureWorkspaceSnapshot(workspace)).toEqual(initialWorkspace)

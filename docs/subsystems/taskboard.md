@@ -8,7 +8,7 @@ Source: [`packages/workspace/taskboard/src/types.ts`](../../packages/workspace/t
 
 ## Durable records
 
-`TaskboardTask` contains the planning fields, saved run prompt, explicit execution choices, optional schedule and frozen handover, and bounded execution history. Its derived `allowedManualStatuses` supplies the permitted destinations to Clients; Todo permits only Backlog. `TaskConnection` discriminates DSH and Copilot identities. A different current identity requires explicit disconnect. Preserved unresolved connection choices block execution until the user selects one.
+`TaskboardTask` contains the planning fields, saved run prompt, explicit execution choices, optional schedule and frozen handover, and bounded execution history. Its derived `allowedManualStatuses` supplies every status except the current one to Clients. `TaskConnection` discriminates DSH and Copilot identities. A different current identity requires explicit disconnect. Preserved unresolved connection choices block execution until the user selects one.
 
 `TaskExecution` snapshots the prompt, settings, handover, Workspace, and conversation for one admitted request. Its pending, running, succeeded, failed, or cancelled outcome is stored separately from the task column. Admission moves the task to In Progress, waiting for user input moves it to In Review without settling the attempt, and resumed work returns it to In Progress. Successful settlement moves it to Done; failure or cancellation moves it to In Review. Provider receipts support recovery without prompt resubmission. Historical records retain their own conversation identities after the current connection changes.
 
@@ -28,7 +28,7 @@ The Host remains responsible after a browser disconnect. Kernel ownership preven
 
 Queries scan the in-memory domain table, and repeatedly bisected fractional-rank gaps can exhaust numeric precision. Multi-process collaboration, indexed pagination, comments, attachments, and Copilot transcript import are not provided. SQLite durability does not turn the domain's process-local revision check into SQL-level compare-and-set.
 
-Design records: [Native Workspace Taskboard](../../.agents/notes/implemented/feature/2026-09-01-native-workspace-taskboard.md) and [execution-driven columns](../../.agents/notes/implemented/feature/2026-09-09-taskboard-execution-driven-columns.md).
+Design records: [Native Workspace Taskboard](../../.agents/notes/implemented/feature/2026-09-01-native-workspace-taskboard.md), [execution-driven columns](../../.agents/notes/implemented/feature/2026-09-09-taskboard-execution-driven-columns.md), and [manual status control](../../.agents/notes/implemented/feature/2026-09-25-taskboard-manual-status-control.md).
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -109,7 +109,7 @@ disconnect(taskId: TaskId, expectedRevision: number, signal?: AbortSignal): Prom
 confirmPermissions(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
 
 /**
- * Move or reorder with CAS; Todo permits only Backlog as a different manual column.
+ * Move or reorder an active task with CAS.
  * @param input - Exact revision and destination.
  * @returns committed task or unchanged same-position task.
  */

@@ -34,7 +34,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 
 | Export | What it is |
 |---|---|
-| `Button` | Clickable action; `variant` selects `primary`, `ghost`, `outline`, or `toolbar`. |
+| `Button` | Clickable action; `variant` selects `primary`, `accent`, `ghost`, `outline`, or `toolbar`. The built-in `accent` treatment uses a blue fill and white foreground. |
 | `Switch` | Two-state toggle, 36×20. `label` is required; `disabled` sets both native and ARIA disabled state. |
 | `Input` | Single-line text entry; `variant="search"` uses a spacious filled capsule instead of the compact bordered field. |
 | `Menu` | Dropdown of items, separators, and group labels, with nested submenus. |

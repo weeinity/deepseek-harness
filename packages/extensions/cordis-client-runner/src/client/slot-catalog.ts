@@ -1258,11 +1258,43 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'conversation.session.header\' (client-ui-conversation), so it exists while that entry is mounted',
     occupants: [
       'client-ui-open-in-app OpenInAppAction id \'open-in-app\'',
+      'client-ui-taskboard TaskSessionAction id \'taskboard\'',
       'session-log-export SessionLogDownloadHeaderAction id \'session-log-download\'',
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.session.header.utilities\', () => ctx.slots.register(\n      { name: \'conversation.session.header.utilities\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
     source: 'packages/client/ui-conversation/src/client/contract/slots.ts:139',
+  },
+  {
+    key: 'conversation.session.header.utilities.taskboard',
+    kind: 'single',
+    scope: 'root',
+    summary: 'Root-scoped task control sharing navigation state with the main Taskboard.',
+    doc: 'Root-scoped task control sharing navigation state with the main Taskboard.',
+    registerOptions: [],
+    ownerProps: [
+      '/** Current links resolved by the Session-scoped header entry. */\nexport interface TaskboardSessionButtonOwnerProps {\n  readonly tasks: readonly [TaskboardTask, ...TaskboardTask[]]\n}',
+    ],
+    ownerPropsReferences: [
+      'TaskboardTask',
+    ],
+    standardProps: [
+      'useResource: UseResource',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+      'useSessions: UseSessions',
+      'useSessionPendingInteraction: UseSessionPendingInteraction',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+    ],
+    keyDomain: '',
+    hookContext: '',
+    slotInject: '',
+    declaredBy: 'an entry in \'conversation.session.header.utilities\' (client-ui-taskboard), so it exists while that entry is mounted',
+    occupants: [
+      'client-ui-taskboard TaskSessionButton',
+    ],
+    replaceRisk: 'shadows-shipped-ui',
+    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.session.header.utilities.taskboard\', () => ctx.slots.register(\n      { name: \'conversation.session.header.utilities.taskboard\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
+    source: 'packages/client/ui-taskboard/src/client/contract.ts:27',
   },
   {
     key: 'conversation.trajectory.images',

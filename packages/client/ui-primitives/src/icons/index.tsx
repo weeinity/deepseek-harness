@@ -1,5 +1,5 @@
 /**
- * ic_ds_* icon set for the dsh web UI. All glyphs render fill="currentColor"
+ * ic_ds_* icon set for the dsh web UI. All glyphs use currentColor
  * and take {size, className}. Batch A mirrors the deepsuite icon library
  * (same figma source); batch B glyphs are harness-only figma extracts.
  */
@@ -122,6 +122,17 @@ export const IconPlusOutline16 = ({ size = 16, className }: IconProps) => (
       d="M8.64453 1.5V7.34961H14.5V8.65039H8.64453V14.5H7.34473V8.65039H1.5V7.34961H7.34473V1.5H8.64453Z"
       fill="currentColor"
     />
+  </svg>
+)
+
+/** Task checkbox with a checkmark extending into its open upper-right corner. */
+export const IconTaskOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M9 2H3.5A1.5 1.5 0 0 0 2 3.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5V7"
+      stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
+    />
+    <path d="m5 7 2.5 2.5 6-7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 

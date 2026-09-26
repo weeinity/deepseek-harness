@@ -44,6 +44,91 @@ async function detailsGolden(page: Page, workspace: string, task: TaskboardTask)
   })
 }
 
+it('Taskboard drags update every column, retain filtered moves, and survive reload without running work', async () => {
+  const fixture = await selectedSessionFixture(join(REPO_ROOT, 'snapshots', 'web', 'lifecycle-chrome', 'session.v3.jsonl'))
+  await withTaskboardWorld({
+    name: 'taskboard-drag',
+    patches: [join(SCENARIO, 'cordis.yml'), join(SCENARIO, 'cordis.snapshot.yml')],
+    prepare: async () => ({ DSH_SNAPSHOT_FILE: fixture, DSH_SNAPSHOT_OVERRIDE: undefined }),
+  }, async ({ page, root, workspace, requests, pageErrors }) => {
+    await connectFreshWorkspace(page, root)
+    await page.getByRole('button', { name: 'Taskboard', exact: true }).click()
+    await page.getByRole('button', { name: 'New task', exact: true }).click()
+    const create = page.getByRole('dialog', { name: 'New task' })
+    const title = 'Organize a task by dragging'
+    await field(create, 'Title').fill(title)
+    await field(create, 'Description').fill('Manual moves do not start execution.')
+    await button(create, 'Save and Close').click()
+    await create.waitFor({ state: 'detached' })
+    const initial = await savedTask(page, title)
+    await taskboardRpc(page, 'taskboard/create', {
+      request: { workspaceId: initial.workspaceId, title: 'Backlog anchor', status: 'backlog' },
+    })
+    const workspaceFilter = page.getByRole('combobox', { name: 'Workspace', exact: true })
+    await workspaceFilter.selectOption('all')
+    const card = page.getByRole('article', { name: title, exact: true })
+    const column = (status: TaskboardTask['status']) => page.locator(`section[data-status="${status}"]`)
+    const progress = column('in_progress')
+    const beforeHighlight = await progress.evaluate(element => getComputedStyle(element).backgroundColor)
+    await card.hover()
+    await page.mouse.down()
+    await progress.getByText('In Progress', { exact: true }).hover()
+    await progress.getByText('In Progress', { exact: true }).hover()
+    await expect.poll(() => progress.getAttribute('data-drop-target')).toBe('true')
+    expect(await progress.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(beforeHighlight)
+    expect(await card.evaluate(element => getComputedStyle(element).cursor)).toBe('grabbing')
+    await page.mouse.up()
+    await expect.poll(async () => (await savedTask(page, title)).status).toBe('in_progress')
+    await expect.poll(() => card.getAttribute('draggable')).toBe('true')
+    expect(await progress.getAttribute('data-drop-target')).toBeNull()
+    expect(await savedTask(page, title)).toMatchObject({ revision: initial.revision + 1, executions: [] })
+
+    const move = async (status: TaskboardTask['status'], destination: Locator): Promise<void> => {
+      const before = await savedTask(page, title)
+      await card.dragTo(destination)
+      await expect.poll(async () => (await savedTask(page, title)).status).toBe(status)
+      await expect.poll(() => card.getAttribute('draggable')).toBe('true')
+      expect(await card.evaluate(element => element.closest('section')?.getAttribute('data-status'))).toBe(status)
+      expect(await savedTask(page, title)).toMatchObject({ revision: before.revision + 1, executions: [] })
+      expect(await page.getByRole('dialog').count()).toBe(0)
+    }
+    const search = page.getByPlaceholder('Search tasks…', { exact: true })
+    await search.fill(title)
+    await move('in_review', column('in_review').getByText('No tasks in this column', { exact: true }))
+    await move('done', column('done').getByText('Done', { exact: true }))
+    await search.fill('')
+    const anchor = page.getByRole('article', { name: 'Backlog anchor', exact: true })
+    await move('backlog', anchor)
+    await workspaceFilter.selectOption(initial.workspaceId)
+    const backlogOrder = () => column('backlog').getByRole('article')
+      .evaluateAll(elements => elements.map(element => element.getAttribute('aria-label')))
+    await card.dragTo(anchor)
+    await expect.poll(backlogOrder).toEqual([title, 'Backlog anchor'])
+    await expect.poll(() => card.getAttribute('draggable')).toBe('true')
+    const backlogBounds = await column('backlog').boundingBox()
+    if (backlogBounds === null) throw new Error('Backlog column is not visible')
+    await card.dragTo(column('backlog'), { targetPosition: { x: 20, y: backlogBounds.height - 12 } })
+    await expect.poll(backlogOrder).toEqual(['Backlog anchor', title])
+    await expect.poll(() => card.getAttribute('draggable')).toBe('true')
+    await move('todo', column('todo'))
+    await move('done', column('done'))
+    const saved = await savedTask(page, title)
+    expect(saved.connection).toBeUndefined()
+    await page.reload({ waitUntil: 'load' })
+    await page.getByRole('button', { name: 'Taskboard', exact: true }).click()
+    await column('done').getByRole('article', { name: title, exact: true }).waitFor()
+    expect(await savedTask(page, title)).toEqual(saved)
+    await compareOrRefreshGolden(
+      join(REPO_ROOT, 'apps', 'web', 'tests', 'expected', 'taskboard-drag.md'),
+      await captureStableAria(page, 'div:has(> section[data-status])', workspace, { normalizeAge: true }),
+      MODE,
+    )
+    expect(requests.filter(request => request.method === 'taskboard/move')).toHaveLength(8)
+    expect(requests.filter(request => request.method === 'taskboard/run' || request.method === 'session/prompt')).toEqual([])
+    expect(pageErrors).toEqual([])
+  })
+})
+
 it('Taskboard status colors distinguish every column and remain consistent on archived cards in both themes', async () => {
   const fixture = await selectedSessionFixture(join(REPO_ROOT, 'snapshots', 'web', 'lifecycle-chrome', 'session.v3.jsonl'))
   const palette = [
@@ -185,10 +270,16 @@ it('Taskboard preserves saved inputs and history while success, failure, waiting
     expect(await savedTask(page, TITLE)).toMatchObject({
       description: 'Planning description saved and closed.', revision: beforeEdit.revision + 1,
     })
+    await page.getByRole('combobox', { name: 'Workspace', exact: true }).selectOption('all')
+    const card = page.getByRole('article', { name: TITLE, exact: true })
+    await card.dragTo(page.locator('section[data-status="in_progress"] > div:nth-child(2)'))
+    await expect.poll(async () => (await savedTask(page, TITLE)).status).toBe('in_progress')
+    expect(await card.evaluate(element => element.closest('section')?.getAttribute('data-status'))).toBe('in_progress')
     await page.getByRole('article', { name: TITLE, exact: true }).click()
     const saved = await savedTask(page, TITLE)
     expect(saved).toMatchObject({
-      status: 'todo', allowedManualStatuses: ['backlog'], priority: 'high', labels: ['fixture', 'browser'], prompt: PROMPT,
+      status: 'in_progress', allowedManualStatuses: ['backlog', 'todo', 'in_review', 'done'],
+      priority: 'high', labels: ['fixture', 'browser'], prompt: PROMPT,
       connection: { kind: 'dsh', sessionId: DSH }, executions: [],
       executionSettings: {
         kind: 'dsh', presetId: preset.id, permission: 'workspace-write',
@@ -205,10 +296,10 @@ it('Taskboard preserves saved inputs and history while success, failure, waiting
     expect(await select(details, 'Workspace').isDisabled()).toBe(true)
     expect(await select(details, 'Agent preset').isDisabled()).toBe(true)
     expect(await select(details, 'Execution type').count()).toBe(0)
-    for (const destination of ['In Progress', 'In Review', 'Done']) {
-      expect(await button(details, destination).isDisabled()).toBe(true)
+    expect(await button(details, 'In Progress').isDisabled()).toBe(true)
+    for (const destination of ['Backlog', 'Todo', 'In Review', 'Done']) {
+      expect(await button(details, destination).isDisabled()).toBe(false)
     }
-    expect(await button(details, 'Backlog').isDisabled()).toBe(false)
     const sections = ['## Saved DSH definition\n' + await detailsGolden(page, workspace, saved)]
     await expect(taskboardRpc(page, 'taskboard/connect', { request: {
       taskId: saved.id, expectedRevision: saved.revision,
@@ -233,7 +324,7 @@ it('Taskboard preserves saved inputs and history while success, failure, waiting
     await button(details, 'Run').click()
     await details.getByRole('alert').filter({ hasText: 'confirm' }).waitFor()
     expect((await savedTask(page, TITLE)).executions).toEqual([])
-    expect((await savedTask(page, TITLE)).status).toBe('todo')
+    expect((await savedTask(page, TITLE)).status).toBe('in_progress')
     await details.getByRole('checkbox', { name: 'I reviewed the permission and frozen handover', exact: true }).check()
     await button(details, 'Confirm permission and handover').click()
     await expect.poll(async () => (await savedTask(page, TITLE)).permissionConfirmedAt).toBeDefined()

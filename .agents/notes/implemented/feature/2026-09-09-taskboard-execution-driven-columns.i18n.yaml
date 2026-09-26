@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-09-taskboard-execution-driven-columns.md
-2026-09-09-taskboard-execution-driven-columns.md: ca3e4de863187f23ac8c852835782032badfa0d4
-2026-09-09-taskboard-execution-driven-columns.zh.md: 0524a8a42513fca3c29bf0f55434a88317b9619d
+2026-09-09-taskboard-execution-driven-columns.md: d4a29d466406689b90a349de242a0d2d67756325
+2026-09-09-taskboard-execution-driven-columns.zh.md: 15c7b8b123a11433a157d47696f972d710aa59ab

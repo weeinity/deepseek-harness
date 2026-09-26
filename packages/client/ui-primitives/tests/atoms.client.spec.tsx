@@ -7,18 +7,18 @@ import { POINTER_GRACE_MS } from '../src/pointer-grace.ts'
 afterEach(cleanup)
 
 describe('Button', () => {
-  it('renders children, icon, and forwards clicks', () => {
+  it.each(['primary', 'accent'] as const)('%s renders children, icon, and forwards clicks', (variant) => {
     const onClick = vi.fn()
-    render(<Button variant="primary" icon={<svg data-testid="ic" />} onClick={onClick}>Go</Button>)
+    render(<Button variant={variant} icon={<svg data-testid="ic" />} onClick={onClick}>Go</Button>)
     const button = screen.getByRole('button', { name: 'Go' })
     expect(screen.getByTestId('ic')).toBeDefined()
     fireEvent.click(button)
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
-  it('disabled blocks interaction', () => {
+  it.each(['ghost', 'accent'] as const)('%s disabled blocks interaction', (variant) => {
     const onClick = vi.fn()
-    render(<Button disabled onClick={onClick}>No</Button>)
+    render(<Button variant={variant} disabled onClick={onClick}>No</Button>)
     fireEvent.click(screen.getByRole('button'))
     expect(onClick).not.toHaveBeenCalled()
   })

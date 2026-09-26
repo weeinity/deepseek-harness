@@ -10,7 +10,7 @@ import { TaskboardLauncher } from '../src/client/TaskboardLauncher.tsx'
 import { ConnectionPicker } from '../src/client/ConnectionPicker.tsx'
 import { agencyStatusLabel, priorityLabel, statusLabel, taskActivity, taskboardErrorText, taskTimeLabel, workspaceTitle } from '../src/client/view.ts'
 import { en, zh } from '../src/client/locales.ts'
-import { copilot, dsh, manualStatusError, runtime, sessions, task, translate, workspaces } from './fixtures.client.ts'
+import { copilot, dsh, runtime, sessions, task, translate, workspaces } from './fixtures.client.ts'
 
 afterEach(cleanup)
 
@@ -28,18 +28,13 @@ function activitySessions() {
 }
 
 describe('Taskboard presentation', () => {
-  it.each([en, zh])('localizes wrapped and direct manual-status failures while retaining other diagnostics', (dictionary) => {
-    const t = translate(dictionary)
-    const error = manualStatusError('in_progress')
-    const expected = t('manualStatusNotAllowed', { current: dictionary.todo, requested: dictionary.inProgress })
-    expect(taskboardErrorText(error, t)).toBe(expected)
-    expect(taskboardErrorText(error.failure, t)).toBe(expected)
+  it('retains direct and opaque command diagnostics', () => {
     const diagnostic = Object.assign(new Error('Carrier unavailable'), {
       isDSHRemoteError: true as const, code: 'gateway/internal' as const, details: {},
     })
-    expect(taskboardErrorText(diagnostic, t)).toBe(diagnostic.message)
-    expect(taskboardErrorText(new Error('Local failure'), t)).toBe('Local failure')
-    expect(taskboardErrorText('Opaque rejection', t)).toBe('Opaque rejection')
+    expect(taskboardErrorText(diagnostic)).toBe(diagnostic.message)
+    expect(taskboardErrorText(new Error('Local failure'))).toBe('Local failure')
+    expect(taskboardErrorText('Opaque rejection')).toBe('Opaque rejection')
   })
 
   it.each([en, zh])('localizes each observed Agency state and all durable labels', (dictionary) => {
@@ -74,10 +69,12 @@ describe('Taskboard presentation', () => {
     const props: TaskCardProps = {
       task: task({ connection: dsh, priority: 'urgent', labels: ['one', 'two', 'three', 'four', 'hidden'] }),
       sessions: activitySessions(), agencyStatus: undefined, t: translate(), now: Date.parse('2026-01-01'),
-      selected: true, draggable: true, onOpen: vi.fn(), onDragStart: vi.fn(), onDragEnd: vi.fn(), onDropBefore: vi.fn(),
+      selected: true, draggable: true, dragging: false, moving: false,
+      onOpen: vi.fn(), onDragStart: vi.fn(), onDragEnd: vi.fn(), onDropBefore: vi.fn(),
     }
     const view = render(<TaskCard {...props} />)
     const card = screen.getByRole('article')
+    expect(card.title).toBe(en.dragToMove)
     screen.getByText(en.blocked)
     screen.getByText(translate()('jobs', { count: 2 }))
     expect(screen.queryByText('hidden')).toBeNull()

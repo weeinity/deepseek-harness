@@ -28,7 +28,7 @@ kind: "package-reference"
 
 创建可原子包含一个经验证的既有 `connection`；其提供方须匹配所选执行设置。对既有任务使用 `connect`。领域验证 DSH 的 Workspace 归属；调用者在创建、连接或关联执行尝试前验证 Copilot 归属。更换提供方、preset 或 Workspace 必须先断开连接。pending 或 running 尝试阻止断开、归档、删除和执行输入编辑；普通标题、描述、标签、优先级及允许的手动列编辑仍可进行。
 
-Todo 只允许手动转到 Backlog；同列排序和空操作仍有效。其他列允许转到任一不同状态。每个任务视图通过权威的 `allowedManualStatuses` 暴露目标列，排除当前列；该列表由记录派生、独立复制，且不写入存储。手动移动在串行执行器中验证当前修订和规则；目标不允许时抛出 `TaskboardManualStatusError`，代码为 `manual-status-not-allowed`。
+每个活动任务均可手动移至任一其他状态；同列排序和空操作仍有效。每个任务视图通过权威的 `allowedManualStatuses` 暴露目标列，排除当前列；该列表由记录派生、独立复制，且不写入存储。手动移动在串行执行器中验证当前修订和可选排序锚点。
 
 归档禁用调度，但不改变规划状态或会话标识。恢复保持调度禁用，且不保留下次执行时刻。复制将规划选择和 handover 复制到新的未连接任务，不带历史或确认时间戳，并禁用调度；原任务保持不变。删除返回永久移除修订号 `Number.MAX_SAFE_INTEGER`。这些操作均不修改提供方会话。
 

@@ -37,6 +37,8 @@ kind: "package-reference"
 
 `--dsw-alias-taskboard-*` token 独立控制任务看板的状态颜色，不影响通用业务强调色。
 
+`--dsw-alias-button-accent-*` token 在两个内置主题中为共享 Button 提供蓝色填充、较深的悬停色和白色前景。
+
 `--dsw-alias-connector-*` token 提供图形类连接器的颜色、高光以及随主题变化的中性后备色；打包的标志自带颜色。服务颜色在两个主题中保持固定，不表达启用状态或健康状态。
 
 ### 插件前调色板

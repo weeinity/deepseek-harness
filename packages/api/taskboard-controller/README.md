@@ -34,7 +34,7 @@ Create a task with an optional existing conversation, or let Run reserve its fir
 
 Run submits the saved run prompt, or the title and nonblank description when that prompt is blank, with any frozen handover context. DSH settings that remain unpinned preserve the connected Session's choices. A task-specific model pin does not change the default for future Sessions. Copilot defaults to read-only; elevated choices require saved confirmation. Planning edits retain revision checks.
 
-New tasks default to Todo. Accepted runs move to In Progress; waiting for user input, failure, or cancellation moves the task to In Review. Resumed execution returns to In Progress, and correlated successful completion moves the task to Done. Todo tasks can be moved manually only to Backlog; reordering within Todo remains available. Existing records and explicit creation statuses are preserved.
+New tasks default to Todo. Accepted runs move to In Progress; waiting for user input, failure, or cancellation moves the task to In Review. Resumed execution returns to In Progress, and correlated successful completion moves the task to Done. Active tasks can be moved manually to any column without running them; same-column reordering remains available. Existing records and explicit creation statuses are preserved.
 
 Questions and approvals in a linked DSH chat also move the task to In Review when the chat is continued outside Run, including tasks with no execution history. Open the linked Session to answer; resumed work enters In Progress, and the question's exact turn ending determines Done or In Review. This monitoring does not create or change execution records. Unlinked chats and archived tasks are untouched.
 

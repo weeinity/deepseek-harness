@@ -24,7 +24,7 @@ function task(overrides: Partial<TaskboardTask> = {}): TaskboardTask {
     id: id('t1'), revision: 1, ordinal: 1, workspaceId: 'workspace' as TaskboardTask['workspaceId'], title: 'Task',
     description: '', prompt: '', executionSettings: { kind: 'dsh' }, executions: [],
     status: 'todo', rank: 0, labels: [], createdAt: '2026-01-01', updatedAt: '2026-01-01', ...overrides,
-    allowedManualStatuses: status === 'todo' ? ['backlog'] : statuses.filter(candidate => candidate !== status),
+    allowedManualStatuses: statuses.filter(candidate => candidate !== status),
   }
 }
 const baseline = (tasks: readonly TaskboardTask[]): TaskboardListValue => ({ tasks, runtime })
@@ -307,25 +307,6 @@ describe('ClientTaskboardModel', () => {
     expect(model.getSnapshot().tasks).toEqual([])
     model.upsertTask(task({ revision: 5 }))
     expect(model.getSnapshot().tasks[0]?.revision).toBe(5)
-  })
-
-  it('preserves typed manual-status failure details without changing or retrying the task', async () => {
-    const ctx = new Context()
-    const wire = remote()
-    const row = task()
-    const failure = new RemoteError('taskboard/manual-status-not-allowed', 'Host diagnostic', {
-      taskId: row.id, currentStatus: 'todo', requestedStatus: 'in_review',
-    })
-    wire.move.mockResolvedValueOnce({ ok: false, error: failure })
-    const model = new ClientTaskboardModel(wire)
-    model.replaceBaseline(baseline([row]))
-    try {
-      const controller = new TaskboardClientController(ctx, model)
-      await expect(controller.move({ taskId: row.id, expectedRevision: row.revision, status: 'in_review' }))
-        .rejects.toMatchObject({ name: 'TaskboardCommandError', operation: 'move', failure })
-      expect(model.getSnapshot().tasks[0]).toBe(row)
-      expect(wire.move).toHaveBeenCalledOnce()
-    } finally { await ctx.fiber.dispose() }
   })
 
   it('installs the Host admission status without manufacturing connections or issuing a separate move', async () => {

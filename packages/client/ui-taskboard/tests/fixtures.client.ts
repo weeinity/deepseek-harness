@@ -1,6 +1,6 @@
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
-  TaskboardCommandError, TaskboardExecutionOptionsValue, TaskboardRuntimeState, TaskboardTask, TaskConnection, TaskExecution,
+  TaskboardExecutionOptionsValue, TaskboardRuntimeState, TaskboardTask, TaskConnection, TaskExecution,
 } from '@deepseek-ai/dsh-api-taskboard-controller/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { TaskboardSurfaceProps } from '../src/client/contract.ts'
@@ -16,7 +16,7 @@ export function task(overrides: Partial<TaskboardTask> = {}): TaskboardTask {
     revision: 1, ordinal: 1, title: 'Investigate', description: 'Collect evidence', status: 'todo', rank: 0, labels: [],
     prompt: '', executionSettings: { kind: 'dsh' }, executions: [],
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', ...overrides,
-    allowedManualStatuses: status === 'todo' ? ['backlog'] : TASK_STATUSES.filter(candidate => candidate !== status),
+    allowedManualStatuses: TASK_STATUSES.filter(candidate => candidate !== status),
   }
 }
 export function execution(status: TaskExecution['status'], overrides: Partial<TaskExecution> = {}): TaskExecution {
@@ -27,15 +27,6 @@ export function execution(status: TaskExecution['status'], overrides: Partial<Ta
     ...(status === 'pending' ? {} : { connection: dsh, startedAt: '2026-01-01T01:01:00.000Z' }),
     ...(['pending', 'running'].includes(status) ? {} : { endedAt: '2026-01-01T01:02:00.000Z' }), ...overrides,
   }
-}
-export function manualStatusError(requestedStatus: TaskboardTask['status'] = 'in_review'): TaskboardCommandError {
-  const failure = Object.assign(new Error('Host rejected this manual status change'), {
-    isDSHRemoteError: true as const, code: 'taskboard/manual-status-not-allowed' as const,
-    details: { taskId: task().id, currentStatus: 'todo' as const, requestedStatus },
-  })
-  return Object.assign(new Error(`Taskboard move failed: ${failure.message}`), {
-    name: 'TaskboardCommandError' as const, operation: 'move', failure,
-  })
 }
 export const options: TaskboardExecutionOptionsValue = {
   presets: [{ id: 'default', name: 'Standard agent', isDefault: true }, { id: 'broken', name: 'Broken agent', isDefault: false, broken: 'Missing plugin' }],

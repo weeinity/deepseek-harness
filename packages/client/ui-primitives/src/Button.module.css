@@ -44,6 +44,22 @@
   background: var(--dsw-alias-button-primary-hover);
 }
 
+.accent {
+  background: var(--dsw-alias-button-accent-fill);
+  color: var(--dsw-alias-button-accent-foreground);
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-button-accent-hover);
+}
+
+.accent:hover:not(:disabled),
+.accent:active:not(:disabled) {
+  background: var(--dsw-alias-button-accent-hover);
+}
+
+.accent:focus-visible {
+  outline: 2px solid var(--dsw-alias-button-accent-fill);
+  outline-offset: 2px;
+}
+
 .ghost:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
 }

@@ -13,23 +13,15 @@ afterEach(cleanupControllerHarness)
 const harness = (pool = new MemoryMediaPool()) => controllerHarness({ pool })
 
 describe('Taskboard archive feed', () => {
-  it('rejects manual Todo shortcuts through the Host API without changing the task', async () => {
-    const { ctx, controller, workspace } = await harness()
-    const { task } = await controller.create({ workspaceId: workspace.id, title: 'Run before completion' })
-    expect(task.status).toBe('todo')
-    expect(task.allowedManualStatuses).toEqual(['backlog'])
+  it('moves Todo tasks to every other column through the Host API', async () => {
+    const { controller, workspace } = await harness()
     for (const status of ['in_progress', 'in_review', 'done'] as const) {
-      await expect(controller.move({ taskId: task.id, expectedRevision: task.revision, status }))
-        .rejects.toMatchObject({
-          code: 'taskboard/manual-status-not-allowed',
-          details: { taskId: task.id, currentStatus: 'todo', requestedStatus: status },
-        })
-      expect(ctx.taskboard.get(task.id)).toEqual(task)
+      const { task } = await controller.create({ workspaceId: workspace.id, title: `Move to ${status}` })
+      expect(task.allowedManualStatuses).toEqual(['backlog', 'in_progress', 'in_review', 'done'])
+      const { task: moved } = await controller.move({ taskId: task.id, expectedRevision: task.revision, status })
+      expect(moved.status).toBe(status)
+      expect(moved.allowedManualStatuses).not.toContain(status)
     }
-    const { task: deferred } = await controller.move({
-      taskId: task.id, expectedRevision: task.revision, status: 'backlog',
-    })
-    expect(deferred.status).toBe('backlog')
   })
 
   it('maps owned business failures to Error instances with namespaced codes and typed details', async () => {

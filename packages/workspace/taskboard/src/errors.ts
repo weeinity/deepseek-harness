@@ -1,7 +1,7 @@
 /** Semantic errors exposed by durable Taskboard commands. */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
-import type { TaskId, TaskStatus } from './types.ts'
+import type { TaskId } from './types.ts'
 
 /** Task lookup failed. */
 export class TaskboardTaskNotFoundError extends Error {
@@ -52,26 +52,6 @@ export class TaskboardMoveInvalidError extends Error {
   constructor(readonly beforeTaskId: TaskId) {
     super(`Task rank anchor '${beforeTaskId}' is not in the destination column`)
     this.name = 'TaskboardMoveInvalidError'
-  }
-}
-
-/** A manual column change is not permitted from the task's current workflow state. */
-export class TaskboardManualStatusError extends Error {
-  /** Stable rejection code for manual workflow restrictions. */
-  readonly code = 'manual-status-not-allowed'
-
-  /**
-   * @param taskId - Task whose current revision was checked.
-   * @param currentStatus - Current workflow column.
-   * @param requestedStatus - Rejected manual destination.
-   */
-  constructor(
-    readonly taskId: TaskId,
-    readonly currentStatus: TaskStatus,
-    readonly requestedStatus: TaskStatus,
-  ) {
-    super(`Task '${taskId}' cannot move manually from '${currentStatus}' to '${requestedStatus}'`)
-    this.name = 'TaskboardManualStatusError'
   }
 }
 

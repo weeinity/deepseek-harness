@@ -20,6 +20,8 @@ AppFrame owns a root-scoped keyed `main.surface`. Its selected id lives in the r
 
 The sidebar launcher registers in `sidebar.footer.action`. Session navigation opens a Session first and closes Taskboard second, so an invalid id leaves the board visible. Run waits for Host dispatch acknowledgement before navigation. Unsaved execution inputs prevent dispatch rather than silently sending stale content; opening a linked conversation never resubmits instructions.
 
+Session-header navigation derives its targets from current DSH task connections, including archives, rather than historical or unresolved links. A root-scoped child control and Taskboard share a one-shot selection store; the Session-scoped header does not create per-Session navigation stores. Consuming the request prevents ordinary sidebar navigation from reopening stale details. Multiple current links require a user choice.
+
 New Task and task editing support associating an existing conversation. The Host validates Workspace membership before committing a changed selection. Create can save content and a validated connection together, preventing orphan task creation after failed link validation. Ordinary planning edits require no provider discovery.
 
 Native terminal navigation uses Host-derived identities and registered Workspace paths. The browser supplies no executable, argv, cwd, or environment. The adapter retains fixed resume arguments and shared Win32 quoting through Windows Terminal's semicolon parser and command-line reconstruction.
@@ -50,6 +52,8 @@ Confirmed deletion removes only the revision-checked Taskboard record. Session a
 
 **Keep archived cards only in browser state.** A page refresh would lose the Archive list. The same authoritative task feed carries active and archived records; presentation filters them without creating another business-state store.
 
+**Persist a reverse Session-to-task index.** Current task connections already determine the targets. A second saved index can diverge after disconnect, reassociation, or deletion and is unnecessary for presentation-only navigation.
+
 **Save a task before linking the selected CLI session.** Link validation could fail after creation, leaving a task whose saved state disagrees with the submitted form. One validated durable write keeps both outcomes together.
 
 **Delete linked sessions with their task.** Existing sessions may predate the task or be linked elsewhere. Removing a planning record does not authorize stopping their work or erasing their history.
@@ -60,7 +64,7 @@ Planning tests cover ordering, revision races, Workspace membership, archive, an
 
 Archive feed tests cover reopened Host projections, archived upserts, and Workspace removal. Client tests retain archives across stale updates and reconnects, discard delayed Agency observations, and separate planning status from live activity. Taskboard component tests cover unsaved cancellation, both save choices, pending and failed saves, delayed completion after task removal, bilingual Archive filters, read-only archived details, and operation feedback inside the modal.
 
-Existing-conversation tests cover Workspace-filtered discovery, stale selections after Workspace changes, visible discovery failures, atomic creation with a connection, explicit disconnect, and reload durability. Component and assembled cases select a conversation without starting work.
+Existing-conversation tests cover Workspace-filtered discovery, stale selections after Workspace changes, visible discovery failures, atomic creation with a connection, explicit disconnect, and reload durability. Component and assembled cases select a conversation without starting work. Session-header navigation covers current links, archived details, shared-Session task choices, deleted-task feedback, consumed requests, and unchanged execution history.
 
 Deletion tests cover active and archived records, preserved session links outside the deleted record, revision conflicts, removal frames, delayed echoes, and reopened Host state. UI tests exercise bilingual confirmation, cancellation with retained drafts, failure and retry, and duplicate-submit prevention; the assembled scenario removes both active and archived tasks.
 

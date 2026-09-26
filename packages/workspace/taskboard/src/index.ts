@@ -6,7 +6,7 @@ import Schema from '@deepseek-ai/schemastery'
 import type { Domain, DomainFacility, KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { Workspace, WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import {
-  TaskboardExecutionError, TaskboardInputError, TaskboardManualStatusError, TaskboardMoveInvalidError, TaskboardRevisionConflictError,
+  TaskboardExecutionError, TaskboardInputError, TaskboardMoveInvalidError, TaskboardRevisionConflictError,
   TaskboardSessionInvalidError, TaskboardTaskArchivedError, TaskboardTaskNotFoundError, TaskboardWorkspaceNotFoundError,
 } from './errors.ts'
 import { taskboardTaskView } from './projection.ts'
@@ -14,7 +14,7 @@ import { taskExecutionPrompt } from './prompt.ts'
 import { nextTaskScheduleRun } from './schedule.ts'
 import { currentTaskRecord, taskboardDomainSpec, taskExecutionSettings, taskScheduleInput } from './spec.ts'
 import type { TaskRecord } from './spec.ts'
-import { manualTaskStatuses, taskStatuses } from './status.ts'
+import { taskStatuses } from './status.ts'
 import type {
   AgencyCopilotSessionId as AgencyCopilotSessionIdBrand, TaskboardAdvanceExecutionInput, TaskboardAttachExecutionInput,
   TaskboardBeginExecutionInput, TaskboardBeginExecutionValue, TaskboardConnectInput, TaskboardCreateInput,
@@ -399,7 +399,7 @@ export class TaskboardService extends Service {
   }
 
   /**
-   * Move or reorder with CAS; Todo permits only Backlog as a different manual column.
+   * Move or reorder an active task with CAS.
    * @param input - Exact revision and destination.
    * @returns committed task or unchanged same-position task.
    */
@@ -408,9 +408,6 @@ export class TaskboardService extends Service {
     return this.enqueue(async () => {
       const { taskId, expectedRevision, status, beforeTaskId } = detached
       const current = this.active(taskId, expectedRevision)
-      if (status !== current.status && !manualTaskStatuses(current.status).includes(status)) {
-        throw new TaskboardManualStatusError(taskId, current.status, status)
-      }
       if (beforeTaskId === taskId) {
         if (status === current.status) return taskboardTaskView(taskId, current)
         throw new TaskboardMoveInvalidError(beforeTaskId)

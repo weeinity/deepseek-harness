@@ -4,7 +4,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ITaskboard, TaskboardRunValue, TaskExecutionId, TaskRunRequestId } from '@deepseek-ai/dsh-api-taskboard-controller/client'
 import { apply, inject } from '../src/client/index.ts'
-import type { TaskboardLauncherInjected, TaskboardSurfaceInjected } from '../src/client/contract.ts'
+import type { TaskboardLauncherInjected, TaskboardSessionButtonInjected, TaskboardSurfaceInjected } from '../src/client/contract.ts'
 import { copilot, dsh, options, runtime, task } from './fixtures.client.ts'
 
 async function bench() {
@@ -20,7 +20,8 @@ async function bench() {
     openAgencyCopilot: vi.fn(), inspectAgencyCopilot: vi.fn(),
   }
   const sessions = { create: vi.fn(), open: vi.fn(), binding: vi.fn() }
-  const layout = { registerMainSurface: vi.fn(() => vi.fn()), toggleMainSurface: vi.fn(), closeMainSurface: vi.fn() }
+  const layout = { registerMainSurface: vi.fn(() => vi.fn()), openMainSurface: vi.fn(),
+    toggleMainSurface: vi.fn(), closeMainSurface: vi.fn() }
   ctx.provide('locale', new LocaleRuntime(ctx))
   ctx.provide('taskboard', taskboard as never)
   ctx.provide('sessions', sessions as never)
@@ -29,13 +30,15 @@ async function bench() {
   ctx.provide('uiWorkspace', {} as never)
   ctx.provide('connection', { isLoopback: true } as never)
   const slots = ctx.get('slots') as SlotRegistry
-  slots.register({ name: 'root', children: {
+  const declareRoot = () => slots.register({ name: 'root', children: {
     'main.surface': { kind: 'keyed', scope: 'root' }, 'sidebar.footer.action': { kind: 'list', scope: 'root' },
+    'conversation.session.header.utilities': { kind: 'list', scope: 'session' },
   } } as never, () => null)
+  const disposeRoot = declareRoot()
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   const face = (slots.entries('main.surface')[0]!.inject as unknown as () => TaskboardSurfaceInjected)()
-  return { ctx, taskboard, sessions, layout, slots, fiber, face }
+  return { ctx, taskboard, sessions, layout, slots, fiber, face, declareRoot, disposeRoot }
 }
 
 describe('ui-taskboard apply', () => {
@@ -47,10 +50,53 @@ describe('ui-taskboard apply', () => {
       expect(Object.keys(launcher).sort()).toEqual(['hooks', 'toggleSurface'])
       launcher.toggleSurface()
       expect(b.layout.toggleMainSurface).toHaveBeenCalledWith('taskboard')
+      expect(b.slots.entries('conversation.session.header.utilities').map(entry => entry.options.id)).toEqual(['taskboard'])
       await b.fiber.dispose()
       expect(b.slots.entries('main.surface')).toEqual([])
       expect(b.slots.entries('sidebar.footer.action')).toEqual([])
+      expect(b.slots.entries('conversation.session.header.utilities')).toEqual([])
+      expect(b.slots.entries('conversation.session.header.utilities.taskboard')).toEqual([])
       expect(b.layout.registerMainSurface.mock.results[0]?.value).toHaveBeenCalledOnce()
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('shares root navigation with the Session control and opens Taskboard without dispatching work', async () => {
+    const b = await bench()
+    try {
+      const board = b.slots.entries('main.surface')[0]!
+      const header = b.slots.entries('conversation.session.header.utilities')[0]!
+      const control = b.slots.entries('conversation.session.header.utilities.taskboard')[0]!
+      expect(header.options.order).toBe(-20)
+      expect(header.store).toBeUndefined()
+      expect(control.store).toBe(board.store)
+      expect(control.store).toBeDefined()
+      const headerFace = (header.inject as unknown as () => Pick<TaskboardSurfaceInjected, 'hooks'>)()
+      expect(headerFace.hooks.taskboard).toBe(b.taskboard.list)
+      const controlFace = (control.inject as unknown as () => TaskboardSessionButtonInjected)()
+      controlFace.openSurface()
+      expect(b.layout.openMainSurface).toHaveBeenCalledExactlyOnceWith('taskboard')
+      expect(b.sessions.open).not.toHaveBeenCalled()
+      for (const operation of ['create', 'update', 'move', 'run', 'connect', 'disconnect'] as const) {
+        expect(b.taskboard[operation]).not.toHaveBeenCalled()
+      }
+    } finally { await b.ctx.fiber.dispose() }
+  })
+
+  it('removes and restores Session navigation with the owning slot declarations', async () => {
+    const b = await bench()
+    try {
+      b.disposeRoot()
+      await vi.waitFor(() => {
+        expect(b.slots.entries('conversation.session.header.utilities')).toEqual([])
+        expect(b.slots.entries('conversation.session.header.utilities.taskboard')).toEqual([])
+        expect(b.slots.entries('main.surface')).toEqual([])
+      })
+      b.declareRoot()
+      await vi.waitFor(() => {
+        expect(b.slots.entries('conversation.session.header.utilities')).toHaveLength(1)
+        expect(b.slots.entries('conversation.session.header.utilities.taskboard')).toHaveLength(1)
+        expect(b.slots.entries('main.surface')).toHaveLength(1)
+      })
     } finally { await b.ctx.fiber.dispose() }
   })
 

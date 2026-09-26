@@ -12,6 +12,8 @@
     { "path": "../../goal/goal" },
     { "path": "../../util/crypto" },
     { "path": "../locale" },
+    { "path": "../store" },
+    { "path": "../ui-conversation" },
     { "path": "../ui-layout" },
     { "path": "../ui-primitives" },
     { "path": "../ui-renderer" },

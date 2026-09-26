@@ -34,7 +34,7 @@ kind: "package-library"
 
 | 导出 | 是什么 |
 |---|---|
-| `Button` | 可点击操作；`variant` 选择 `primary`、`ghost`、`outline` 或 `toolbar`。 |
+| `Button` | 可点击操作；`variant` 选择 `primary`、`accent`、`ghost`、`outline` 或 `toolbar`。内置的 `accent` 样式使用蓝色填充与白色前景。 |
 | `Switch` | 36×20 的双态开关。`label` 必填；`disabled` 同时设置原生与 ARIA 禁用状态。 |
 | `Input` | 单行文本输入；`variant="search"` 使用宽松的填充胶囊样式，默认使用紧凑的带边框输入框。 |
 | `Menu` | 由条目、分隔线与分组标题构成的下拉菜单，支持嵌套子菜单。 |

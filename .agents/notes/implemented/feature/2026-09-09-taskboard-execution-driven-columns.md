@@ -6,11 +6,11 @@ English | [中文](2026-09-09-taskboard-execution-driven-columns.zh.md)
 
 ## Problem
 
-A task's board column must show whether its execution is working, needs user input, or has finished. Requiring a separate manual move after Run or completion leaves the board stale. Allowing a Todo card to move directly to In Progress or Done also bypasses the requested execution workflow.
+A task's board column must show whether its execution is working, needs user input, or has finished. Requiring a separate manual move after Run or completion leaves the board stale.
 
 ## Decision
 
-This note supersedes the manual-only status decisions in [native Taskboard](2026-09-01-native-workspace-taskboard.md) and [executions and exclusive conversations](2026-09-09-taskboard-execution-and-conversations.md). Those notes retain their presentation, Workspace, durable receipt, and conversation ownership rationale.
+This note supersedes the manual-only status decisions in [native Taskboard](2026-09-01-native-workspace-taskboard.md) and [executions and exclusive conversations](2026-09-09-taskboard-execution-and-conversations.md). Those notes retain their presentation, Workspace, durable receipt, and conversation ownership rationale. [Manual status control](2026-09-25-taskboard-manual-status-control.md) supersedes only this note's Todo-only manual restriction; this note continues to own automatic execution and attention updates.
 
 Omitted creation status defaults to Todo. Explicit creation choices, copies, and existing records retain their supplied status. There is no historical status migration.
 
@@ -24,7 +24,7 @@ Attention belongs to the current linked DSH conversation even when no Taskboard 
 
 The Host invalidates these borrowed monitors on disconnect, archival, deletion, and new execution admission. Revision and connection checks refuse stale column writes. Disconnect/reconnect invalidation observes committed task changes rather than comparing only the final connection ID, so an old callback cannot regain authority when the same Session is reattached. Failed writes retain monitoring for retry; ownership loss blocks writes without cancelling or answering borrowed work.
 
-Manual moves from Todo permit only Backlog; same-column reorder remains valid. Other manual destinations remain available. The domain validates moves and derives `TaskboardTask.allowedManualStatuses` from the same rule, so Clients do not maintain another transition table. Host activity may reposition a manually moved card while its execution remains open.
+Every active task can move manually to any other status, and same-column reorder remains valid. The domain derives `TaskboardTask.allowedManualStatuses` from the shared status order, so Clients do not maintain another transition table. Host activity may reposition a manually moved card while its execution remains open.
 
 Automatic column changes append the card to the destination column. Unchanged activity observations do not change revision, timestamps, or rank. Replayed admission and repeated terminal acknowledgement do not undo later manual edits. Settlement requires neither Workspace discovery nor provider availability.
 
@@ -34,7 +34,7 @@ Automatic column changes append the card to the destination column. Unchanged ac
 
 **Move every terminal execution to Done.** Failures and cancellations need user attention and must remain distinguishable from success.
 
-**Apply the Todo restriction only in the UI.** Another Client or direct Remote request could bypass it. One domain rule owns both validation and advertised destinations.
+**Restrict manual transitions.** This would keep execution admission as the only route from Todo into active or completed columns, but it would prevent explicit planning corrections. [Manual status control](2026-09-25-taskboard-manual-status-control.md) keeps execution history separate while allowing those corrections.
 
 **Treat waiting for input as a terminal failure.** A supported question or approval can resume the same execution. An open waiting observation preserves that continuity; unsupported provider interaction remains an explicit failure.
 
@@ -42,7 +42,7 @@ Automatic column changes append the card to the destination column. Unchanged ac
 
 ## Testing
 
-Domain tests cover default creation, explicit status preservation, manual move rejection, atomic status and rank changes, repeated observations, request replay, and settlement after Workspace removal. Coordinator tests cover In Progress, waiting In Review, resumed In Progress, and Done without resubmission, plus failed and cancelled recovery. Client and assembled browser tests cover destination controls and execution-driven card placement.
+Domain tests cover default creation, explicit status preservation, manual destination projection, atomic status and rank changes, repeated observations, request replay, and settlement after Workspace removal. Coordinator tests cover In Progress, waiting In Review, resumed In Progress, and Done without resubmission, plus failed and cancelled recovery. Client and assembled browser tests cover destination controls and execution-driven card placement.
 
 Linked-chat regressions cover empty and settled history, overlapping questions and approvals, exact-turn completion, durability failures, ownership loss, and task mutation races. The shipped-profile browser scenario uses genuine recorded model streams and the real question answerer, observes the In Review card, and answers through the Chat UI; an unlinked-chat control proves that monitoring neither creates tasks nor associates conversations.
 

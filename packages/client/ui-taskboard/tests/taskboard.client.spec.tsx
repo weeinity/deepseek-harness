@@ -5,7 +5,8 @@ import type { TaskboardSnapshot, TaskboardTask } from '@deepseek-ai/dsh-api-task
 import type { TaskboardSurfaceProps } from '../src/client/contract.ts'
 import { en, zh } from '../src/client/locales.ts'
 import { Taskboard } from '../src/client/Taskboard.tsx'
-import { copilot, dsh, execution, manualStatusError, options, runtime, sessions, task, translate, workspaces } from './fixtures.client.ts'
+import { createTaskboardNavigationStore } from '../src/client/navigation-store.ts'
+import { copilot, dsh, execution, options, runtime, sessions, task, translate, workspaces } from './fixtures.client.ts'
 
 function mountBoard(
   tasks: readonly TaskboardTask[] = [], dictionary: typeof en | typeof zh = en, initial: Partial<TaskboardSnapshot> = {},
@@ -16,9 +17,11 @@ function mountBoard(
     agencyByTask: {}, agencyState: 'idle', agencyError: null, ...initial }
   let sessionState = sources.sessions ?? sessions()
   let workspaceState = sources.workspaces ?? workspaces()
+  const navigation = createTaskboardNavigationStore().create()
   const props: TaskboardSurfaceProps = {
     useTaskboard: selector => selector(state), useSessions: selector => selector(sessionState),
     useWorkspaces: selector => selector(workspaceState),
+    useStore: selector => selector(navigation.getSnapshot()), actions: navigation.actions,
     useSessionPendingInteraction: selector => selector(new Map()),
     useResource: () => ({ status: 'none', value: undefined, failure: undefined, reload: () => {} }),
     t: translate(dictionary), createTask: vi.fn<TaskboardSurfaceProps['createTask']>(async (request) => {
@@ -51,7 +54,8 @@ function mountBoard(
     isLoopback: true, closeSurface: vi.fn(), ...callbacks,
   }
   const view = render(<Taskboard {...props} />)
-  return { props, ...view, get sessions() { return sessionState }, get workspaces() { return workspaceState },
+  return { props, ...view, navigation, get sessions() { return sessionState }, get workspaces() { return workspaceState },
+    requestTask: (id: TaskboardTask['id']) => { navigation.actions.openTask(id); view.rerender(<Taskboard {...props} />) },
     replaceSessions: (next: ReturnType<typeof sessions>) => { sessionState = next; view.rerender(<Taskboard {...props} />) },
     replaceWorkspaces: (next: ReturnType<typeof workspaces>) => { workspaceState = next; view.rerender(<Taskboard {...props} />) },
     replace: (patch: Partial<TaskboardSnapshot>) => { state = { ...state, ...patch }; view.rerender(<Taskboard {...props} />) } }
@@ -66,7 +70,75 @@ function clickMask(dialog: HTMLElement): void {
   fireEvent.click(mask)
 }
 
+function dragData() {
+  const values = new Map<string, string>()
+  return {
+    effectAllowed: '', dropEffect: 'none',
+    getData: (type: string) => values.get(type) ?? '',
+    setData: (type: string, value: string) => { values.set(type, value) },
+  }
+}
+
 describe('Taskboard', () => {
+  it.each([en, zh])('opens the requested task after clearing unrelated search, Workspace, and archive filters', async (dictionary) => {
+    const row = task({ connection: dsh })
+    const otherWorkspace = { ...workspaces().items[0]!, workspaceId: 'other' as TaskboardTask['workspaceId'],
+      title: 'Other Workspace', sessionIds: [] }
+    const value = mountBoard([row], dictionary, {}, {
+      workspaces: { ...workspaces(), items: [...workspaces().items, otherWorkspace] },
+    })
+    await ready(dictionary.newTask)
+    fireEvent.change(screen.getByRole('combobox', { name: dictionary.workspace }), { target: { value: otherWorkspace.workspaceId } })
+    fireEvent.change(screen.getByPlaceholderText(dictionary.search), { target: { value: 'No matching task' } })
+    fireEvent.click(button(translate(dictionary)('archivedCount', { count: 0 })))
+    value.requestTask(row.id)
+    const dialog = await screen.findByRole('dialog', { name: dictionary.taskDetails })
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: dictionary.taskTitle }).value).toBe(row.title)
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(screen.getByPlaceholderText<HTMLInputElement>(dictionary.search).value).toBe('')
+    expect(value.navigation.getSnapshot().requestedTaskId).toBeUndefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: dictionary.close, exact: true }))
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: dictionary.workspace }).value).toBe(row.workspaceId)
+    expect(screen.getByRole('article', { name: row.title })).toBeDefined()
+    expect(screen.queryByRole('button', { name: dictionary.backToBoard })).toBeNull()
+    for (const operation of ['createTask', 'updateTask', 'moveTask', 'connectTask', 'startWork'] as const) {
+      expect(value.props[operation]).not.toHaveBeenCalled()
+    }
+    value.unmount()
+    render(<Taskboard {...value.props} />)
+    await ready(dictionary.newTask)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('waits for the task baseline and opens archived task details read-only', async () => {
+    const row = task({ connection: dsh, archivedAt: '2026-01-02' })
+    const value = mountBoard([], en, { phase: 'pending' })
+    value.requestTask(row.id)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(value.navigation.getSnapshot().requestedTaskId).toBe(row.id)
+    value.replace({ phase: 'ready', tasks: [row] })
+    const dialog = await screen.findByRole('dialog', { name: en.taskDetails })
+    await within(dialog).findByText(`${en.archivedReadOnly} ${en.restoreHint}`)
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: en.taskTitle }).disabled).toBe(true)
+    expect(within(dialog).queryByRole('button', { name: en.startWork, exact: true })).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: en.close, exact: true }))
+    expect(button(en.backToBoard)).toBeDefined()
+    expect(screen.getByRole('article', { name: row.title })).toBeDefined()
+  })
+
+  it.each([en, zh])('reports a requested task removed before navigation instead of opening another task', async (dictionary) => {
+    const row = task()
+    const value = mountBoard([row], dictionary)
+    await ready(dictionary.newTask)
+    fireEvent.click(screen.getByRole('article', { name: row.title }))
+    value.requestTask('removed' as TaskboardTask['id'])
+    await screen.findByText(dictionary.taskMissing)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(value.navigation.getSnapshot().requestedTaskId).toBeUndefined()
+    expect(value.props.createTask).not.toHaveBeenCalled()
+    expect(value.props.startWork).not.toHaveBeenCalled()
+  })
+
   it.each([en, zh])('discards a creation draft on Cancel without changing saved tasks', async (dictionary) => {
     const row = task()
     const value = mountBoard([row], dictionary)
@@ -127,24 +199,6 @@ describe('Taskboard', () => {
     } finally { await act(async () => { gate.resolve(undefined) }) }
   })
 
-  it.each([en, zh])('localizes a rejected drop with the Host current and requested status labels', async (dictionary) => {
-    const row = task({ status: 'in_progress' })
-    const value = mountBoard([row], dictionary, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
-    const error = manualStatusError()
-    vi.mocked(value.props.moveTask).mockRejectedValueOnce(error)
-    await ready(dictionary.newTask)
-    const target = screen.getByText(dictionary.inReview).closest('section')?.lastElementChild
-    if (target === undefined || target === null) throw new Error('Planning column is missing')
-    let payload = ''
-    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
-    fireEvent.dragStart(screen.getByRole('article'), { dataTransfer })
-    fireEvent.drop(target, { dataTransfer })
-    const message = value.props.t('manualStatusNotAllowed', { current: dictionary.todo, requested: dictionary.inReview })
-    await screen.findByText(value.props.t('error', { message }))
-    expect(value.container.textContent).not.toContain(error.failure.message)
-    expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'in_review', undefined)
-  })
-
   it.each([new Error('Move rejected'), 'Move rejected'])('surfaces a rejected drop into an empty planning column: %s', async (reason) => {
     const row = task({ status: 'in_progress' })
     const value = mountBoard([row], en, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
@@ -152,13 +206,159 @@ describe('Taskboard', () => {
     await ready()
     const target = screen.getByText(en.inReview).closest('section')?.lastElementChild
     if (target === undefined || target === null) throw new Error('Planning column is missing')
-    let payload = ''
-    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
+    const dataTransfer = dragData()
     fireEvent.dragStart(screen.getByRole('article'), { dataTransfer })
-    fireEvent.dragOver(target)
+    fireEvent.dragOver(target, { dataTransfer })
     fireEvent.drop(target, { dataTransfer })
     await screen.findByText(translate()('error', { message: 'Move rejected' }))
     expect(value.props.moveTask).toHaveBeenCalledWith(row, 'in_review', undefined)
+  })
+
+  it.each(['column', 'header', 'empty', 'card'] as const)('changes task status when dropped on the destination %s', async (target) => {
+    const row = task()
+    const anchor = task({ id: 'anchor' as TaskboardTask['id'], title: 'Done task', status: 'done' })
+    const others = target === 'card' ? [anchor] : []
+    const value = mountBoard([row, ...others])
+    vi.mocked(value.props.moveTask).mockImplementation(async (_task, status) => {
+      value.replace({ tasks: [task({ ...row, status, revision: row.revision + 1 }), ...others] })
+    })
+    await ready()
+    const column = value.container.querySelector<HTMLElement>('section[data-status="done"]')
+    if (column === null) throw new Error('Done column is missing')
+    const dataTransfer = dragData()
+    fireEvent.dragStart(screen.getByRole('article', { name: row.title }), { dataTransfer })
+    const destination = target === 'header' ? within(column).getByText(en.done)
+      : target === 'empty' ? within(column).getByText(en.empty)
+        : target === 'card' ? within(column).getByRole('article', { name: anchor.title }) : column
+    expect(fireEvent.dragOver(destination, { dataTransfer })).toBe(false)
+    expect(dataTransfer.dropEffect).toBe('move')
+    fireEvent.drop(destination, { dataTransfer })
+    await waitFor(() => {
+      expect(screen.getByRole('article', { name: row.title }).closest('section')?.dataset.status).toBe('done')
+    })
+    expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'done', undefined)
+    expect(value.props.startWork).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('article', { name: row.title }))
+    expect(button(en.done).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it.each(['succeeds', 'fails'] as const)('waits for a dropped task to save and allows another drag after it %s', async (outcome) => {
+    const row = task()
+    const value = mountBoard([row])
+    const gate = Promise.withResolvers<undefined>()
+    const moved = task({ ...row, status: 'done', revision: row.revision + 1 })
+    vi.mocked(value.props.moveTask).mockImplementationOnce(async () => {
+      await gate.promise
+      value.replace({ tasks: [moved] })
+    })
+    await ready()
+    const card = screen.getByRole('article', { name: row.title })
+    const done = value.container.querySelector<HTMLElement>('section[data-status="done"]')
+    const review = value.container.querySelector<HTMLElement>('section[data-status="in_review"]')
+    if (done === null || review === null) throw new Error('Destination columns are missing')
+    const dataTransfer = dragData()
+    try {
+      fireEvent.dragStart(card, { dataTransfer })
+      fireEvent.drop(done, { dataTransfer })
+      expect(card.closest('section')?.dataset.status).toBe('todo')
+      expect(card.getAttribute('aria-busy')).toBe('true')
+      expect(card.draggable).toBe(false)
+      fireEvent.dragStart(card, { dataTransfer })
+      fireEvent.drop(review, { dataTransfer })
+      expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'done', undefined)
+      await act(async () => {
+        if (outcome === 'fails') gate.reject(new Error('Move rejected'))
+        else gate.resolve(undefined)
+      })
+      const savedCard = screen.getByRole('article', { name: row.title })
+      expect(savedCard.getAttribute('aria-busy')).toBeNull()
+      expect(savedCard.draggable).toBe(true)
+      expect(savedCard.closest('section')?.dataset.status).toBe(outcome === 'fails' ? 'todo' : 'done')
+      if (outcome === 'fails') expect(screen.getByRole('alert').textContent).toContain('Move rejected')
+      else expect(screen.queryByRole('alert')).toBeNull()
+      fireEvent.dragStart(savedCard, { dataTransfer })
+      fireEvent.drop(review, { dataTransfer })
+      await waitFor(() => {
+        expect(value.props.moveTask).toHaveBeenLastCalledWith(outcome === 'fails' ? row : moved, 'in_review', undefined)
+      })
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(value.props.moveTask).toHaveBeenCalledTimes(2)
+      expect(value.props.startWork).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => { gate.resolve(undefined) })
+    }
+  })
+
+  it('highlights only the current destination and clears drag feedback when leaving or cancelling', async () => {
+    const row = task()
+    const anchor = task({ id: 'anchor' as TaskboardTask['id'], title: 'Done task', status: 'done' })
+    const value = mountBoard([row, anchor])
+    await ready()
+    const card = screen.getByRole('article', { name: row.title })
+    const targetCard = screen.getByRole('article', { name: anchor.title })
+    const done = targetCard.closest('section')
+    const review = value.container.querySelector<HTMLElement>('section[data-status="in_review"]')
+    if (done === null || review === null) throw new Error('Destination columns are missing')
+    const dataTransfer = dragData()
+    expect(fireEvent.dragOver(done, { dataTransfer })).toBe(true)
+    fireEvent.dragStart(card, { dataTransfer })
+    expect(card.hasAttribute('data-dragging')).toBe(true)
+    expect(dataTransfer.effectAllowed).toBe('move')
+    fireEvent.dragOver(targetCard, { dataTransfer })
+    expect(done.hasAttribute('data-drop-target')).toBe(true)
+    // jsdom's generic drag event does not retain MouseEvent.relatedTarget.
+    fireEvent(done, new MouseEvent('dragleave', { bubbles: true, relatedTarget: targetCard }))
+    expect(done.hasAttribute('data-drop-target')).toBe(true)
+    fireEvent.dragOver(review, { dataTransfer })
+    fireEvent(done, new MouseEvent('dragleave', { bubbles: true, relatedTarget: review }))
+    expect(done.hasAttribute('data-drop-target')).toBe(false)
+    expect(review.hasAttribute('data-drop-target')).toBe(true)
+    fireEvent.dragLeave(review)
+    expect(review.hasAttribute('data-drop-target')).toBe(false)
+    fireEvent.dragOver(done, { dataTransfer })
+    fireEvent.dragEnd(card)
+    expect(card.hasAttribute('data-dragging')).toBe(false)
+    expect(done.hasAttribute('data-drop-target')).toBe(false)
+    fireEvent.drop(done, { dataTransfer })
+    expect(value.props.moveTask).not.toHaveBeenCalled()
+  })
+
+  it.each(['all', 'search', 'workspace'] as const)('appends within the same column only in an unfiltered Workspace: %s', async (filter) => {
+    const row = task()
+    const anchor = task({ id: 'anchor' as TaskboardTask['id'], title: 'Next task' })
+    const value = mountBoard([row, anchor])
+    await ready()
+    if (filter !== 'all') {
+      fireEvent.change(screen.getByRole('combobox', { name: en.workspace }), { target: { value: row.workspaceId } })
+    }
+    if (filter === 'search') fireEvent.change(screen.getByPlaceholderText(en.search), { target: { value: row.title } })
+    const card = screen.getByRole('article', { name: row.title })
+    const column = card.closest('section')
+    if (column === null) throw new Error('Todo column is missing')
+    const dataTransfer = dragData()
+    fireEvent.dragStart(card, { dataTransfer })
+    expect(fireEvent.dragOver(column, { dataTransfer })).toBe(filter !== 'workspace')
+    fireEvent.drop(column, { dataTransfer })
+    await waitFor(() => { expect(card.draggable).toBe(true) })
+    if (filter === 'workspace') expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'todo', undefined)
+    else expect(value.props.moveTask).not.toHaveBeenCalled()
+  })
+
+  it.each(['filtered', 'archived', 'deleted'] as const)('ignores a drag whose source is %s before the drop', async (change) => {
+    const row = task()
+    const value = mountBoard([row])
+    await ready()
+    const column = value.container.querySelector<HTMLElement>('section[data-status="done"]')
+    if (column === null) throw new Error('Done column is missing')
+    const dataTransfer = dragData()
+    fireEvent.dragStart(screen.getByRole('article', { name: row.title }), { dataTransfer })
+    if (change === 'filtered') fireEvent.change(screen.getByPlaceholderText(en.search), { target: { value: 'Not visible' } })
+    else value.replace({ tasks: change === 'deleted' ? [] : [task({ ...row, archivedAt: '2026-01-02' })] })
+    expect(fireEvent.dragOver(column, { dataTransfer })).toBe(true)
+    fireEvent.drop(column, { dataTransfer })
+    expect(value.props.moveTask).not.toHaveBeenCalled()
+    expect(screen.queryByRole('article')).toBeNull()
   })
 
   it('rejects foreign, self and finished drag payloads while accepting the next local reorder', async () => {
@@ -169,8 +369,11 @@ describe('Taskboard', () => {
     const first = screen.getByRole('article', { name: row.title })
     const second = screen.getByRole('article', { name: other.title })
     expect(first.getAttribute('draggable')).toBe('true')
-    let payload: string = row.id
-    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
+    const dataTransfer = dragData()
+    dataTransfer.setData('application/x-dsh-taskboard-task', row.id)
+    fireEvent.drop(second, { dataTransfer })
+    fireEvent.dragStart(first, { dataTransfer })
+    dataTransfer.setData('application/x-dsh-taskboard-task', 'foreign-task')
     fireEvent.drop(second, { dataTransfer })
     fireEvent.dragStart(first, { dataTransfer })
     fireEvent.drop(first, { dataTransfer })
@@ -390,30 +593,31 @@ describe('Taskboard', () => {
     expect(value.props.connectTask).not.toHaveBeenCalled()
   })
 
-  it('rejects forbidden Todo drops while allowing Backlog moves and same-column reordering', async () => {
+  it('allows Todo drops to every other column and same-column reordering', async () => {
     const row = task()
     const anchor = task({ id: 'anchor' as TaskboardTask['id'], title: 'Todo anchor' })
     const value = mountBoard([row, anchor], en, {}, { sessions: { ...sessions(), current: dsh.sessionId } })
     await ready()
     const card = screen.getByRole('article', { name: row.title })
     const targetCard = screen.getByRole('article', { name: anchor.title })
-    let payload = ''
-    const dataTransfer = { getData: () => payload, setData: (_type: string, next: string) => { payload = next } }
-    const dropColumn = (status: TaskboardTask['status']) => {
+    const dataTransfer = dragData()
+    const dropColumn = async (status: TaskboardTask['status']) => {
       const column = value.container.querySelector<HTMLElement>(`section[data-status="${status}"]`)?.lastElementChild
       if (column === null || column === undefined) throw new Error('Planning column is missing')
       fireEvent.dragStart(card, { dataTransfer })
-      fireEvent.dragOver(column)
+      fireEvent.dragOver(column, { dataTransfer })
       fireEvent.drop(column, { dataTransfer })
+      await waitFor(() => { expect(card.draggable).toBe(true) })
     }
-    for (const status of ['in_progress', 'in_review', 'done'] as const) dropColumn(status)
-    expect(value.props.moveTask).not.toHaveBeenCalled()
+    for (const status of ['in_progress', 'in_review', 'done'] as const) await dropColumn(status)
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenCalledTimes(3) })
     fireEvent.dragStart(card, { dataTransfer })
     fireEvent.drop(targetCard, { dataTransfer })
-    await waitFor(() => { expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'todo', anchor.id) })
-    dropColumn('backlog')
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenNthCalledWith(4, row, 'todo', anchor.id) })
+    await waitFor(() => { expect(card.draggable).toBe(true) })
+    await dropColumn('backlog')
     await waitFor(() => { expect(value.props.moveTask).toHaveBeenLastCalledWith(row, 'backlog', undefined) })
-    expect(value.props.moveTask).toHaveBeenCalledTimes(2)
+    expect(value.props.moveTask).toHaveBeenCalledTimes(5)
     expect(value.props.startWork).not.toHaveBeenCalled()
   })
 
@@ -817,25 +1021,31 @@ describe('Taskboard', () => {
     expect(screen.getAllByRole('article')).toHaveLength(1)
   })
 
-  it('moves cards only within an unfiltered single Workspace and retains before-card placement', async () => {
+  it('changes status in aggregate and filtered views but reorders only within an unfiltered single Workspace', async () => {
     const row = task({ status: 'in_progress' })
     const anchor = task({ id: 'anchor' as TaskboardTask['id'], title: 'Review anchor', status: 'in_review' })
-    const value = mountBoard([row, anchor])
+    const foreign = task({
+      id: 'foreign' as TaskboardTask['id'], workspaceId: 'other' as TaskboardTask['workspaceId'],
+      title: 'Other Workspace review', status: 'in_review',
+    })
+    const value = mountBoard([row, anchor, foreign])
     await ready()
     const card = screen.getByRole('article', { name: row.title })
-    expect(card.draggable).toBe(false)
-    fireEvent.change(screen.getByRole('combobox', { name: en.workspace }), { target: { value: row.workspaceId } })
     expect(card.draggable).toBe(true)
-    let payload = ''
-    const dataTransfer = {
-      effectAllowed: '',
-      setData: (_type: string, value: string) => { payload = value },
-      getData: () => payload,
-    }
+    const dataTransfer = dragData()
+    fireEvent.dragStart(card, { dataTransfer })
+    fireEvent.drop(screen.getByRole('article', { name: foreign.title }), { dataTransfer })
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenLastCalledWith(row, 'in_review', undefined) })
+    fireEvent.change(screen.getByRole('combobox', { name: en.workspace }), { target: { value: row.workspaceId } })
     fireEvent.dragStart(card, { dataTransfer })
     fireEvent.drop(screen.getByRole('article', { name: anchor.title }), { dataTransfer })
-    await waitFor(() => { expect(value.props.moveTask).toHaveBeenCalledExactlyOnceWith(row, 'in_review', anchor.id) })
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenLastCalledWith(row, 'in_review', anchor.id) })
     fireEvent.change(screen.getByPlaceholderText(en.search), { target: { value: row.title } })
-    expect(card.draggable).toBe(false)
+    expect(card.draggable).toBe(true)
+    const backlog = value.container.querySelector<HTMLElement>('section[data-status="backlog"]')?.lastElementChild
+    if (backlog === null || backlog === undefined) throw new Error('Backlog column is missing')
+    fireEvent.dragStart(card, { dataTransfer })
+    fireEvent.drop(backlog, { dataTransfer })
+    await waitFor(() => { expect(value.props.moveTask).toHaveBeenLastCalledWith(row, 'backlog', undefined) })
   })
 })

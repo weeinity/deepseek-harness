@@ -1,4 +1,4 @@
-/** Native Taskboard browser plugin: controller-backed board surface and sidebar launcher. */
+/** Native Taskboard browser plugin with sidebar and linked-Session navigation. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
@@ -14,8 +14,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { Taskboard } from './Taskboard.tsx'
 import { TaskboardLauncher } from './TaskboardLauncher.tsx'
-import type { TaskboardLauncherInjected, TaskboardSurfaceInjected } from './contract.ts'
+import { TaskSessionAction, TaskSessionButton } from './TaskSessionAction.tsx'
+import type { TaskboardLauncherInjected, TaskboardSessionButtonInjected, TaskboardSurfaceInjected } from './contract.ts'
 import { en, zh, type TaskboardKey } from './locales.ts'
+import { createTaskboardNavigationStore } from './navigation-store.ts'
 
 export type {
   TaskboardLauncherInjected, TaskboardLauncherProps, TaskboardSurfaceInjected, TaskboardSurfaceProps,
@@ -32,7 +34,7 @@ const SURFACE = 'taskboard'
 export const inject = ['slots', 'locale', 'layout', 'sessions', 'uiSession', 'uiWorkspace', 'taskboard', 'connection']
 
 /**
- * Register the Taskboard surface and sidebar launcher.
+ * Register Taskboard, its sidebar launcher, and linked-Session navigation.
  * @param ctx - Client context supplying task and navigation services.
  */
 export function apply(ctx: Context): void {
@@ -40,6 +42,7 @@ export function apply(ctx: Context): void {
   const sessions = ctx.get('sessions') as ISessions
   const layout = ctx.get('layout') as ILayout
   const connection = ctx.get('connection') as ConnectionHandle
+  const navigation = createTaskboardNavigationStore()
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-taskboard: dictionaries')
 
   const updateTask = async (task: TaskboardTask, patch: TaskboardUpdatePatch): Promise<TaskboardTask> =>
@@ -97,8 +100,19 @@ export function apply(ctx: Context): void {
   })
 
   ctx.slots.inject('main.surface', function* () {
-    yield ctx.slots.register({ name: 'main.surface', key: 'taskboard', locale: NS, inject: surfaceInjected }, Taskboard)
+    yield ctx.slots.register({ name: 'main.surface', key: 'taskboard', locale: NS, store: navigation, inject: surfaceInjected }, Taskboard)
     yield layout.registerMainSurface(SURFACE)
+    yield ctx.slots.inject('conversation.session.header.utilities', function* () {
+      yield ctx.slots.register({
+        name: 'conversation.session.header.utilities', id: 'taskboard', order: -20,
+        children: { 'conversation.session.header.utilities.taskboard': { kind: 'single', scope: 'root' } },
+        inject: (): Pick<TaskboardSurfaceInjected, 'hooks'> => ({ hooks: { taskboard: taskboard.list } }),
+      }, TaskSessionAction)
+      yield ctx.slots.register({
+        name: 'conversation.session.header.utilities.taskboard', locale: NS, store: navigation,
+        inject: (): TaskboardSessionButtonInjected => ({ openSurface: () => { layout.openMainSurface(SURFACE) } }),
+      }, TaskSessionButton)
+    })
   })
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action', id: 'taskboard', order: 10, locale: NS, inject: launcherInjected,

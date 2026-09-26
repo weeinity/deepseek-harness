@@ -2493,7 +2493,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'move(input: TaskboardMoveInput): Promise<TaskboardTask>',
-        description: 'Move or reorder with CAS; Todo permits only Backlog as a different manual column.',
+        description: 'Move or reorder an active task with CAS.',
         parameters: [{ name: 'input', description: 'Exact revision and destination.' }],
         returns: 'committed task or unchanged same-position task.',
       },

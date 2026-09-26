@@ -1,7 +1,7 @@
 ## Saved DSH definition
 - dialog "Task details":
   - textbox "Title": Browser-only task definition
-  - text: Todo
+  - text: In Progress
   - button "Close":
     - img
   - text: DSH-003
@@ -27,7 +27,7 @@
   - button "Open session"
   - button "Disconnect"
   - button "Run"
-  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Todo can only move manually to Backlog.
+  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Manual status changes do not run the task.
   - text: Run prompt
   - textbox "Run prompt":
     - /placeholder: Leave blank to use the task title and description. An explicit prompt overrides both.
@@ -94,10 +94,10 @@
   - list
   - heading "Status" [level=3]
   - button "Backlog"
-  - button "Todo" [disabled] [pressed]
-  - button "In Progress" [disabled]
-  - button "In Review" [disabled]
-  - button "Done" [disabled]
+  - button "Todo"
+  - button "In Progress" [disabled] [pressed]
+  - button "In Review"
+  - button "Done"
   - button "Save and Close":
     - img
     - text: Save and Close
@@ -107,6 +107,7 @@
   - button "Archive":
     - img
     - text: Archive
+  - button "Submit for review"
   - button "Duplicate task"
   - button "Delete":
     - img
@@ -143,7 +144,7 @@
   - button "Refresh status"
   - button "Disconnect"
   - button "Run Again"
-  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Todo can only move manually to Backlog.
+  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Manual status changes do not run the task.
   - text: Run prompt
   - textbox "Run prompt":
     - /placeholder: Leave blank to use the task title and description. An explicit prompt overrides both.
@@ -301,7 +302,7 @@
   - button "Refresh status"
   - button "Disconnect" [disabled]
   - button "Run Again" [disabled]
-  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Todo can only move manually to Backlog.
+  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Manual status changes do not run the task.
   - text: Run prompt
   - textbox "Run prompt" [disabled]:
     - /placeholder: Leave blank to use the task title and description. An explicit prompt overrides both.
@@ -466,7 +467,7 @@
   - button "Refresh status"
   - button "Disconnect"
   - button "Run Again"
-  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Todo can only move manually to Backlog.
+  - paragraph: Only Run submits the saved prompt. Run Again continues the same conversation until you disconnect. Runs enter In Progress, then Done on success. Failure, cancellation, or waiting for user input moves tasks to In Review; resumed execution returns them to In Progress. Manual status changes do not run the task.
   - text: Run prompt
   - textbox "Run prompt":
     - /placeholder: Leave blank to use the task title and description. An explicit prompt overrides both.

@@ -6,7 +6,7 @@ import type { TaskDetailsDialogProps } from '../src/client/TaskDetailsDialog.tsx
 import { TaskDetailsDialog } from '../src/client/TaskDetailsDialog.tsx'
 import { en, zh } from '../src/client/locales.ts'
 import { TASK_STATUSES, statusLabel } from '../src/client/view.ts'
-import { copilot, dsh, execution, manualStatusError, options, sessions, task, translate, workspaces } from './fixtures.client.ts'
+import { copilot, dsh, execution, options, sessions, task, translate, workspaces } from './fixtures.client.ts'
 
 function props(overrides: Partial<TaskboardTask> = {}) {
   return {
@@ -66,20 +66,6 @@ describe('TaskDetailsDialog execution management', () => {
     } finally { gate.resolve(undefined) }
   })
 
-  it.each([en, zh])('localizes the Host manual-status refusal instead of exposing its English diagnostic', async (dictionary) => {
-    const value = props({ status: 'in_progress' })
-    const error = manualStatusError()
-    value.onMove.mockRejectedValueOnce(error)
-    const t = translate(dictionary)
-    render(<TaskDetailsDialog {...value} t={t} />)
-    fireEvent.click(button(dictionary.inReview))
-    const message = t('manualStatusNotAllowed', { current: dictionary.todo, requested: dictionary.inReview })
-    await screen.findByText(t('error', { message }))
-    expect(screen.getByRole('dialog').textContent).not.toContain(error.failure.message)
-    expect(value.onMove).toHaveBeenCalledExactlyOnceWith('in_review')
-    expect(button(dictionary.inReview).disabled).toBe(false)
-  })
-
   it.each([en, zh])('enables only the Host-projected manual destinations in the selected locale', async (dictionary) => {
     const value = props()
     const t = translate(dictionary)
@@ -92,11 +78,12 @@ describe('TaskDetailsDialog execution management', () => {
       }
     }
     view.rerender(<TaskDetailsDialog {...value} t={t} />)
-    expect(button(dictionary.inProgress).disabled).toBe(true)
-    expect(button(dictionary.inReview).disabled).toBe(true)
-    expect(button(dictionary.done).disabled).toBe(true)
-    fireEvent.click(button(dictionary.backlog))
-    await waitFor(() => { expect(value.onMove).toHaveBeenCalledExactlyOnceWith('backlog') })
+    expect(button(dictionary.todo).disabled).toBe(true)
+    expect(button(dictionary.inProgress).disabled).toBe(false)
+    expect(button(dictionary.inReview).disabled).toBe(false)
+    expect(button(dictionary.done).disabled).toBe(false)
+    fireEvent.click(button(dictionary.inProgress))
+    await waitFor(() => { expect(value.onMove).toHaveBeenCalledExactlyOnceWith('in_progress') })
     expect(value.onStart).not.toHaveBeenCalled()
   })
 

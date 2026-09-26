@@ -8,7 +8,7 @@ Taskboard 保存持久化的 Workspace 任务定义及其执行记录。每个�
 
 ## 持久记录
 
-`TaskboardTask` 包含计划字段、已保存的运行提示词、明确执行选项、可选计划与冻结交接，以及有界执行历史。派生字段 `allowedManualStatuses` 为 Client 提供允许的目标列；Todo 只允许 Backlog。`TaskConnection` 区分 DSH 与 Copilot 标识。更换当前标识前必须明确断开关联。保留的待选择关联会阻止执行，直到用户选择其中一个。
+`TaskboardTask` 包含计划字段、已保存的运行提示词、明确执行选项、可选计划与冻结交接，以及有界执行历史。派生字段 `allowedManualStatuses` 向 Client 提供当前状态之外的全部状态。`TaskConnection` 区分 DSH 与 Copilot 标识。更换当前标识前必须明确断开关联。保留的待选择关联会阻止执行，直到用户选择其中一个。
 
 `TaskExecution` 为一次已接受请求保存提示词、设置、交接、Workspace 和对话快照。其 pending、running、succeeded、failed 或 cancelled 结果与任务所在列分别存储。准入会将任务移到 In Progress；等待用户输入会移到 In Review，但不结算执行；恢复工作后回到 In Progress。成功结算移到 Done；失败或取消移到 In Review。provider 回执支持不重发提示词的恢复。当前关联更改后，历史记录仍保留各自的对话标识。
 
@@ -28,7 +28,7 @@ Taskboard 保存持久化的 Workspace 任务定义及其执行记录。每个�
 
 查询扫描内存 domain table，反复二分的 fractional-rank 间隙可能耗尽数值精度。本系统不提供多进程协作、索引分页、评论、附件或 Copilot transcript 导入。SQLite 持久性不会将 domain 的进程内修订检查变成 SQL 层 compare-and-set。
 
-设计记录：[原生 Workspace Taskboard](../../.agents/notes/implemented/feature/2026-09-01-native-workspace-taskboard.zh.md) 和[执行驱动的列状态](../../.agents/notes/implemented/feature/2026-09-09-taskboard-execution-driven-columns.zh.md)。
+设计记录：[原生 Workspace Taskboard](../../.agents/notes/implemented/feature/2026-09-01-native-workspace-taskboard.zh.md)、[执行驱动的列状态](../../.agents/notes/implemented/feature/2026-09-09-taskboard-execution-driven-columns.zh.md)和[手动状态控制](../../.agents/notes/implemented/feature/2026-09-25-taskboard-manual-status-control.zh.md)。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -109,7 +109,7 @@ disconnect(taskId: TaskId, expectedRevision: number, signal?: AbortSignal): Prom
 confirmPermissions(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>
 
 /**
- * Move or reorder with CAS; Todo permits only Backlog as a different manual column.
+ * Move or reorder an active task with CAS.
  * @param input - Exact revision and destination.
  * @returns committed task or unchanged same-position task.
  */

@@ -8,7 +8,7 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import {
-  TaskboardExecutionError, TaskboardInputError, TaskboardManualStatusError, TaskboardMoveInvalidError, TaskboardRevisionConflictError,
+  TaskboardExecutionError, TaskboardInputError, TaskboardMoveInvalidError, TaskboardRevisionConflictError,
   TaskboardSessionInvalidError, TaskboardTaskArchivedError, TaskboardTaskNotFoundError,
   TaskboardWorkspaceNotFoundError,
 } from '@deepseek-ai/dsh-taskboard'
@@ -704,11 +704,6 @@ function mapFailure(error: unknown, taskId?: TaskId): Error {
     return new RemoteError('taskboard/session-invalid', error.message, { workspaceId: error.workspaceId, sessionId: error.sessionId })
   }
   if (error instanceof TaskboardTaskArchivedError) return new RemoteError('taskboard/task-archived', error.message, { taskId: error.taskId })
-  if (error instanceof TaskboardManualStatusError) {
-    return new RemoteError('taskboard/manual-status-not-allowed', error.message, {
-      taskId: error.taskId, currentStatus: error.currentStatus, requestedStatus: error.requestedStatus,
-    })
-  }
   if (error instanceof TaskboardMoveInvalidError) return new RemoteError('taskboard/move-invalid', error.message, { beforeTaskId: error.beforeTaskId })
   if (error instanceof TaskboardInputError) return new RemoteError('taskboard/bad-request', error.message, {})
   if (error instanceof Error) return new RemoteError('taskboard/execution-error', error.message, {

@@ -29,7 +29,11 @@ Organize Workspace tasks across five workflow columns and run their saved prompt
 
 Open **Taskboard** from the sidebar in a Web composition containing the [Taskboard controller](../../api/taskboard-controller/README.md). **New task** opens an unsaved draft with title, description, Workspace, priority, labels, separate run prompt, execution settings, and an optional existing connection. **Save and Close** saves in **Todo** and closes the dialog; **Save** saves and continues editing. Neither starts work. **Cancel** discards the creation draft without changing the board. Clicking a card opens its details.
 
-Admitted runs move tasks to In Progress. Success moves them to Done; failure, cancellation, or waiting for user input moves them to In Review. Resumed execution returns them to In Progress. Manual moves use the Host's permitted choices: Todo can move only to Backlog, but still supports same-column reordering. Save draft edits before using status controls. Manual-status refusals show localized current and requested columns.
+Admitted runs move tasks to In Progress. Success moves them to Done; failure, cancellation, or waiting for user input moves them to In Review. Resumed execution returns them to In Progress.
+
+Drag a card onto another column's header, empty area, or card to change its saved status without running it. The destination highlights during the drag. Status changes also work in **All workspaces** and search-filtered views; same-column reordering and before-card placement require an unfiltered single Workspace. In that view, dropping below the last card appends it.
+
+A dropped card stays at its committed position until the Host update arrives. Another drag waits for the save to settle. Failed saves show an error and retain the committed task. Keyboard users can open a card and use its status controls; save draft edits first.
 
 Column dots and task-status badges use grey for Backlog, indigo for Todo, blue for In Progress, amber for In Review, and green for Done. The same palette applies to light and dark themes and archived cards.
 
@@ -65,6 +69,8 @@ A disconnected task exposes one provider picker. DSH choices come from the selec
 
 **Open session** navigates to DSH Chat. **Open/Resume Copilot** requests the existing Agency terminal handoff. Neither action sends the task prompt or recreates a missing conversation; failures remain visible. History links retain their own conversations after disconnection, reconnection, or archival. An already-running Copilot outcome reports that no additional terminal opened, including when execution is headless. Copilot terminal navigation is available only when the Client and Host permit local launch; run availability comes from the Host execution catalog.
 
+DSH Sessions with a current task connection show **Open Task** as a compact, rounded blue header button with a white checkbox icon, matching the height of the adjacent Session controls. Select it to return to Taskboard and open the task's details. The board clears search and selects the task's Workspace and active or archived view. If several tasks connect to the Session, choose one from the menu by task code and title. Archived details remain read-only; a task removed before navigation produces an error. Opening a task does not run it.
+
 -----
 
 <a id="start-a-task-with-agency-copilot"></a>
@@ -84,7 +90,7 @@ Frozen handover context contains goal, progress, next action, references, source
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The plugin contributes the layout-owned `main.surface` Taskboard entry and a sidebar footer launcher. Both consume the controller's identity-stable observable through framework-bound hooks. Session and Workspace data use the standard framework hooks; dialog drafts and filters stay component-local.
+The plugin contributes the layout-owned `main.surface` Taskboard entry, a sidebar footer launcher, and Session-header navigation. Entries consume the controller's identity-stable observable through framework-bound hooks. Session and Workspace data use the standard framework hooks; dialog drafts and filters stay component-local. The header derives links from current task connections; a shared root store carries only a one-shot task id, not task records.
 
 Only the Host Run command submits work. Client callbacks keep association, terminal navigation, and planning mutations separate. Host task updates determine column placement; the projected `allowedManualStatuses` determines manual controls. The [controller](../../api/taskboard-controller/README.md) owns the Remote projection and revision ordering; the [domain](../../workspace/taskboard/README.md) owns persistence and execution rules.
 
