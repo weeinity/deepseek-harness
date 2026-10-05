@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write work-assistant/packages/wa-briefing/README.md
-README.md: c819b6dfb43d24dfeb39e92f8d84552ff314748b
-README.zh.md: 78d59907e2460fcef86d5753575c27a020e6345c
+README.md: b3f2f94b892f0a2e81529a4d3932d5fc90c62e35
+README.zh.md: ef8118e876ee15456034b5a10d2e2dd855a9b78d

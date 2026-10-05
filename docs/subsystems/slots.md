@@ -138,6 +138,7 @@ root
 │  │     │  └─ tool.call.toolview
 │  │     │     ├─ tool.call.images
 │  │     │     └─ tool.view.cordis
+│  │     ├─ conversation.chat.user-badges
 │  │     ├─ conversation.message.images
 │  │     └─ conversation.trajectory.images
 │  ├─ conversation.session.header

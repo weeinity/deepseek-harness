@@ -21,7 +21,11 @@ function viewNode(kind: string, seq: number, data: Record<string, unknown>): Cha
   } as unknown as ChatConversationViewNode
 }
 const user = (seq: number, text: string) =>
-  viewNode('user', seq, { content: [{ type: 'text', text }], source: { kind: 'user' } })
+  viewNode('user', seq, {
+    messageId: `user-${String(seq)}`,
+    content: [{ type: 'text', text }],
+    source: { kind: 'user' },
+  })
 const skill = (seq: number, name: string) =>
   viewNode('context', seq, { content: [], source: { kind: 'skill-invocation', name, form: 'instructions' } })
 const instructions = (seq: number) =>

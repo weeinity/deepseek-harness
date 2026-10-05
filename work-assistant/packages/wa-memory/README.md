@@ -39,6 +39,8 @@ The connector rejects relative roots, missing roots, symlinked root directories,
 
 Allowed note ids are `profile.md`, `people.md`, `decisions.md`, and `projects/<safe-slug>.md`. Project slugs contain lowercase letters, digits, and hyphens only. Backtracking, absolute paths, `.git` names, control files, arbitrary directories, and symlinked owned paths are rejected.
 
+Successful top-level calls also persist versioned `workAssistant` presentation metadata containing the validated result. The [assistant UI](../wa-ui/README.md) can display recorded reads and invalidate them after a later write or changed revision; write metadata contains a receipt, not replacement note content. This metadata adds no model-facing text or approval grants.
+
 <a id="commit-semantics"></a>
 ## Commit semantics
 

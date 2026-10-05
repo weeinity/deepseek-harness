@@ -13,12 +13,20 @@ kind: "package-reference"
 ## 目录
 
 - [系统提示词行](#system-prompt-row)
+- [用户徽标 slot](#user-badge-slot)
 - [轮次 token 用量](#turn-token-usage)
 - [轮次过程折叠](#turn-process-folding)
 - [滚动归属](#scroll-ownership)
 - [模型体验](#model-experience)
 - [已知限制与暂缓事项](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
+
+-----
+
+<a id="user-badge-slot"></a>
+## 用户徽标 slot
+
+`conversation.chat.user-badges` 是一个 session 作用域 list slot，面向已接收且持久化的 `user` 与 `steering` Chat node。非空贡献作为表情回应行附在默认消息正文的右下边缘，位于不受遮挡的复制和时间控件上方；空贡献保留普通消息布局。Owner props 只暴露 `messageId`、可选 `browserPromptRequestId`、`seq`、`time`、`placement`，以及包含 `assistantMessageId` 与 `emoji` 的可选 `assistantReaction`；content blocks 与原始 source object 保持私有。只有当配对输入具有已验证的 Web 来源、`ctx.chatReactions.register({ presetIds, emoji })` 策略精确匹配 Session 的 `agentPreset` projection，且已完成 turn 的已结算助手回复恰好有一个非空可见文本块为受支持的 👍 文本时，`assistantReaction` 才会出现；reasoning block 可以伴随它，但 tool、image、不透明 block 或额外文本会让助手回复保持为普通 Chat 行。没有该策略或输入来源时，助手回复仍是普通 Chat 行。上下文注入、replacement 与 queued 提交不会 dispatch 该 slot。
 
 -----
 

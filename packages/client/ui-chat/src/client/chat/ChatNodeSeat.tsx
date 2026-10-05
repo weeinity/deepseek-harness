@@ -1,8 +1,9 @@
 import { memo, useCallback, useMemo } from 'react'
 import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationLocationDataStore, ConversationTurnDataMap } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
+import type { ChatNodeOwnerProps, ChatViewSlotProps, UserBadgeOwnerProps } from '../contract/slots.ts'
 import type { ChatNode } from '../contract/chat-nodes.ts'
+import type { AssistantReaction } from '../contract/reactions.ts'
 import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
 import { storedTurnProcessEntry } from '../stores.ts'
 import { useSearchableHidden } from './searchable-hidden.ts'
@@ -16,6 +17,7 @@ interface ChatNodeSeatProps extends ChatNodeOwnerProps {
   readonly compactTranscript: boolean
   readonly useStore: ChatViewSlotProps['useStore']
   readonly actions: ChatViewSlotProps['actions']
+  readonly assistantReactionEmojis: readonly string[]
   readonly renderSlot: ChatViewSlotProps['renderSlot']
   readonly t: ChatViewSlotProps['t']
 }
@@ -34,11 +36,40 @@ function turnOf(node: ChatNode | undefined): number | undefined {
   return location?.kind === 'turn' || location?.kind === 'step' ? location.turn.turn : undefined
 }
 
+function enabledAssistantReaction(
+  reaction: AssistantReaction | undefined,
+  emojis: readonly string[],
+): AssistantReaction | undefined {
+  return reaction !== undefined && emojis.includes(reaction.emoji) ? reaction : undefined
+}
+
+function userBadgeOwnerOf(
+  node: ChatNode | undefined,
+  assistantReactionEmojis: readonly string[],
+): UserBadgeOwnerProps | undefined {
+  if (node?.kind !== 'user' && node?.kind !== 'steering') return undefined
+  const requestId = node.data.browserPromptRequestId
+  const assistantReaction = enabledAssistantReaction(node.data.assistantReaction, assistantReactionEmojis)
+  return {
+    messageId: node.data.messageId,
+    ...(requestId === undefined ? {} : { browserPromptRequestId: requestId }),
+    seq: node.data.seq,
+    time: node.data.time,
+    placement: node.kind,
+    ...(assistantReaction === undefined ? {} : { assistantReaction }),
+  }
+}
+
+function hidesAssistantReaction(node: ChatNode | undefined, emojis: readonly string[]): boolean {
+  return node?.kind === 'assistant-step'
+    && enabledAssistantReaction(node.data.assistantReaction, emojis) !== undefined
+}
+
 /** Subscribe, apply Turn-process visibility, and dispatch one stable Context key. */
 export const ChatNodeSeat = memo(function ChatNodeSeat({
   nodeKey, useChatNode, useChatNodeProcess, historyIncomplete, compactTranscript,
   cwd, openFile, inspectCall, forkAt,
-  loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot, t,
+  loadImage, renderMessageImages, fileMentions, useStore, actions, assistantReactionEmojis, renderSlot, t,
 }: ChatNodeSeatProps) {
   const node = useChatNode(nodeKey)
   const routedNode = node as ChatNode | undefined
@@ -115,8 +146,9 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     node, cwd, openFile, inspectCall, forkAt,
     loadImage, renderMessageImages, fileMentions, turnProcess,
   ])
-  if (routedNode === undefined || owner === null) return null
+  if (routedNode === undefined || owner === null || hidesAssistantReaction(routedNode, assistantReactionEmojis)) return null
   const turnData = turnDataOf(routedNode)
+  const userBadgeOwner = userBadgeOwnerOf(routedNode, assistantReactionEmojis)
   // Runtime dispatch owns the correlation: every Node's discriminant is the
   // keyed-slot entry passed alongside that same Node. TypeScript does not
   // distribute an object containing a union into a union of objects itself.
@@ -144,6 +176,11 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
           />
         ),
       })}
+      {userBadgeOwner === undefined ? null : (
+        <div className={css.userBadgeRow}>
+          {renderSlot('conversation.chat.user-badges', userBadgeOwner)}
+        </div>
+      )}
     </div>
   )
 })

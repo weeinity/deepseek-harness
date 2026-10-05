@@ -188,10 +188,11 @@ function UserStyleBubble({
   return (
     <div
       className={css.userRow}
+      data-user-message
       data-pending-steering={pending || undefined}
       data-submission-echo={echo || undefined}
     >
-      <div className={css.userStack}>
+      <div className={css.userStack} data-user-message-body>
         {attachments.length > 0 && (
           <div className={css.attachmentRow} data-message-attachments>
             {attachments.map((attachment, index) => attachment.type === 'image'

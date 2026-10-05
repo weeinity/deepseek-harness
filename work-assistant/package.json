@@ -9,10 +9,11 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present run build",
+    "build:receipt-runtime": "node ./scripts/build-receipt-runtime.mjs",
     "setup:profile": "node ./scripts/setup-personal-assistant.mjs",
     "test": "vitest run",
     "test:profile": "node ./profile-tests/profile-smoke.mjs",
-    "typecheck": "tsc -p tsconfig.check.json"
+    "typecheck": "tsc -p tsconfig.check.json && pnpm --filter @deepseek-ai/dsh-wa-ui run typecheck"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
@@ -36,8 +37,11 @@
     "@deepseek-ai/dsh-system-prompt": "0.1.5-alpha.2",
     "@deepseek-ai/dsh-tools": "0.1.5-alpha.2",
     "@deepseek-ai/dsh-user-approval": "0.1.5-alpha.2",
+    "@deepseek-ai/dsh-wa-preset": "workspace:*",
     "@types/node": "22.20.0",
+    "@vitest/coverage-v8": "4.1.8",
     "croner": "10.0.1",
+    "playwright": "1.61.1",
     "typescript": "6.0.3",
     "vitest": "4.1.8"
   }

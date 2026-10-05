@@ -1,0 +1,30 @@
+diff --git a/lib/types/client/contract/records.d.ts b/lib/types/client/contract/records.d.ts
+index cbcfcead62e43d1acba56486becfcccb5d7b3fcb..65fb73621c73e5fb0fa1c897952594610e1dabd9 100644
+--- a/lib/types/client/contract/records.d.ts
++++ b/lib/types/client/contract/records.d.ts
+@@ -44,6 +44,8 @@ export type AssistantBlock = {
+ /** A finalized user message. */
+ export interface UserMessageNode {
+     kind: 'user';
++    /** Stable message identity carried from the admitted `user/message` event. */
++    messageId: MessageId;
+     seq: number;
+     /** Unix epoch ms from the source session event. */
+     time: number;
+diff --git a/package.json b/package.json
+index 2d7c598eb3120c687e713d84275f8de622edf9c6..d3ae5174fb1885ae434a00894636fa1b60784434 100644
+--- a/package.json
++++ b/package.json
+@@ -99,5 +99,12 @@
+   "scripts": {
+     "bundle": "tsdown",
+     "watch": "tsdown --watch"
++  },
++  "dshReceiptRuntimePatch": {
++    "tag": "personal-assistant-receipts-alpha2-backport",
++    "base": "@deepseek-ai/dsh-client-ui-conversation@0.1.5-alpha.2",
++    "patches": [
++      "UserMessageNode.messageId type"
++    ]
+   }
+ }

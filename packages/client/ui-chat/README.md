@@ -13,12 +13,20 @@ Use this package to render a browser chat from recorded Session conversations, i
 ## Table of Contents
 
 - [System prompt row](#system-prompt-row)
+- [User badge slot](#user-badge-slot)
 - [Turn token usage](#turn-token-usage)
 - [Turn Process Folding](#turn-process-folding)
 - [Scroll ownership](#scroll-ownership)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+-----
+
+<a id="user-badge-slot"></a>
+## User badge slot
+
+`conversation.chat.user-badges` is a session list slot for admitted durable `user` and `steering` Chat nodes. Occupied contributions attach to the default message body's lower-right edge as a reaction row, above unobstructed copy and time controls; empty contributions preserve the ordinary message layout. Owner props expose `messageId`, optional `browserPromptRequestId`, `seq`, `time`, `placement`, and optional `assistantReaction` containing `assistantMessageId` and `emoji`; content blocks and the raw source object stay private. `assistantReaction` is present only when the paired input has verified Web provenance, a `ctx.chatReactions.register({ presetIds, emoji })` policy exactly matches the Session's `agentPreset` projection, and the completed turn's settled assistant reply has exactly one non-empty visible text block with the supported 👍 text; reasoning blocks may accompany it, but tools, images, opaque blocks, or extra text keep the assistant reply as a normal Chat row. Without that policy or input provenance, the assistant reply stays a normal Chat row. Context injections, replacements, and queued submissions do not dispatch the slot.
 
 -----
 

@@ -174,6 +174,13 @@ function textMessage(id: string, text: string) {
   }
 }
 
+function browserTextMessage(id: string, text: string, rpcId: string) {
+  return {
+    ...textMessage(id, text),
+    source: { kind: 'user', rpcId },
+  }
+}
+
 function systemMessage(text: string) {
   return {
     id: `system-${text}`,
@@ -303,6 +310,178 @@ describe('built-in conversation node Definitions', () => {
     // One clipped prompt line: 49 characters plus the trailing ellipsis.
     expect(items[0]?.prompt.length).toBe(50)
     expect(items[0]?.prompt.endsWith('…')).toBe(true)
+  })
+
+  it('projects browser prompt identity only from admitted user append events', () => {
+    const value = assembler([
+      at(1, 'user/message', browserTextMessage('browser-user', 'from browser', 'rpc-user'), { surfaceOp: 'append' }),
+      at(2, 'user/message', textMessage('legacy-user', 'legacy'), { surfaceOp: 'append' }),
+      at(3, 'user/message', {
+        ...textMessage('numeric-rpc', 'bad rpc'),
+        source: { kind: 'user', rpcId: 1 },
+      }, { surfaceOp: 'append' }),
+      at(4, 'user/message', {
+        ...textMessage('empty-rpc', 'empty rpc'),
+        source: { kind: 'user', rpcId: '' },
+      }, { surfaceOp: 'append' }),
+      at(5, 'user/message', {
+        ...textMessage('blank-rpc', 'blank rpc'),
+        source: { kind: 'user', rpcId: '   ' },
+      }, { surfaceOp: 'append' }),
+      at(6, 'user/message', {
+        ...textMessage('padded-rpc', 'padded rpc'),
+        source: { kind: 'user', rpcId: ' rpc-padded ' },
+      }, { surfaceOp: 'append' }),
+      at(7, 'user/message', {
+        ...textMessage('plugin-context', 'context'),
+        source: { kind: 'plugin', plugin: 'context' },
+      }, { surfaceOp: 'append' }),
+      at(8, 'user/message', browserTextMessage('replaced-user', 'replacement', 'rpc-replaced'), {
+        surfaceOp: { op: 'replace', startSeq: 1, endSeq: 1 },
+        sourceEventSeqs: [1],
+      }),
+    ])
+    const current = snapshot(value)
+    const userNodes = current.nodes.values().filter(candidate => candidate.kind === 'user')
+    const contextNodes = current.nodes.values().filter(candidate => candidate.kind === 'context')
+
+    expect(userNodes.map(candidate => candidate.data)).toMatchObject([
+      { messageId: 'browser-user', browserPromptRequestId: 'rpc-user' },
+      { messageId: 'legacy-user' },
+      { messageId: 'numeric-rpc' },
+      { messageId: 'empty-rpc' },
+      { messageId: 'blank-rpc' },
+      { messageId: 'padded-rpc' },
+    ])
+    for (const userNode of userNodes.slice(1)) {
+      expect(userNode.data).not.toHaveProperty('browserPromptRequestId')
+    }
+    expect(contextNodes[0]?.data).not.toHaveProperty('browserPromptRequestId')
+    expect(current.nodes.values().some(candidate => candidate.id === 'replaced-user')).toBe(false)
+  })
+
+  it('keeps the browser prompt identity when an inbox claim becomes steering', () => {
+    const steering = browserTextMessage('steer-browser', 'change direction', 'rpc-steering')
+    const current = snapshot(assembler([
+      at(1, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, inserted: [steering],
+      }),
+      at(2, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, removedCount: 1, inserted: [],
+      }),
+      at(3, 'user/message', steering, { surfaceOp: 'append' }),
+    ]))
+
+    expect(node(current, 'steering')?.data).toMatchObject({
+      messageId: 'steer-browser',
+      browserPromptRequestId: 'rpc-steering',
+    })
+  })
+
+  it('replays an assistant-chosen thumbs-up as paired reaction metadata', () => {
+    const entries = [
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', browserTextMessage('thanks-1', 'thanks', 'rpc-thanks'), { surfaceOp: 'append' }),
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      at(4, 'assistant/message', {
+        turn: 1,
+        step: 1,
+        message: {
+          ...assistantMessage('ack-1', ''),
+          content: [{ type: 'reasoning', text: 'Thought a while' }, { type: 'text', text: ' 👍 ' }],
+        },
+      }, { surfaceOp: 'append' }),
+      at(5, 'step/end', { turn: 1, step: 1, reason: { kind: 'completed' } }),
+      at(6, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ]
+    const replayed = snapshot(assembler(entries))
+    const live = assembler(entries.slice(0, 3))
+    for (const entry of entries.slice(3)) {
+      live.append(entry)
+      live.flush()
+    }
+    const liveSnapshot = snapshot(live)
+    const replayedUser = node(replayed, 'user')
+    const replayedAssistant = node(replayed, 'assistant-step')
+    const liveUser = node(liveSnapshot, 'user')
+    const liveAssistant = node(liveSnapshot, 'assistant-step')
+
+    const liveBeforeTurnEnd = assembler(entries.slice(0, 4))
+    expect(node(snapshot(liveBeforeTurnEnd), 'user')?.data).not.toHaveProperty('assistantReaction')
+
+    expect(replayedUser?.data).toMatchObject({
+      assistantReaction: {
+        assistantMessageId: 'ack-1',
+        emoji: '👍',
+      },
+    })
+    expect(replayedAssistant?.data).toMatchObject({
+      assistantReaction: {
+        userMessageId: 'thanks-1',
+        userNodeId: replayedUser?.id,
+        assistantMessageId: 'ack-1',
+        emoji: '👍',
+      },
+    })
+    expect(liveUser?.data).toEqual(replayedUser?.data)
+    expect(liveAssistant?.data).toEqual(replayedAssistant?.data)
+  })
+
+  it('keeps ordinary, interrupted, and mixed visible assistant replies out of reaction metadata', () => {
+    const current = snapshot(assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', textMessage('ordinary-user', 'hello'), { surfaceOp: 'append' }),
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      at(4, 'assistant/message', {
+        turn: 1, step: 1, message: assistantMessage('ordinary-assistant', 'hello'),
+      }, { surfaceOp: 'append' }),
+      at(5, 'step/start', { turn: 1, step: 2 }),
+      at(6, 'assistant/message', {
+        turn: 1,
+        step: 2,
+        message: {
+          ...assistantMessage('mixed-assistant', ''),
+          content: [{ type: 'text', text: '👍' }, { type: 'text', text: 'ack' }],
+        },
+      }, { surfaceOp: 'append' }),
+      at(7, 'step/start', { turn: 1, step: 3 }),
+      at(8, 'assistant/live-chunk', {
+        turn: 1, step: 3,
+        chunk: { type: 'text-delta', index: 0, text: '👍' },
+      }),
+      at(9, 'turn/end', { turn: 1, reason: { kind: 'interrupted' } }),
+      at(10, 'turn/start', { turn: 2 }),
+      at(11, 'user/message', textMessage('aborted-user', 'thanks'), { surfaceOp: 'append' }),
+      at(12, 'step/start', { turn: 2, step: 1 }),
+      at(13, 'assistant/message', {
+        turn: 2, step: 1, message: assistantMessage('aborted-assistant', '👍'),
+      }, { surfaceOp: 'append' }),
+      at(14, 'step/end', { turn: 2, step: 1 }),
+      at(15, 'turn/end', { turn: 2, reason: { kind: 'aborted', reason: { kind: 'user' } } }),
+    ]))
+
+    expect(current.nodes.values().every(candidate => (
+      (candidate.data as { assistantReaction?: unknown }).assistantReaction === undefined
+    ))).toBe(true)
+  })
+
+  it('does not suppress a historical emoji reply without browser input provenance', () => {
+    const current = snapshot(assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', browserTextMessage('earlier-web', 'first', 'rpc-earlier'), { surfaceOp: 'append' }),
+      at(3, 'user/message', textMessage('non-web', 'thanks'), { surfaceOp: 'append' }),
+      at(4, 'step/start', { turn: 1, step: 1 }),
+      at(5, 'assistant/message', {
+        turn: 1, step: 1, message: assistantMessage('historical-ack', '👍'),
+      }, { surfaceOp: 'append' }),
+      at(6, 'step/end', { turn: 1, step: 1 }),
+      at(7, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ]))
+
+    expect(node(current, 'assistant-step')?.data.blocks).toContainEqual(expect.objectContaining({ kind: 'text', text: '👍' }))
+    expect(current.nodes.values().every(candidate => (
+      (candidate.data as { assistantReaction?: unknown }).assistantReaction === undefined
+    ))).toBe(true)
   })
 
   it('classifies reply content separately from reasoning and Tool protocol blocks', () => {

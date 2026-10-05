@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, cpSync, writeFileSync } from 'node:fs'
-import { lstat, mkdir, rm, writeFile } from 'node:fs/promises'
+import { link, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { parseArgs as parseNodeArgs } from 'node:util'
 import { CronPattern } from 'croner'
+import { buildReceiptRuntime } from './build-receipt-runtime.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PACKAGES = ['wa-gateway', 'wa-calendar', 'wa-memory', 'wa-preset', 'wa-briefing']
-const PACKAGE_NAMES = PACKAGES.map(name => `@deepseek-ai/dsh-${name}`)
+const PACKAGES = ['wa-gateway', 'wa-calendar', 'wa-memory', 'wa-preset', 'wa-briefing', 'wa-ui']
 const MANAGED_BY = '@deepseek-ai/dsh-work-assistant'
 
 try {
@@ -52,25 +52,41 @@ async function main(argv) {
   if (existsSync(markerPath)) {
     const marker = JSON.parse(readFileSync(markerPath, 'utf8'))
     if (marker.managedBy !== MANAGED_BY) throw new Error(`Profile ${profile} is not managed by work-assistant`)
+    if (marker.version !== 1) throw new Error(`Profile ${profile} has an unsupported work-assistant marker version`)
     if (marker.configHash !== configHash(requested)) throw new Error(`Profile ${profile} already exists with different work-assistant inputs`)
+    if (args.update === true) {
+      const runtime = await buildReceiptRuntime(join(home, 'packages'))
+      installPackages([...runtime, ...await packBundles(PACKAGES, home)], requested, home)
+      console.log(`Updated work-assistant bundles in ${profile}; existing patches, preset assets, and saved state were preserved. Restart this profile and refresh its existing URL.`)
+      return
+    }
+    const missing = missingBundles(join(home, 'profiles', profile))
+    if (missing.length > 0) {
+      const runtime = missing.includes('wa-ui') ? await buildReceiptRuntime(join(home, 'packages')) : []
+      installPackages([...runtime, ...await packBundles(missing, home)], requested, home)
+      console.log(`Added missing work-assistant bundles to ${profile}: ${missing.join(', ')}.`)
+      return
+    }
     console.log(`Profile ${profile} is already configured in ${home}.`)
     return
   }
 
+  if (args.update === true) throw new Error('--update requires an existing managed work-assistant profile')
   await mkdir(home, { recursive: true })
-  run('pnpm', ['run', 'build'], { cwd: ROOT })
-  const artifactDir = join(home, 'packages')
-  await rm(artifactDir, { recursive: true, force: true })
-  await mkdir(artifactDir, { recursive: true })
-  for (const pkg of PACKAGES) run('pnpm', ['--filter', `@deepseek-ai/dsh-${pkg}`, 'pack', '--pack-destination', artifactDir], { cwd: ROOT })
+  const tarballs = await packBundles(PACKAGES, home)
+  const runtime = await buildReceiptRuntime(join(home, 'packages'))
 
   run(dshCommand(), ['--profile', profile, '--from-default-profile', 'web', '--dump-config'], { cwd: workspace, env: { ...process.env, DSH_HOME: home }, silent: true })
   const profileDir = join(home, 'profiles', profile)
-  for (const tarball of sortedTarballs(artifactDir)) {
-    run(dshCommand(), ['plugin', '--profile', profile, 'add', tarball], { cwd: workspace, env: { ...process.env, DSH_HOME: home } })
-  }
+  installPackages([...runtime, ...tarballs], requested, home)
   copyPresetAssets(home)
-  writeFileSync(join(profileDir, 'cordis.patch.yml'), renderPatch(requested), 'utf8')
+  const receiptPatch = `- id: wa-ui
+  config:
+    receipt:
+      presetIds: [personal-assistant]
+      style: thumbs-up
+`
+  writeFileSync(join(profileDir, 'cordis.patch.yml'), renderPatch(requested) + receiptPatch, 'utf8')
   const packageJson = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
   packageJson.packageManager = 'pnpm@11.7.0'
   writeFileSync(join(profileDir, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8')
@@ -99,6 +115,7 @@ function parseArgs(argv) {
       'calendar-feed-credential-ref': { type: 'string' },
       'memory-root': { type: 'string' },
       'enable-schedule': { type: 'boolean' },
+      update: { type: 'boolean' },
       'demo-fixture': { type: 'boolean' },
     },
   })
@@ -144,7 +161,8 @@ async function assertDedicatedHome(homePath, profileName) {
   const profiles = join(homePath, 'profiles')
   const marker = join(profiles, profileName, '.work-assistant-profile.json')
   if (existsSync(marker)) {
-    const names = existsSync(profiles) ? readdirSync(profiles).filter(name => name !== profileName) : []
+    // DSH's shared resolver cache lives beside the profile directories.
+    const names = existsSync(profiles) ? readdirSync(profiles).filter(name => name !== profileName && name !== 'node_modules') : []
     if (names.length > 0) throw new Error('--home must be dedicated to one personal-assistant profile')
     return
   }
@@ -193,9 +211,53 @@ function assertFiveFieldCron(value, timeZone) {
   }
 }
 
-function sortedTarballs(dir) {
-  const tarballs = readdirSync(dir).filter(name => name.endsWith('.tgz')).map(name => join(dir, name))
-  return PACKAGE_NAMES.map(pkg => tarballs.find(path => path.includes(pkg.replace('@deepseek-ai/dsh-', 'deepseek-ai-dsh-')))).filter(Boolean)
+function missingBundles(profileDir) {
+  const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
+  const bundles = manifest.dsh?.profile?.bundles
+  if (!Array.isArray(bundles)) throw new Error(`Profile ${profileDir} must declare dsh.profile.bundles`)
+  return PACKAGES.filter(pkg => {
+    const name = `@deepseek-ai/dsh-${pkg}`
+    return !bundles.includes(name)
+      || manifest.dependencies?.[name] === undefined
+      || !existsSync(join(profileDir, 'node_modules', name, 'package.json'))
+  })
+}
+
+async function packBundles(packages, homePath) {
+  const filters = packages.flatMap(pkg => ['--filter', `@deepseek-ai/dsh-${pkg}...`])
+  run('pnpm', ['-r', ...filters, 'run', 'build'], { cwd: ROOT })
+  const artifactDir = join(homePath, 'packages')
+  await mkdir(artifactDir, { recursive: true })
+  const scratch = await mkdtemp(join(artifactDir, '.assistant-pack-'))
+  try {
+    const archives = []
+    for (const pkg of packages) {
+      const manifest = JSON.parse(readFileSync(join(ROOT, 'packages', pkg, 'package.json'), 'utf8'))
+      const basename = 'deepseek-ai-dsh-' + pkg + '-' + manifest.version
+      const tarball = join(scratch, basename + '.tgz')
+      run('pnpm', ['--filter', '@deepseek-ai/dsh-' + pkg, 'pack', '--out', tarball], { cwd: ROOT })
+      const digest = createHash('sha256').update(await readFile(tarball)).digest('hex')
+      const target = join(artifactDir, basename + '-sha256-' + digest + '.tgz')
+      try {
+        await link(tarball, target)
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error
+        if (createHash('sha256').update(await readFile(target)).digest('hex') !== digest) {
+          throw new Error('Assistant archive does not match its digest: ' + target)
+        }
+      }
+      archives.push(target)
+    }
+    return archives
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
+  }
+}
+
+function installPackages(tarballs, { profile, workspace }, home) {
+  for (const tarball of tarballs) {
+    run(dshCommand(), ['plugin', '--profile', profile, 'add', tarball], { cwd: workspace, env: { ...process.env, DSH_HOME: home } })
+  }
 }
 
 function copyPresetAssets(homePath) {

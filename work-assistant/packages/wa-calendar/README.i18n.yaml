@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write work-assistant//packages//wa-calendar//README.md
-README.md: dffc475448a0d7a015304cf6fdc0b3fc28eda990
-README.zh.md: 047a8856e4ea915e81d1f0bde6f3babea62b9f6c
+README.md: f430c3d9620130809e2cd724ed6fdef05b3df65d
+README.zh.md: ebadc2acef0a069c0dce999519cd7d3ba7768752

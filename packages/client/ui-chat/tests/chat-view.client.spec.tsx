@@ -6,16 +6,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { useEffect } from 'react'
 import type {
   AssistantMessageNode, ChatNode, ChatNodeOwnerProps, ChatNodeViewProps, ChatSnapshot,
-  ChatViewSlotProps, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
+  ChatReactionPolicy, ChatViewSlotProps, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
   LegacyConversationSlice, ModelRetryNode, RunningToolCall, SteeringMessageNode,
   ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode, UseChatNodeTurnData,
-  TranscriptViewMode, UserMessageNode,
+  TranscriptViewMode, UserBadgeOwnerProps, UserMessageNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
   SessionListState, SessionSnapshot,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
-  ConversationLocationDataStore, ConversationTurnDataMap,
+  ConversationLocation, ConversationLocationDataStore, ConversationTurnDataMap, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -130,6 +130,7 @@ function makeChatSource(init: ChatSlice = {}, snapshot?: ChatSnapshot) {
 
 const user = (seq: number, text: string): UserMessageNode => ({
   kind: 'user',
+  messageId: `user-${String(seq)}` as UserMessageNode['messageId'],
   seq,
   time: seq * 1000,
   content: [{ type: 'text', text }] as never,
@@ -254,6 +255,7 @@ function makeHarness(
   const loadThrough = vi.fn<(seq: number) => Promise<void>>().mockResolvedValue(undefined)
   // Mutable outline holder: tests swap the value and drive a re-render via set().
   let outlineValue: unknown
+  const projections = new Map<string, unknown>()
   const openView = vi.fn<(view: string, focus: string) => void>()
   // In-memory scroll memory matching the apply.ts per-session map contract.
   let savedScroll: ReturnType<ChatViewSlotProps['chatScroll']['read']> = null
@@ -265,6 +267,7 @@ function makeHarness(
   // Rows and the harness must observe the same chat-store instance.
   const chat = createChatStore().create()
   const transcriptView = createSnapshotStore<TranscriptViewMode>('compact')
+  const assistantReactionPolicies = createSnapshotStore<readonly ChatReactionPolicy[]>([])
   const t = makeTranslate(zh, commonZh)
   const toolOwners: Array<{
     callId: string
@@ -377,7 +380,7 @@ function makeHarness(
       createSnapshotStore<SessionPendingInteractionSnapshot>(new Map()),
     ),
     useWorkspaces: emptyWorkspaces(),
-    useProjection: () => outlineValue,
+    useProjection: (key: string) => key === 'turnOutline' ? outlineValue : projections.get(key),
     useInput: (() => { throw new Error('unused') }),
     inputActions: {
       setDraft: () => {},
@@ -389,6 +392,7 @@ function makeHarness(
     useStore: bindSnapshotSelector(chat),
     actions: chat.actions,
     useTranscriptView: bindSnapshotSelector(transcriptView),
+    useAssistantReactionPolicies: bindSnapshotSelector(assistantReactionPolicies),
     renderSlot,
     SessionProvider: SessionProviderStub,
     viewRequest: null,
@@ -426,6 +430,10 @@ function makeHarness(
     set, setSession: session.set, setChat: chatSource.set, ChatView, props,
     openFile, loadOlder, loadThrough, openView,
     setOutline: (value: unknown) => { outlineValue = value },
+    setProjection: (key: string, value: unknown) => { projections.set(key, value) },
+    setAssistantReactionPolicies: (policies: readonly ChatReactionPolicy[]) => {
+      assistantReactionPolicies.set(policies)
+    },
     chatScroll, forkAt, toolOwners,
     setTranscriptView: (mode: TranscriptViewMode) => { transcriptView.set(mode) },
     setNodeRenderer: (renderer: React.ComponentProps<typeof ChatNodeSeat>['renderSlot']) => {
@@ -494,6 +502,157 @@ function installScrollMetrics(element: HTMLElement, initialHeight: number, clien
 }
 
 describe('Chat node rendering', () => {
+  it('dispatches user badges for durable user and steering nodes with optional browser proof', () => {
+    const h = makeHarness({
+      nodes: [
+        { ...user(1, 'browser'), browserPromptRequestId: 'rpc-user' as never },
+        user(2, 'legacy'),
+        context(3, 'plugin context'),
+        { ...steering(4, 'browser steering', 1), browserPromptRequestId: 'rpc-steering' as never },
+      ] as never,
+    })
+    const badgeOwners: UserBadgeOwnerProps[] = []
+    h.setNodeRenderer(((key: string, owner: object, opts?: { fallback?: React.ReactNode }) => {
+      if (key === 'conversation.chat.user-badges') {
+        const badgeOwner = owner as UserBadgeOwnerProps
+        badgeOwners.push(badgeOwner)
+        return (
+          <span data-testid={`badge-${badgeOwner.placement}-${badgeOwner.seq}`}>
+            {badgeOwner.browserPromptRequestId ?? 'absent'}
+          </span>
+        )
+      }
+      if (key === 'conversation.chat.node') {
+        const nodeOwner = owner as RoutedChatNodeOwner
+        return <div data-testid={`node-${nodeOwner.node.kind}`}>{nodeOwner.node.kind}</div>
+      }
+      return opts?.fallback ?? null
+    }) as React.ComponentProps<typeof ChatNodeSeat>['renderSlot'])
+
+    const view = render(<h.ChatView {...h.props} />)
+
+    expect(view.getByTestId('badge-user-1').textContent).toBe('rpc-user')
+    expect(view.getByTestId('badge-user-2').textContent).toBe('absent')
+    expect(view.getByTestId('badge-steering-4').textContent).toBe('rpc-steering')
+    expect(badgeOwners).toEqual([
+      {
+        messageId: 'user-1',
+        browserPromptRequestId: 'rpc-user',
+        seq: 1,
+        time: 1000,
+        placement: 'user',
+      },
+      {
+        messageId: 'user-2',
+        seq: 2,
+        time: 2000,
+        placement: 'user',
+      },
+      {
+        messageId: 'steering-4',
+        browserPromptRequestId: 'rpc-steering',
+        seq: 4,
+        time: 4000,
+        placement: 'steering',
+      },
+    ])
+  })
+
+  it('exposes assistant reactions only for matching preset policies', () => {
+    const initial = chatSnapshotFixture({
+      nodes: [
+        userInTurn(1, 'thanks', 1),
+        assistant(2, '👍', 1),
+      ],
+      turnTimings: new Map([[1, { startTime: 1000, endTime: 3000 }]]),
+      turnEnds: new Map([[1, 3]]),
+    })
+    const rawUser = initial.nodes.values().find(candidate => candidate.kind === 'user')
+    const rawAssistant = initial.nodes.values().find(candidate => candidate.kind === 'assistant-step')
+    if (rawUser === undefined || rawAssistant === undefined) throw new Error('reaction fixture is incomplete')
+    const turn = initial.timeline.turns.get(1)
+    if (turn === undefined || turn.end === undefined) throw new Error('reaction fixture turn is incomplete')
+    const completedTurn: TurnLocation = {
+      ...turn,
+      end: {
+        ...turn.end,
+        data: { turn: 1, reason: { kind: 'completed' } },
+      },
+      status: 'closed',
+    }
+    const stepData = createSnapshotStore(undefined)
+    const completedLocation: ConversationLocation = {
+      kind: 'step',
+      turn: completedTurn,
+      step: {
+        turn: 1,
+        step: 1,
+        start: undefined,
+        end: undefined,
+        status: 'closed',
+        data: { get: () => undefined, source: () => stepData },
+      },
+    }
+    const paired = new ChatSnapshotBuilder().replace({
+      timeline: initial.timeline,
+      nodes: initial.nodes.values().map((candidate) => {
+        if (candidate === rawUser) {
+          const data = candidate.data as ChatNode<'user'>['data']
+          return {
+            ...candidate,
+            data: { ...data, browserPromptRequestId: 'rpc-user' },
+          }
+        }
+        if (candidate === rawAssistant) {
+          const data = candidate.data as ChatNode<'assistant-step'>['data']
+          const finalNode = data.finalNode
+          if (finalNode === undefined) throw new Error('reaction fixture assistant is not settled')
+          return {
+            ...candidate,
+            location: completedLocation,
+            data: {
+              ...data,
+              finalNode: { ...finalNode, messageId: 'assistant-2' },
+            },
+          }
+        }
+        return candidate
+      }),
+    })
+    const h = makeHarness({ chat: paired })
+    h.setNodeRenderer(((key: string, owner: object, opts?: { fallback?: React.ReactNode }) => {
+      if (key === 'conversation.chat.user-badges') {
+        const badgeOwner = owner as UserBadgeOwnerProps
+        return badgeOwner.assistantReaction === undefined
+          ? null
+          : <span data-testid="assistant-reaction">{badgeOwner.assistantReaction.emoji}</span>
+      }
+      if (key === 'conversation.chat.node') {
+        const nodeOwner = owner as RoutedChatNodeOwner
+        return <div data-testid={`node-${nodeOwner.node.kind}`}>{nodeOwner.node.kind}</div>
+      }
+      return opts?.fallback ?? null
+    }) as React.ComponentProps<typeof ChatNodeSeat>['renderSlot'])
+
+    const view = render(<h.ChatView {...h.props} />)
+
+    expect(view.getByTestId('node-assistant-step')).toBeTruthy()
+    expect(view.queryByTestId('assistant-reaction')).toBeNull()
+
+    h.setProjection('agentPreset', 'other')
+    act(() => { h.setAssistantReactionPolicies([{ presetIds: ['personal-assistant'], emoji: '👍' }]) })
+    expect(view.getByTestId('node-assistant-step')).toBeTruthy()
+    expect(view.queryByTestId('assistant-reaction')).toBeNull()
+
+    h.setProjection('agentPreset', 'personal-assistant')
+    act(() => { h.setAssistantReactionPolicies([{ presetIds: ['personal-assistant'], emoji: '👍' }]) })
+    expect(view.queryByTestId('node-assistant-step')).toBeNull()
+    expect(view.getByTestId('assistant-reaction').textContent).toBe('👍')
+
+    act(() => { h.setAssistantReactionPolicies([]) })
+    expect(view.getByTestId('node-assistant-step')).toBeTruthy()
+    expect(view.queryByTestId('assistant-reaction')).toBeNull()
+  })
 
   it('threads the injected file-mention vocabulary into the closing prose only', () => {
     const wrote = (seq: number, callId: string): ToolResultNode => ({
@@ -1025,6 +1184,7 @@ describe('ChatView', () => {
     const h = makeHarness({
       nodes: [{
         kind: 'user', seq: 2, time: 2_000,
+        messageId: 'admitted-2' as never,
         content: pending.content, source: null,
       }],
     }, { queue: [pending], running: true })
@@ -1057,8 +1217,10 @@ describe('ChatView', () => {
           assistant(1, 'working'),
           {
             kind: 'user', seq: 2, time: 2_000,
+            messageId: 'admitted-2' as never,
             content: [{ type: 'text', text: '即发即显' }] as never,
             source: { kind: 'user', rpcId: 'req-1' },
+            browserPromptRequestId: 'req-1' as never,
           },
         ],
       })

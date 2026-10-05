@@ -6,6 +6,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatConversationViewNode, ChatNode } from '../contract/chat-nodes.ts'
 import { isRunningTool } from '../contract/chat-nodes.ts'
+import type { AssistantReaction, AssistantReactionPair } from '../contract/reactions.ts'
 import type {
   ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore, ChatSnapshot,
   ChatTurnNavigationIndex, ChatTurnProcessPresentation, LegacyConversationSlice, TurnNavigationItem,
@@ -505,6 +506,347 @@ class ReferenceLabelProjector {
   }
 }
 
+function sameAssistantReaction(
+  left: AssistantReaction | AssistantReactionPair | undefined,
+  right: AssistantReaction | AssistantReactionPair | undefined,
+): boolean {
+  return left?.assistantMessageId === right?.assistantMessageId
+    && left?.emoji === right?.emoji
+    && (left as AssistantReactionPair | undefined)?.assistantNodeId === (right as AssistantReactionPair | undefined)?.assistantNodeId
+    && (left as AssistantReactionPair | undefined)?.userNodeId === (right as AssistantReactionPair | undefined)?.userNodeId
+    && (left as AssistantReactionPair | undefined)?.userMessageId === (right as AssistantReactionPair | undefined)?.userMessageId
+}
+
+function withAssistantReaction(
+  node: ChatConversationViewNode,
+  reaction: AssistantReaction | undefined,
+): ChatConversationViewNode {
+  const candidate = node as ChatNode
+  if (candidate.kind !== 'user' && candidate.kind !== 'steering') return node
+  const current = candidate.data.assistantReaction
+  const hasReaction = Object.hasOwn(candidate.data, 'assistantReaction')
+  if (sameAssistantReaction(current, reaction) && hasReaction === (reaction !== undefined)) return node
+  const data: Record<string, unknown> = { ...candidate.data }
+  if (reaction === undefined) delete data.assistantReaction
+  else data.assistantReaction = reaction
+  return { ...candidate, data }
+}
+
+function withAssistantReactionPair(
+  node: ChatConversationViewNode,
+  reaction: AssistantReactionPair | undefined,
+): ChatConversationViewNode {
+  const candidate = node as ChatNode
+  if (candidate.kind !== 'assistant-step') return node
+  const current = candidate.data.assistantReaction
+  const hasReaction = Object.hasOwn(candidate.data, 'assistantReaction')
+  if (sameAssistantReaction(current, reaction) && hasReaction === (reaction !== undefined)) return node
+  const data: Record<string, unknown> = { ...candidate.data }
+  if (reaction === undefined) delete data.assistantReaction
+  else data.assistantReaction = reaction
+  return { ...candidate, data }
+}
+
+interface ProjectionEntry {
+  readonly seq: number
+  readonly kind: string
+}
+
+/** First index whose sequence is at least `seq`. */
+function projectionLowerBound(entries: readonly ProjectionEntry[], seq: number): number {
+  let low = 0
+  let high = entries.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if ((entries[middle]?.seq ?? Number.POSITIVE_INFINITY) < seq) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
+/** Last index of the boundary-free run containing `index`. */
+function projectionRunEnd(entries: readonly ProjectionEntry[], index: number): number {
+  let end = index
+  while (end + 1 < entries.length && entries[end + 1]?.kind !== 'boundary') end++
+  return end
+}
+
+/** First index of the boundary-free run containing `index`. */
+function projectionRunStart(entries: readonly ProjectionEntry[], index: number): number {
+  let start = index
+  while (start - 1 >= 0 && entries[start - 1]?.kind !== 'boundary') start--
+  return start
+}
+
+type ReactionEntry =
+  | {
+    readonly kind: 'message'
+    readonly key: string
+    readonly seq: number
+    readonly nodeId: string
+    readonly messageId: AssistantReactionPair['userMessageId']
+  }
+  | {
+    readonly kind: 'reaction'
+    readonly key: string
+    readonly seq: number
+    readonly nodeId: string
+    readonly assistantMessageId: AssistantReaction['assistantMessageId']
+    readonly emoji: string
+  }
+  | {
+    readonly kind: 'boundary'
+    readonly key: string
+    readonly seq: number
+  }
+
+function singleAssistantReactionEmoji(node: ChatNode<'assistant-step'>): string | undefined {
+  const final = node.data.finalNode
+  if (node.data.status !== 'settled'
+    || node.location.kind !== 'step'
+    || node.location.turn.end?.data.reason.kind !== 'completed'
+    || final === undefined
+    || final.interrupted === true
+    || final.messageId === undefined) return undefined
+  let emoji: string | undefined
+  for (const block of node.data.blocks) {
+    if (block.kind === 'reasoning') continue
+    if (block.kind !== 'text') return undefined
+    const text = block.text.trim()
+    if (text === '') continue
+    if (emoji !== undefined || text !== '👍') return undefined
+    emoji = text
+  }
+  return emoji
+}
+
+function reactionEntryOf(node: ChatConversationViewNode): ReactionEntry | null {
+  const candidate = node as ChatNode
+  switch (candidate.kind) {
+    case 'user':
+    case 'steering':
+      if (candidate.data.browserPromptRequestId === undefined) {
+        return { kind: 'boundary', key: candidate.key, seq: candidate.anchorSeq }
+      }
+      return {
+        kind: 'message',
+        key: candidate.key,
+        seq: candidate.anchorSeq,
+        nodeId: candidate.id,
+        messageId: candidate.data.messageId,
+      }
+    case 'assistant-step': {
+      const emoji = singleAssistantReactionEmoji(candidate)
+      const messageId = candidate.data.finalNode?.messageId
+      return emoji === undefined || messageId === undefined
+        ? { kind: 'boundary', key: candidate.key, seq: candidate.anchorSeq }
+        : {
+          kind: 'reaction',
+          key: candidate.key,
+          seq: candidate.anchorSeq,
+          nodeId: candidate.id,
+          assistantMessageId: messageId,
+          emoji,
+        }
+    }
+    case 'context':
+    case 'model-retry':
+    case 'system-prompt':
+    case 'turn-process':
+      return null
+    default:
+      return { kind: 'boundary', key: candidate.key, seq: candidate.anchorSeq }
+  }
+}
+
+function sameReactionEntry(left: ReactionEntry, right: ReactionEntry): boolean {
+  if (left.kind !== right.kind || left.seq !== right.seq) return false
+  if (left.kind === 'message' && right.kind === 'message') {
+    return left.nodeId === right.nodeId && left.messageId === right.messageId
+  }
+  if (left.kind === 'reaction' && right.kind === 'reaction') {
+    return left.nodeId === right.nodeId
+      && left.assistantMessageId === right.assistantMessageId
+      && left.emoji === right.emoji
+  }
+  return true
+}
+
+function buildReactionPair(
+  message: Extract<ReactionEntry, { kind: 'message' }>,
+  reaction: Extract<ReactionEntry, { kind: 'reaction' }>,
+): AssistantReactionPair {
+  return {
+    assistantNodeId: reaction.nodeId,
+    assistantMessageId: reaction.assistantMessageId,
+    emoji: reaction.emoji,
+    userNodeId: message.nodeId,
+    userMessageId: message.messageId,
+  }
+}
+
+/** Pairs settled assistant-only acknowledgements with the nearest direct message. */
+export class AssistantReactionProjector {
+  private readonly entries = new Map<string, ReactionEntry>()
+  private sorted: ReactionEntry[] = []
+  private readonly messageReactions = new Map<string, AssistantReaction>()
+  private readonly assistantReactions = new Map<string, AssistantReactionPair>()
+
+  /**
+   * Rebuild the index from a whole Node set and attach acknowledgement pairs.
+   * @param nodes - every materialized Chat Node, in any order.
+   * @returns the same Nodes, paired user and assistant Nodes carrying metadata.
+   */
+  replace(nodes: readonly ChatConversationViewNode[]): readonly ChatConversationViewNode[] {
+    this.entries.clear()
+    this.sorted = []
+    this.messageReactions.clear()
+    this.assistantReactions.clear()
+    for (const node of nodes) {
+      const entry = reactionEntryOf(node)
+      if (entry === null) continue
+      this.entries.set(entry.key, entry)
+      this.sorted.push(entry)
+    }
+    this.sorted.sort((left, right) => left.seq - right.seq)
+    for (let index = 0; index < this.sorted.length; index++) {
+      const entry = this.sorted[index]
+      if (entry === undefined || entry.kind === 'boundary') continue
+      const end = projectionRunEnd(this.sorted, index)
+      this.replaceRun(index, end, new Set())
+      index = end
+    }
+    return nodes.map(node => this.withMetadata(node))
+  }
+
+  /**
+   * Fold one incremental upsert set and re-read only affected message runs.
+   * @param upserts - the changed Nodes.
+   * @param store - the resident Nodes, read by key for paired Nodes outside the upsert set.
+   * @returns the upserts plus any resident paired Node whose metadata changed.
+   */
+  apply(
+    upserts: readonly ChatConversationViewNode[],
+    store: ChatNodeStore,
+  ): readonly ChatConversationViewNode[] {
+    const dirty: number[] = []
+    const affected = new Set<string>()
+    for (const node of upserts) {
+      const next = reactionEntryOf(node)
+      const previous = this.entries.get(node.key)
+      if (previous !== undefined) {
+        if (next !== null && sameReactionEntry(previous, next)) {
+          if (next.kind === 'message' || next.kind === 'reaction') {
+            dirty.push(next.seq)
+            affected.add(next.key)
+          }
+          continue
+        }
+        this.remove(previous)
+        this.forget(previous, affected)
+        dirty.push(previous.seq)
+      }
+      if (next === null) continue
+      this.insert(next)
+      dirty.push(next.seq)
+    }
+    if (dirty.length === 0) return upserts
+    for (const seq of dirty) {
+      for (const [start, end] of this.runsAround(seq)) this.replaceRun(start, end, affected)
+    }
+    const byKey = new Map(upserts.map(node => [node.key, node]))
+    for (const key of affected) {
+      const node = byKey.get(key) ?? store.get(key)
+      if (node === undefined) continue
+      const next = this.withMetadata(node)
+      if (next !== node || byKey.has(key)) byKey.set(key, next)
+    }
+    return [...byKey.values()]
+  }
+
+  private withMetadata(node: ChatConversationViewNode): ChatConversationViewNode {
+    return withAssistantReactionPair(
+      withAssistantReaction(node, this.messageReactions.get(node.key)),
+      this.assistantReactions.get(node.key),
+    )
+  }
+
+  private insert(entry: ReactionEntry): void {
+    this.sorted.splice(projectionLowerBound(this.sorted, entry.seq), 0, entry)
+    this.entries.set(entry.key, entry)
+  }
+
+  private remove(entry: ReactionEntry): void {
+    this.sorted.splice(this.sorted.indexOf(entry), 1)
+    this.entries.delete(entry.key)
+  }
+
+  private forget(entry: ReactionEntry, affected: Set<string>): void {
+    if (entry.kind === 'message' && this.messageReactions.delete(entry.key)) affected.add(entry.key)
+    if (entry.kind === 'reaction' && this.assistantReactions.delete(entry.key)) affected.add(entry.key)
+  }
+
+  private runsAround(seq: number): Array<readonly [number, number]> {
+    const at = projectionLowerBound(this.sorted, seq)
+    const here = this.sorted[at]
+    const ranges: Array<readonly [number, number]> = []
+    const add = (index: number): void => {
+      if (index < 0 || index >= this.sorted.length || this.sorted[index]?.kind === 'boundary') return
+      ranges.push([projectionRunStart(this.sorted, index), projectionRunEnd(this.sorted, index)])
+    }
+    if (here !== undefined && here.seq === seq && here.kind !== 'boundary') add(at)
+    else {
+      add(at - 1)
+      add(here !== undefined && here.seq === seq ? at + 1 : at)
+    }
+    ranges.sort((left, right) => left[0] - right[0] || left[1] - right[1])
+    const merged: Array<readonly [number, number]> = []
+    for (const range of ranges) {
+      const previous = merged.at(-1)
+      if (previous !== undefined && range[0] <= previous[1]) {
+        merged[merged.length - 1] = [previous[0], Math.max(previous[1], range[1])]
+      } else {
+        merged.push(range)
+      }
+    }
+    return merged
+  }
+
+  private replaceRun(start: number, end: number, affected: Set<string>): void {
+    let latestMessage: Extract<ReactionEntry, { kind: 'message' }> | undefined
+    const usedMessages = new Set<string>()
+    const nextMessages = new Map<string, AssistantReaction>()
+    const nextAssistants = new Map<string, AssistantReactionPair>()
+    for (let index = start; index <= end; index++) {
+      const entry = this.sorted[index]
+      if (entry?.kind === 'message') latestMessage = entry
+      if (entry?.kind !== 'reaction' || latestMessage === undefined || usedMessages.has(latestMessage.key)) continue
+      const pair = buildReactionPair(latestMessage, entry)
+      nextMessages.set(latestMessage.key, {
+        assistantMessageId: pair.assistantMessageId,
+        emoji: pair.emoji,
+      })
+      nextAssistants.set(entry.key, pair)
+      usedMessages.add(latestMessage.key)
+    }
+    for (let index = start; index <= end; index++) {
+      const entry = this.sorted[index]
+      if (entry?.kind === 'message') {
+        const next = nextMessages.get(entry.key)
+        if (!sameAssistantReaction(this.messageReactions.get(entry.key), next)) affected.add(entry.key)
+        if (next === undefined) this.messageReactions.delete(entry.key)
+        else this.messageReactions.set(entry.key, next)
+      }
+      if (entry?.kind === 'reaction') {
+        const next = nextAssistants.get(entry.key)
+        if (!sameAssistantReaction(this.assistantReactions.get(entry.key), next)) affected.add(entry.key)
+        if (next === undefined) this.assistantReactions.delete(entry.key)
+        else this.assistantReactions.set(entry.key, next)
+      }
+    }
+  }
+}
+
 function withSkillNames(
   node: ChatConversationViewNode,
   names: readonly string[],
@@ -593,7 +935,7 @@ export class SkillNameProjector {
     const names = new Map<string, readonly string[]>()
     for (let index = 0; index < this.sorted.length; index++) {
       if (this.sorted[index]?.kind === 'boundary') continue
-      const end = this.runEnd(index)
+      const end = projectionRunEnd(this.sorted, index)
       this.assignRun(index, end, names)
       index = end
     }
@@ -643,39 +985,13 @@ export class SkillNameProjector {
   }
 
   private insert(entry: SlashEntry): void {
-    this.sorted.splice(this.lowerBound(entry.seq), 0, entry)
+    this.sorted.splice(projectionLowerBound(this.sorted, entry.seq), 0, entry)
     this.entries.set(entry.key, entry)
   }
 
   private remove(entry: SlashEntry): void {
     this.sorted.splice(this.sorted.indexOf(entry), 1)
     this.entries.delete(entry.key)
-  }
-
-  /** First index whose seq is at least `seq`. */
-  private lowerBound(seq: number): number {
-    let low = 0
-    let high = this.sorted.length
-    while (low < high) {
-      const middle = (low + high) >>> 1
-      if ((this.sorted[middle]?.seq ?? Number.POSITIVE_INFINITY) < seq) low = middle + 1
-      else high = middle
-    }
-    return low
-  }
-
-  /** Last index of the boundary-free run containing `index`. */
-  private runEnd(index: number): number {
-    let end = index
-    while (end + 1 < this.sorted.length && this.sorted[end + 1]?.kind !== 'boundary') end++
-    return end
-  }
-
-  /** First index of the boundary-free run containing `index`. */
-  private runStart(index: number): number {
-    let start = index
-    while (start - 1 >= 0 && this.sorted[start - 1]?.kind !== 'boundary') start--
-    return start
   }
 
   /** Record the names every message of the run `[start, end]` carries. */
@@ -697,18 +1013,18 @@ export class SkillNameProjector {
    * on both sides of that position.
    */
   private collectAround(seq: number, names: Map<string, readonly string[]>): void {
-    const at = this.lowerBound(seq)
+    const at = projectionLowerBound(this.sorted, seq)
     const here = this.sorted[at]
     if (here !== undefined && here.seq === seq && here.kind !== 'boundary') {
-      this.assignRun(this.runStart(at), this.runEnd(at), names)
+      this.assignRun(projectionRunStart(this.sorted, at), projectionRunEnd(this.sorted, at), names)
       return
     }
     if (at - 1 >= 0 && this.sorted[at - 1]?.kind !== 'boundary') {
-      this.assignRun(this.runStart(at - 1), at - 1, names)
+      this.assignRun(projectionRunStart(this.sorted, at - 1), at - 1, names)
     }
     const right = here !== undefined && here.seq === seq ? at + 1 : at
     if (right < this.sorted.length && this.sorted[right]?.kind !== 'boundary') {
-      this.assignRun(right, this.runEnd(right), names)
+      this.assignRun(right, projectionRunEnd(this.sorted, right), names)
     }
   }
 }
@@ -964,6 +1280,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
   private readonly legacy = new LegacySliceBuilder()
   private readonly referenceLabels = new ReferenceLabelProjector()
   private readonly skillNames = new SkillNameProjector()
+  private readonly assistantReactions = new AssistantReactionProjector()
   private order: readonly string[] = EMPTY_KEYS
   /** Last published timeline: a Turn boundary can land without a new node. */
   private timeline: ConversationTimelineSnapshot | null = null
@@ -977,7 +1294,9 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     readonly nodes: readonly ChatConversationViewNode[]
     readonly timeline: ConversationTimelineSnapshot
   }): ChatSnapshot {
-    const nodes = this.skillNames.replace(this.referenceLabels.replace(input.nodes))
+    const nodes = this.assistantReactions.replace(
+      this.skillNames.replace(this.referenceLabels.replace(input.nodes)),
+    )
     this.store.replace(nodes)
     this.order = orderedVisibleChatNodes(nodes).map(node => node.key)
     this.locations.rebuild(this.order, this.store)
@@ -993,7 +1312,10 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     readonly upserts: readonly ChatConversationViewNode[]
     readonly timeline: ConversationTimelineSnapshot
   }): ChatSnapshot {
-    const upserts = this.skillNames.apply(this.referenceLabels.apply(input.upserts, this.store), this.store)
+    const upserts = this.assistantReactions.apply(
+      this.skillNames.apply(this.referenceLabels.apply(input.upserts, this.store), this.store),
+      this.store,
+    )
     const processTurns = new Set<number>()
     let structural = false
     const contentOnly: ChatConversationViewNode[] = []

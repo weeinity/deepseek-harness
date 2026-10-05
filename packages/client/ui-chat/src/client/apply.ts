@@ -29,6 +29,7 @@ import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
 import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { en, NS, zh } from './locale.ts'
+import { ChatReactionRegistry } from './reactions.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
 import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
@@ -54,6 +55,7 @@ export const inject = [
  * @param ctx - Client root context.
  */
 export function apply(ctx: Context): void {
+  ctx.plugin(ChatReactionRegistry)
   const chatSources = new WeakMap<SessionBinding, ObservableSnapshot<ChatSnapshot>>()
   const chatSource = (binding: SessionBinding): ObservableSnapshot<ChatSnapshot> => {
     let source = chatSources.get(binding)
@@ -93,73 +95,79 @@ export function apply(ctx: Context): void {
     }),
   }, TranscriptViewRow))
 
-  ctx.slots.inject('conversation.view', () => {
-    const disposeView = ctx.slots.register({
-      name: 'conversation.view',
-      id: 'chat',
-      order: 0,
-      label: () => t('view.chat'),
-      locale: NS,
-      children: {
-        'conversation.chat.node': { kind: 'keyed', scope: 'session', inject: CHAT_NODE_INJECT },
-        'conversation.message.images': { kind: 'single', scope: 'session' },
-      },
-      store: chatStore,
-      inject: (sessionId: SessionId): ChatViewInjected => {
-        const binding = ctx.sessions.binding(sessionId)
-        if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
-        const session = binding.session
-        const chat = chatSource(binding)
-        return {
-          hooks: { transcriptView: transcriptView.mode },
-          keyedHooks: {
-            chatNode: key => chat.getSnapshot().nodes.source(key),
-            chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),
-          },
-          fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner),
-          // Files open in the right Sidebar, not in a desktop application: the
-          // content stays in the product, beside the conversation that produced
-          // it. A relative path, or an absolute one inside the session's
-          // workspace, is addressed under this session's scope,
-          // `dsh-resource://file/session/<id>/<relative path>`; an absolute path
-          // elsewhere is addressed as `dsh-resource://file/absolute/<path>` and
-          // read through the session on screen. Which tab type claims the
-          // address is the Sidebar's decision, not this call site's.
-          // A line travels as a navigation parameter, not as part of the
-          // address: the file is one piece of content whether it is opened at
-          // its top or at line 400, so the same tab is revealed and told where
-          // to land.
-          openFile: async (path, options) => {
-            const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
-            const url = fileAddressFor(sessionId, cwd, path)
-            if (options?.line === undefined) ctx.sidebarRight.openResource(url)
-            else ctx.sidebarRight.openResource(url, { params: { line: options.line } })
-            await Promise.resolve()
-          },
-          loadOlder: () => { void session.loadOlder() },
-          loadThrough: seq => session.loadThrough(seq),
-          loadImage: Object.assign(
-            (attachment: ImageAttachmentRef) => ctx.uiConversation.imageUrl(sessionId, attachment),
-            { peek: (attachment: ImageAttachmentRef) => ctx.uiConversation.peekImageUrl(sessionId, attachment) },
-          ),
-          chatScroll: {
-            save: (position) => {
-              if (position === null) chatScrollPositions.delete(sessionId)
-              else chatScrollPositions.set(sessionId, position)
+  ctx.inject(['chatReactions'], (scope: Context) => {
+    scope.slots.inject('conversation.view', () => {
+      const disposeView = scope.slots.register({
+        name: 'conversation.view',
+        id: 'chat',
+        order: 0,
+        label: () => t('view.chat'),
+        locale: NS,
+        children: {
+          'conversation.chat.node': { kind: 'keyed', scope: 'session', inject: CHAT_NODE_INJECT },
+          'conversation.message.images': { kind: 'single', scope: 'session' },
+          'conversation.chat.user-badges': { kind: 'list', scope: 'session' },
+        },
+        store: chatStore,
+        inject: (sessionId: SessionId): ChatViewInjected => {
+          const binding = ctx.sessions.binding(sessionId)
+          if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
+          const session = binding.session
+          const chat = chatSource(binding)
+          return {
+            hooks: {
+              transcriptView: transcriptView.mode,
+              assistantReactionPolicies: scope.chatReactions.policies,
             },
-            read: () => chatScrollPositions.get(sessionId) ?? null,
-          },
-          forkAt: (seq) => {
-            ctx.sessions.fork({ sessionId, atSeq: seq, increaseTitle: true })
-              .then((childId) => { ctx.sessions.open(childId) })
-              .catch(() => {
-                // Fork or child-title failure leaves the source view unchanged.
-              })
-          },
-        }
-      },
-    }, ChatView)
-    return disposeView
+            keyedHooks: {
+              chatNode: key => chat.getSnapshot().nodes.source(key),
+              chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),
+            },
+            fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner),
+            // Files open in the right Sidebar, not in a desktop application: the
+            // content stays in the product, beside the conversation that produced
+            // it. A relative path, or an absolute one inside the session's
+            // workspace, is addressed under this session's scope,
+            // `dsh-resource://file/session/<id>/<relative path>`; an absolute path
+            // elsewhere is addressed as `dsh-resource://file/absolute/<path>` and
+            // read through the session on screen. Which tab type claims the
+            // address is the Sidebar's decision, not this call site's.
+            // A line travels as a navigation parameter, not as part of the
+            // address: the file is one piece of content whether it is opened at
+            // its top or at line 400, so the same tab is revealed and told where
+            // to land.
+            openFile: async (path, options) => {
+              const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+              const url = fileAddressFor(sessionId, cwd, path)
+              if (options?.line === undefined) ctx.sidebarRight.openResource(url)
+              else ctx.sidebarRight.openResource(url, { params: { line: options.line } })
+              await Promise.resolve()
+            },
+            loadOlder: () => { void session.loadOlder() },
+            loadThrough: seq => session.loadThrough(seq),
+            loadImage: Object.assign(
+              (attachment: ImageAttachmentRef) => ctx.uiConversation.imageUrl(sessionId, attachment),
+              { peek: (attachment: ImageAttachmentRef) => ctx.uiConversation.peekImageUrl(sessionId, attachment) },
+            ),
+            chatScroll: {
+              save: (position) => {
+                if (position === null) chatScrollPositions.delete(sessionId)
+                else chatScrollPositions.set(sessionId, position)
+              },
+              read: () => chatScrollPositions.get(sessionId) ?? null,
+            },
+            forkAt: (seq) => {
+              ctx.sessions.fork({ sessionId, atSeq: seq, increaseTitle: true })
+                .then((childId) => { ctx.sessions.open(childId) })
+                .catch(() => {
+                  // Fork or child-title failure leaves the source view unchanged.
+                })
+            },
+          }
+        },
+      }, ChatView)
+      return disposeView
+    })
   })
 
   ctx.slots.inject('conversation.composer.dock', () =>

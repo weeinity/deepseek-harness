@@ -2,23 +2,33 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {
   ContextMessageNode, ConversationNodeDefinition, SteeringMessageNode, UserMessageNode,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { InboxState } from './inbox.ts'
 import { chatNode } from './common.ts'
 import { contextForm, contextProvenance } from './event-projection.ts'
+import type { AssistantReaction } from '../contract/reactions.ts'
 
 interface ReferencedUserMessageNode extends UserMessageNode {
+  /** Browser prompt RPC identity recorded on the admitted user message. */
+  readonly browserPromptRequestId?: SessionRequestId
   /** Labels cited by the immediately following session-reference context. */
   readonly referenceLabels?: readonly string[]
   /** Skill names the same step's `skill-invocation` injections loaded. */
   readonly skillNames?: readonly string[]
+  /** Assistant acknowledgement paired with this message by Chat projection. */
+  readonly assistantReaction?: AssistantReaction
 }
 
 interface ReferencedSteeringMessageNode extends SteeringMessageNode {
+  /** Browser prompt RPC identity recorded on the admitted steering message. */
+  readonly browserPromptRequestId?: SessionRequestId
   /** Labels cited by the immediately following session-reference context. */
   readonly referenceLabels?: readonly string[]
   /** Skill names the same step's `skill-invocation` injections loaded. */
   readonly skillNames?: readonly string[]
+  /** Assistant acknowledgement paired with this message by Chat projection. */
+  readonly assistantReaction?: AssistantReaction
 }
 
 type MessageNode = ReferencedUserMessageNode | ReferencedSteeringMessageNode | ContextMessageNode
@@ -38,6 +48,17 @@ function isCompactionCheckpoint(event: Parameters<ConversationNodeDefinition['ma
   if (event.type !== 'user/message' || !isReplacementSurfaceEvent(event)) return false
   const source = event.data.source
   return source.kind === 'plugin' && source.plugin === 'compact'
+}
+
+function browserPromptRequestId(source: unknown): SessionRequestId | undefined {
+  if (typeof source !== 'object' || source === null) return undefined
+  const candidate = source as { readonly kind?: unknown; readonly rpcId?: unknown }
+  return candidate.kind === 'user'
+    && typeof candidate.rpcId === 'string'
+    && candidate.rpcId.length > 0
+    && candidate.rpcId.trim() === candidate.rpcId
+    ? candidate.rpcId as SessionRequestId
+    : undefined
 }
 
 /** User, steering, and injected-context message classification Definition. */
@@ -65,6 +86,8 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
     }
     const claimed = reader.previous<InboxState>('inbox-next-step')
       ?.state.currentClaimed.has(String(event.data.id)) === true
+    const rpcId = browserPromptRequestId(event.data.source)
+    const rpc = rpcId === undefined ? {} : { browserPromptRequestId: rpcId }
     return claimed
       ? {
         kind: 'steering',
@@ -73,13 +96,16 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
         time: event.time,
         content: event.data.content,
         source: event.data.source,
+        ...rpc,
       }
       : {
         kind: 'user',
+        messageId: event.data.id,
         seq: event.seq,
         time: event.time,
         content: event.data.content,
         source: event.data.source,
+        ...rpc,
       }
   },
   update: context => context.state,

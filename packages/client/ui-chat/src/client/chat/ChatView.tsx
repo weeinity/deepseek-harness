@@ -18,6 +18,7 @@ import css from './ChatView.module.css'
 
 const FOLLOW_THRESHOLD = 24
 const SCROLL_SAMPLE_INTERVAL_MS = 500
+const EMPTY_REACTION_EMOJIS: readonly string[] = []
 
 /** Active column host when present; otherwise the view-local scroller. */
 function scrollerOf(from: HTMLElement): HTMLElement {
@@ -129,6 +130,10 @@ function openFailureMessage(error: unknown, fallback: string): string {
   return message === '' ? fallback : message
 }
 
+function isCanonicalBrowserRpcId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value
+}
+
 /**
  * Prompt-RPC identities already rendered by durable material: user/steering
  * node sources plus queue occurrences. A submission echo whose identity
@@ -148,10 +153,10 @@ function observedRpcIds(
     const source = (node.data as { readonly source?: unknown }).source as
       | { readonly kind?: unknown; readonly rpcId?: unknown }
       | undefined
-    if (source?.kind === 'user' && typeof source.rpcId === 'string') observed.add(source.rpcId)
+    if (source?.kind === 'user' && isCanonicalBrowserRpcId(source.rpcId)) observed.add(source.rpcId)
   }
   for (const item of queue) {
-    if (item.rpcId !== undefined) observed.add(item.rpcId)
+    if (isCanonicalBrowserRpcId(item.rpcId)) observed.add(item.rpcId)
   }
   return observed
 }
@@ -162,6 +167,18 @@ function runningTurnStartTime(timeline: ConversationTimelineSnapshot): number | 
     if (turn.status === 'open') latest = turn.start?.time ?? null
   }
   return latest
+}
+
+function assistantReactionEmojisFor(
+  policies: readonly { readonly presetIds: readonly string[]; readonly emoji: string }[],
+  agentPreset: unknown,
+): readonly string[] {
+  if (typeof agentPreset !== 'string') return EMPTY_REACTION_EMOJIS
+  const emojis: string[] = []
+  for (const policy of policies) {
+    if (policy.presetIds.includes(agentPreset) && !emojis.includes(policy.emoji)) emojis.push(policy.emoji)
+  }
+  return emojis.length === 0 ? EMPTY_REACTION_EMOJIS : emojis
 }
 
 /** Turn-level model activity label retained across first-token, tool, and streaming phases. */
@@ -217,7 +234,7 @@ const ChatNodeList = memo(function ChatNodeList({ order, ...seatProps }: ChatNod
 export function ChatView({
   useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot,
   sessionId, openFile, loadOlder, loadThrough, loadImage, openView, chatScroll, forkAt, fileMentions,
-  useTranscriptView, useProjection, t,
+  useTranscriptView, useAssistantReactionPolicies, useProjection, t,
 }: ChatViewSlotProps) {
   const order = useChat(s => s.order)
   const nodeStore = useChat(s => s.nodes)
@@ -228,6 +245,12 @@ export function ChatView({
   // Host-computed whole-log outline; the merge is view-layer only (the
   // conversation snapshot never carries projection values).
   const turnOutline = useProjection('turnOutline')
+  const agentPreset = useProjection('agentPreset')
+  const assistantReactionPolicies = useAssistantReactionPolicies(value => value)
+  const assistantReactionEmojis = useMemo(
+    () => assistantReactionEmojisFor(assistantReactionPolicies, agentPreset),
+    [assistantReactionPolicies, agentPreset],
+  )
   const railItems = useMemo(
     () => mergeTurnRailItems(turnNavigationItems, turnOutline),
     [turnNavigationItems, turnOutline],
@@ -789,6 +812,7 @@ export function ChatView({
             compactTranscript={compactTranscript}
             useStore={useStore}
             actions={actions}
+            assistantReactionEmojis={assistantReactionEmojis}
             cwd={cwd}
             openFile={requestOpenFile}
             inspectCall={inspectCall}

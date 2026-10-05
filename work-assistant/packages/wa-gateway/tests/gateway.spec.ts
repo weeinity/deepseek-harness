@@ -2,21 +2,41 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { createScope } from '@deepseek-ai/dsh-scope'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { createScope, scopeTarget } from '@deepseek-ai/dsh-scope'
+import { defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it, vi } from 'vitest'
 import { runtime, temporaryDirectory } from '../../../tests/support.ts'
 
-function action(name: string, body = vi.fn(async () => 'done')) {
+type ActionBody = (args: unknown, exec: ToolRunContext) => Promise<string>
+
+function action(name: string, body: ActionBody = async () => 'done') {
+  const spy = vi.fn(body)
   return {
-    body,
+    body: spy,
     tool: defineTool({
       name, description: 'Test assistant action',
       parameters: { text: { type: 'string' } },
       output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
-      execute: body,
+      execute: (args, exec) => spy(args, exec),
     }),
   }
+}
+
+function humanMessage(text = 'new request') {
+  return createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+}
+
+function relayMessage(text = 'delegated context') {
+  return createUserMessage({
+    content: [{ type: 'text', text }],
+    source: { kind: 'plugin', plugin: 'test-relay', form: 'relay' },
+  })
+}
+
+function emitHumanInput(ctx: Context, agent: Agent, text?: string): void {
+  ctx.emit(scopeTarget(agent, agent), 'agent/inbox/inserted', { agent, message: humanMessage(text) })
 }
 
 describe('personal action gateway', () => {
@@ -102,6 +122,154 @@ describe('personal action gateway', () => {
     expect(answer).toHaveBeenCalledTimes(2)
     expect(write.body).toHaveBeenCalledTimes(2)
     expect(h.ctx.workAssistGateway.records().every(record => record.tainted)).toBe(true)
+  })
+
+  it('dispatches the immutable payload that approval reviewed', async () => {
+    const h = await runtime()
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<'allowed-once'>()
+    h.ctx.on('approval/request', () => {
+      entered.resolve()
+      return release.promise
+    })
+    const body = vi.fn(async (args?: unknown) => {
+      return JSON.stringify(args)
+    })
+    const { tool } = action('memory_write', body)
+    h.ctx.workAssistGateway.register(h.ctx, tool, { connector: 'memory', method: 'write', kind: 'write' })
+    const args = { text: 'reviewed' }
+    const running = h.run(tool.name, args)
+    await entered.promise
+    args.text = 'mutated'
+    release.resolve('allowed-once')
+
+    expect(await running).toMatchObject({ isError: false, value: '{"text":"reviewed"}' })
+    expect(body).toHaveBeenCalledWith(expect.objectContaining({ text: 'reviewed' }), expect.anything())
+  })
+
+  it('invalidates a pending write approval when the same agent receives newer human input', async () => {
+    const h = await runtime()
+    const entered = Promise.withResolvers<{ signal: AbortSignal | undefined }>()
+    h.ctx.on('approval/request', request => {
+      entered.resolve({ signal: request.signal })
+      return new Promise<'cancelled'>(resolve => {
+        request.signal?.addEventListener('abort', () => { resolve('cancelled' as const) }, { once: true })
+      })
+    })
+    const { tool, body } = action('memory_write')
+    h.ctx.workAssistGateway.register(h.ctx, tool, { connector: 'memory', method: 'write', kind: 'write' })
+
+    const running = h.run(tool.name)
+    const request = await entered.promise
+    emitHumanInput(h.ctx, h.agent)
+
+    expect(await running).toMatchObject({ isError: true })
+    expect(request.signal?.aborted).toBe(true)
+    expect(body).not.toHaveBeenCalled()
+    expect(h.ctx.workAssistGateway.records()[0]).toMatchObject({ decision: 'deny', status: 'denied' })
+  })
+
+  it('invalidates a pending write when newer human input arrives during initial audit admission', async () => {
+    const h = await runtime()
+    const approve = vi.fn(async () => 'allowed-once' as const)
+    h.ctx.on('approval/request', approve)
+    let emitted = false
+    h.ctx.on('domain/changed', () => {
+      if (emitted) return
+      if (!h.ctx.workAssistGateway.records().some(record => record.tool === 'memory_write' && record.status === 'pending')) return
+      emitted = true
+      emitHumanInput(h.ctx, h.agent, 'replace the pending write')
+    })
+    const { tool, body } = action('memory_write')
+    h.ctx.workAssistGateway.register(h.ctx, tool, { connector: 'memory', method: 'write', kind: 'write' })
+
+    expect(await h.run(tool.name)).toMatchObject({ isError: true })
+    expect(approve).not.toHaveBeenCalled()
+    expect(body).not.toHaveBeenCalled()
+    expect(h.ctx.workAssistGateway.records()[0]).toMatchObject({ decision: 'deny', status: 'denied' })
+  })
+
+  it('invalidates after approval when newer human input arrives during running audit admission', async () => {
+    const h = await runtime()
+    const approve = vi.fn(async () => 'allowed-once' as const)
+    h.ctx.on('approval/request', approve)
+    let emitted = false
+    h.ctx.on('domain/changed', () => {
+      if (emitted) return
+      if (!h.ctx.workAssistGateway.records().some(record => record.tool === 'memory_write' && record.status === 'running')) return
+      emitted = true
+      emitHumanInput(h.ctx, h.agent, 'change after approval')
+    })
+    const { tool, body } = action('memory_write')
+    h.ctx.workAssistGateway.register(h.ctx, tool, { connector: 'memory', method: 'write', kind: 'write' })
+
+    expect(await h.run(tool.name)).toMatchObject({ isError: true })
+    expect(approve).toHaveBeenCalledOnce()
+    expect(body).not.toHaveBeenCalled()
+    expect(h.ctx.workAssistGateway.records()[0]).toMatchObject({ decision: 'deny', status: 'denied' })
+  })
+
+  it('does not stale-deny reads when direct human input arrives during admission', async () => {
+    const h = await runtime()
+    let emitted = false
+    h.ctx.on('domain/changed', () => {
+      if (emitted) return
+      if (!h.ctx.workAssistGateway.records().some(record => record.tool === 'calendar_list' && record.status === 'pending')) return
+      emitted = true
+      emitHumanInput(h.ctx, h.agent, 'new read context')
+    })
+    const { tool, body } = action('calendar_list')
+    h.ctx.workAssistGateway.register(h.ctx, tool, { connector: 'calendar', method: 'list', kind: 'read' })
+
+    expect(await h.run(tool.name)).toMatchObject({ isError: false })
+    expect(body).toHaveBeenCalledOnce()
+    expect(h.ctx.workAssistGateway.records()[0]).toMatchObject({ decision: 'allow', status: 'succeeded' })
+  })
+
+  it('does not cancel a write that has already started dispatching', async () => {
+    const h = await runtime()
+    h.ctx.on('approval/request', async () => 'allowed-once' as const)
+    const entered = Promise.withResolvers<AbortSignal>()
+    const release = Promise.withResolvers<void>()
+    const body = vi.fn(async (_args: unknown, exec: ToolRunContext) => {
+      entered.resolve(exec.signal)
+      await release.promise
+      return 'done'
+    })
+    const { tool } = action('memory_write', body)
+    h.ctx.workAssistGateway.register(h.ctx, tool, { connector: 'memory', method: 'write', kind: 'write' })
+
+    const running = h.run(tool.name)
+    const dispatchSignal = await entered.promise
+    emitHumanInput(h.ctx, h.agent, 'too late to invalidate dispatched write')
+    expect(dispatchSignal.aborted).toBe(false)
+    release.resolve()
+
+    expect(await running).toMatchObject({ isError: false })
+    expect(h.ctx.workAssistGateway.records()[0]).toMatchObject({ decision: 'allow', status: 'succeeded' })
+  })
+
+  it('keeps waiting when relay or another agent receives input during approval', async () => {
+    const h = await runtime()
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<'allowed-once'>()
+    h.ctx.on('approval/request', () => {
+      entered.resolve()
+      return release.promise
+    })
+    const { tool, body } = action('memory_write')
+    h.ctx.workAssistGateway.register(h.ctx, tool, { connector: 'memory', method: 'write', kind: 'write' })
+
+    const running = h.run(tool.name)
+    await entered.promise
+    h.ctx.emit(scopeTarget(h.agent, h.agent), 'agent/inbox/inserted', { agent: h.agent, message: relayMessage() })
+    const otherAgent = { id: h.agent.id, session: h.session } as typeof h.agent
+    emitHumanInput(h.ctx, otherAgent, 'other agent')
+    release.resolve('allowed-once')
+
+    expect(await running).toMatchObject({ isError: false })
+    expect(body).toHaveBeenCalledOnce()
+    expect(h.ctx.workAssistGateway.records()[0]).toMatchObject({ decision: 'allow', status: 'succeeded' })
   })
 
   it('does not dispatch an aborted approval and records the denial', async () => {

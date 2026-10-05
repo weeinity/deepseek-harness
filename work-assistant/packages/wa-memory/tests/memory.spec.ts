@@ -54,6 +54,46 @@ async function readMemory(h: Awaited<ReturnType<typeof runtime>>, note: string) 
 }
 
 describe('wa-memory', () => {
+  it('records read, list, and approved-write presentation data without granting future writes', async () => {
+    const root = await makeRepo()
+    const h = await mountMemory(root)
+    let approvals = 0
+    h.ctx.on('approval/request', () => {
+      approvals++
+      return Promise.resolve(approvals === 1 ? 'allowed-once' : 'rejected')
+    })
+    const absent = await h.run('memory_read', { note: 'profile.md' })
+    expect(absent.meta).toEqual({
+      workAssistant: { version: 1, kind: 'memory-read', value: absent.value },
+    })
+    expect(absent.value).toMatchObject({ exists: false, content: null })
+
+    const written = await h.run('memory_write', { note: 'profile.md', expectedRevision: null, content: 'Keep summaries concise' })
+    expect(written.isError).toBe(false)
+    expect(written.meta).toEqual({
+      workAssistant: { version: 1, kind: 'memory-write', value: written.value },
+    })
+    expect(written.value).not.toHaveProperty('content')
+    const read = await h.run('memory_read', { note: 'profile.md' })
+    expect(read.meta).toEqual({
+      workAssistant: { version: 1, kind: 'memory-read', value: read.value },
+    })
+    expect(read.value).toMatchObject({ exists: true, content: 'Keep summaries concise\n' })
+    const listed = await h.run('memory_list')
+    expect(listed.meta).toEqual({
+      workAssistant: { version: 1, kind: 'memory-list', value: listed.value },
+    })
+    expect(textContent(read)).not.toContain('workAssistant')
+
+    const rejected = await h.run('memory_write', {
+      note: 'profile.md', expectedRevision: (await readMemory(h, 'profile.md')).revision, content: 'Unapproved replacement',
+    })
+    expect(approvals).toBe(2)
+    expect(rejected.isError).toBe(true)
+    expect(rejected.meta ?? {}).not.toHaveProperty('workAssistant')
+    expect(await readFile(join(root, 'profile.md'), 'utf8')).toBe('Keep summaries concise\n')
+  })
+
   it('reads absent and written notes with stable external-content rendering across restart', async () => {
     const root = await makeRepo()
     const first = await mountMemory(root)

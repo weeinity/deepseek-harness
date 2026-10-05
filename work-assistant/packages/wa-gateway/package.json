@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-wa-gateway",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Fail-closed personal-assistant actions with durable audit and DSH approvals",

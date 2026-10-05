@@ -39,6 +39,8 @@ kind: "package-bundle"
 
 允许的笔记 id 是 `profile.md`、`people.md`、`decisions.md` 和 `projects/<safe-slug>.md`。项目 slug 只包含小写字母、数字和连字符。回溯、绝对路径、`.git` 名称、控制文件、任意目录和符号链接受管路径都会被拒绝。
 
+成功的顶层调用还会持久化包含已验证结果的版本化 `workAssistant` 展示元数据。[助理界面](../wa-ui/README.zh.md) 可以显示已记录的读取结果，并在后续写入或修订号变化后使其失效；写入元数据包含回执，而不是替换后的笔记内容。这些元数据不会增加面向模型的文字或审批授权。
+
 <a id="commit-semantics"></a>
 ## 提交语义
 

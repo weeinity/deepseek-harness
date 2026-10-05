@@ -48,6 +48,8 @@ The feed credential value is resolved through DSH credentials on every operation
 
 The connector rejects malformed iCalendar text instead of treating it as an empty calendar. It excludes cancelled events, treats `TRANSPARENT` events as non-busy for conflict checks, and interprets all-day source dates in the requested time zone with exclusive end dates.
 
+Successful top-level `calendar_list` calls also persist versioned `workAssistant` presentation metadata containing the validated result. The [assistant UI](../wa-ui/README.md) uses it to display the recorded calendar window without parsing model-facing prose or reading the calendar again.
+
 <a id="model-experience"></a>
 ## Model Experience
 

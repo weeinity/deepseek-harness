@@ -242,7 +242,13 @@ function calendarList(connector: CalendarConnector) {
     name: 'calendar_list',
     description: 'List events from the configured read-only personal calendar source in a bounded time window.',
     parameters: rangeParameters,
-    output: { schema: listOutputSchema, render: renderList },
+    output: {
+      schema: listOutputSchema,
+      render: renderList,
+      presentationMeta: (_args, value) => ({
+        workAssistant: { version: 1, kind: 'calendar-list', value },
+      }),
+    },
     execute: (args, exec) => connector.list(args, exec.signal),
   })
 }

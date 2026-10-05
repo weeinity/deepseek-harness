@@ -1,9 +1,10 @@
-/** Trusted connector dispatch, one-time approvals, and a monotonic tool guard. */
+/** Trusted connector dispatch, UI interaction admission, and a monotonic tool guard. */
 import { createHash, randomUUID } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
+import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { Domain } from '@deepseek-ai/dsh-storage-domain'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-user-approval'
@@ -38,6 +39,37 @@ export class ActionDenied extends Error {
   override name = 'ActionDenied'
 }
 
+interface ToolInputSnapshot {
+  readonly json: string
+  readonly value: unknown
+}
+
+interface WriteApprovalInvalidation {
+  readonly signal: AbortSignal
+  readonly dispose: () => void
+}
+
+type ToolAgent = NonNullable<ToolRunContext['agent']>
+type AgentWithContext = ToolAgent & { readonly ctx?: Context }
+
+function freezeJsonValue<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    for (const child of Object.values(value as Record<string, unknown>)) freezeJsonValue(child)
+    Object.freeze(value)
+  }
+  return value
+}
+
+function snapshotToolInput(args: unknown): ToolInputSnapshot {
+  const json = JSON.stringify(args)
+  if (json === undefined) throw new TypeError('Assistant action arguments must be JSON-serializable values')
+  return { json, value: freezeJsonValue(JSON.parse(json)) }
+}
+
+function isDirectHumanMessage(message: UserMessage): boolean {
+  return message.source.kind === 'user'
+}
+
 /** All registered actions are audited before dispatch; writes always ask. */
 export default class ActionGateway extends Service {
   static inject = ['tools', 'approval', 'credentials', 'storageDomain']
@@ -47,6 +79,7 @@ export default class ActionGateway extends Service {
 
   private readonly ownerId: OwnerId
   private readonly admitted = new Map<string, ToolDefinition>()
+  private readonly admittedInteractions = new Set<ToolDefinition>()
   private readonly exposed = new Set<AuditRecord['sessionId']>()
   private readonly pending = new Set<Promise<unknown>>()
   private readonly shutdown = new AbortController()
@@ -82,8 +115,11 @@ export default class ActionGateway extends Service {
       }
     }
     this.ctx.tools.guard(exec => {
+      const current = this.ctx.tools.get(exec.name, exec.agent)
       const owned = this.admitted.get(exec.name)
-      return owned !== undefined && this.ctx.tools.get(exec.name, exec.agent) === owned
+      const admittedConnector = owned !== undefined && current === owned
+      const admittedInteraction = current !== undefined && this.admittedInteractions.has(current)
+      return admittedConnector || admittedInteraction
         ? undefined
         : 'This tool is not admitted by the personal-assistant gateway'
     })
@@ -114,6 +150,7 @@ export default class ActionGateway extends Service {
           return operation
         },
       }
+
       const unregister = owner.tools.register(wrapped)
       this.admitted.set(tool.name, wrapped)
       return () => {
@@ -121,6 +158,30 @@ export default class ActionGateway extends Service {
         unregister()
       }
     }, `workassist.action.${tool.name}`)
+  }
+
+  /**
+   * Admit the exact scoped `ask_user_question` definition installed for one agent.
+   *
+   * This admission only lets the normal DSH user-question tool pass the gateway's monotonic guard.
+   * It does not route through connector audit, request connector approval, or grant permission for any write.
+   *
+   * @param owner - The agent-scoped plugin context that owns the interaction tool.
+   * @param definition - The current definition returned by `ctx.tools.get('ask_user_question', scopeOf(owner))`.
+   * @returns Exact disposer that revokes this definition's guard admission.
+   */
+  admitUserQuestionTool(owner: Context, definition: ToolDefinition): () => void {
+    this.shutdown.signal.throwIfAborted()
+    if (definition.name !== 'ask_user_question') {
+      throw new Error('Only ask_user_question can be admitted as a personal-assistant interaction')
+    }
+    return owner.effect(() => {
+      if (this.admittedInteractions.has(definition)) {
+        throw new Error('Duplicate personal-assistant interaction admission')
+      }
+      this.admittedInteractions.add(definition)
+      return () => { this.admittedInteractions.delete(definition) }
+    }, 'workassist.interaction.ask_user_question')
   }
 
   /**
@@ -149,47 +210,65 @@ export default class ActionGateway extends Service {
 
   private async execute(tool: ToolDefinition, policy: ActionPolicy, args: unknown, exec: ToolRunContext): Promise<unknown> {
     if (exec.agent === undefined) throw new ActionDenied('Assistant actions require a Session-owned agent')
-    const signal = AbortSignal.any([exec.signal, this.shutdown.signal])
-    signal.throwIfAborted()
+    const input = snapshotToolInput(args)
+    const operationSignal = AbortSignal.any([exec.signal, this.shutdown.signal])
+    const invalidation = policy.kind === 'write' ? this.watchWriteApprovalInvalidation(exec.agent) : undefined
+    const approvalSignal = invalidation === undefined
+      ? operationSignal
+      : AbortSignal.any([operationSignal, invalidation.signal])
     const sessionId = exec.agent.session.id
     if (policy.externalContent === true) this.exposed.add(sessionId)
     const id = brandString<ActionId>(randomUUID())
     const timestamp = new Date().toISOString()
-    await this.audit().put(id, {
-      id, ownerId: this.ownerId, sessionId, callId: exec.callId,
-      tool: tool.name, connector: policy.connector, method: policy.method, kind: policy.kind,
-      argsSha256: createHash('sha256').update(JSON.stringify(args)).digest('hex'),
-      tainted: this.exposed.has(sessionId),
-      decision: policy.kind === 'write' ? 'ask' : 'allow',
-      status: 'pending', startedAt: timestamp, updatedAt: timestamp,
-    })
+    try {
+      operationSignal.throwIfAborted()
+      await this.audit().put(id, {
+        id, ownerId: this.ownerId, sessionId, callId: exec.callId,
+        tool: tool.name, connector: policy.connector, method: policy.method, kind: policy.kind,
+        argsSha256: createHash('sha256').update(input.json).digest('hex'),
+        tainted: this.exposed.has(sessionId),
+        decision: policy.kind === 'write' ? 'ask' : 'allow',
+        status: 'pending', startedAt: timestamp, updatedAt: timestamp,
+      })
 
-    if (policy.kind === 'write') {
-      let outcome: Awaited<ReturnType<Context['approval']['request']>>
-      try {
-        outcome = await this.ctx.approval.request({
-          agent: exec.agent, toolName: tool.name, callId: exec.callId, signal,
-          reason: policy.approvalReason ?? 'Approve this personal-assistant write once',
-        })
-      } catch (error) {
-        await this.finish(id, 'failed', 'deny')
-        throw error
+      await this.denyStaleWrite(id, invalidation)
+      if (policy.kind === 'write') {
+        let outcome: Awaited<ReturnType<Context['approval']['request']>>
+        try {
+          outcome = await this.ctx.approval.request({
+            agent: exec.agent, toolName: tool.name, callId: exec.callId, signal: approvalSignal,
+            reason: policy.approvalReason ?? 'Approve this personal-assistant write once',
+          })
+        } catch (error) {
+          await this.denyStaleWrite(id, invalidation)
+          await this.finish(id, 'failed', 'deny')
+          throw error
+        }
+        await this.denyStaleWrite(id, invalidation)
+        if (outcome !== 'allowed-once') {
+          await this.finish(id, 'denied', 'deny')
+          throw new ActionDenied(`Assistant write was not approved (${outcome})`)
+        }
       }
-      if (outcome !== 'allowed-once') {
+      await this.finish(id, 'running', 'allow')
+      if (operationSignal.aborted) {
+        await this.finish(id, 'interrupted', 'deny')
+        operationSignal.throwIfAborted()
+      }
+      const staleReason = this.staleWriteReason(invalidation)
+      if (staleReason !== undefined) {
         await this.finish(id, 'denied', 'deny')
-        throw new ActionDenied(`Assistant write was not approved (${outcome})`)
+        throw staleReason
       }
+    } finally {
+      invalidation?.dispose()
     }
-    await this.finish(id, 'running', 'allow')
-    if (signal.aborted) {
-      await this.finish(id, 'interrupted', 'deny')
-      signal.throwIfAborted()
-    }
+
     let value: unknown
     try {
-      value = await tool.execute(args, { ...exec, signal })
+      value = await tool.execute(input.value, { ...exec, signal: operationSignal })
     } catch (error) {
-      await this.finish(id, signal.aborted ? 'interrupted' : 'failed', 'allow')
+      await this.finish(id, operationSignal.aborted ? 'interrupted' : 'failed', 'allow')
       throw error
     }
     await this.finish(id, 'succeeded', 'allow')
@@ -200,5 +279,27 @@ export default class ActionGateway extends Service {
     await this.audit().update(id, current => ({
       ...current, status, decision, updatedAt: new Date().toISOString(),
     }))
+  }
+
+  private staleWriteReason(invalidation: WriteApprovalInvalidation | undefined): unknown | undefined {
+    if (invalidation === undefined || !invalidation.signal.aborted) return undefined
+    return invalidation.signal.reason ?? new ActionDenied('Assistant write approval was invalidated by newer user input')
+  }
+
+  private async denyStaleWrite(id: ActionId, invalidation: WriteApprovalInvalidation | undefined): Promise<void> {
+    const reason = this.staleWriteReason(invalidation)
+    if (reason === undefined) return
+    await this.finish(id, 'denied', 'deny')
+    throw reason
+  }
+
+  private watchWriteApprovalInvalidation(agent: ToolAgent): WriteApprovalInvalidation {
+    const controller = new AbortController()
+    const owner = (agent as AgentWithContext).ctx ?? this.ctx
+    const dispose = owner.on('agent/inbox/inserted', ({ agent: insertedAgent, message }) => {
+      if (insertedAgent !== agent || !isDirectHumanMessage(message)) return
+      controller.abort(new ActionDenied('Assistant write approval was invalidated by newer user input'))
+    })
+    return { signal: controller.signal, dispose: () => { dispose() } }
   }
 }

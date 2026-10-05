@@ -224,7 +224,13 @@ function memoryRead(connector: MemoryConnector) {
     name: 'memory_read',
     description: 'Read one allowed personal Markdown memory note from the configured repository.',
     parameters: readParameters,
-    output: { schema: readOutputSchema, render: renderRead },
+    output: {
+      schema: readOutputSchema,
+      render: renderRead,
+      presentationMeta: (_args, value) => ({
+        workAssistant: { version: 1, kind: 'memory-read', value },
+      }),
+    },
     execute: (args, exec) => connector.read(args, exec.signal),
   })
 }
@@ -234,7 +240,13 @@ function memoryList(connector: MemoryConnector) {
     name: 'memory_list',
     description: 'List existing allowed personal Markdown memory notes in the configured repository.',
     parameters: {},
-    output: { schema: listOutputSchema, render: renderList },
+    output: {
+      schema: listOutputSchema,
+      render: renderList,
+      presentationMeta: (_args, value) => ({
+        workAssistant: { version: 1, kind: 'memory-list', value },
+      }),
+    },
     execute: (_args, exec) => connector.list(exec.signal),
   })
 }
@@ -244,7 +256,13 @@ function memoryWrite(connector: MemoryConnector) {
     name: 'memory_write',
     description: 'Replace one allowed personal Markdown memory note after approval and revision check.',
     parameters: writeParameters,
-    output: { schema: writeOutputSchema, render: renderWrite },
+    output: {
+      schema: writeOutputSchema,
+      render: renderWrite,
+      presentationMeta: (_args, value) => ({
+        workAssistant: { version: 1, kind: 'memory-write', value },
+      }),
+    },
     execute: (args, exec) => connector.write(args, exec.signal),
   })
 }

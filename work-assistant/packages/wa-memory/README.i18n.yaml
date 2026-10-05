@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write work-assistant//packages//wa-memory//README.md
-README.md: eb32c0561be54e84d89dfef93acb6f5c3d15a352
-README.zh.md: de1a91964a1c89baa925571b165d497c29780d13
+README.md: 7b9eaf94187dd6a6295df9dd1fd1d11b7944445c
+README.zh.md: b7b8c9f3766f787eb125bbbff5cd506b639bb1bf

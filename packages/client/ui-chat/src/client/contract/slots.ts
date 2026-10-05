@@ -1,5 +1,6 @@
 /** Chat-owned Slot declarations and composed component props. */
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
+import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type {
   CommandNode, CompactionSummaryNode, ConversationLocationDataStore, ConversationTurnDataMap,
@@ -9,10 +10,11 @@ import type {
   InjectFace, KeyedSnapshotSelectorHook, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
   SlotHookFactory, SnapshotSelectorHook,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { createChatStore } from '../stores.ts'
+import type { AssistantReaction, ChatReactionPolicy } from './reactions.ts'
 import type { ToolCallId } from './store.ts'
 import type { ChatConversationViewNode, ChatNode, ChatNodeKind } from './chat-nodes.ts'
 import type {
@@ -47,6 +49,28 @@ export interface TurnTailOwnerProps {
 export interface AssistantActionOwnerProps {
   messageId: MessageId
 }
+
+/** Durable user-message class eligible for adjacent provenance badges. */
+export type UserBadgePlacement = 'user' | 'steering'
+
+/** Owner currency of browser-prompt badges rendered beside admitted user input. */
+export interface UserBadgeOwnerProps {
+  /** Durable user or steering message identity. */
+  messageId: MessageId
+  /** Browser prompt RPC identity recorded on the admitted user message, when present. */
+  browserPromptRequestId?: SessionRequestId
+  /** Sequence of the admitted `user/message` event. */
+  seq: number
+  /** Unix epoch ms from the admitted `user/message` event. */
+  time: number
+  /** Whether the message opened a turn or steered an active turn. */
+  placement: UserBadgePlacement
+  /** Assistant acknowledgement enabled for this message by the active exact-preset policy. */
+  assistantReaction?: AssistantReaction
+}
+
+/** Full props of a browser-prompt badge contribution. */
+export type UserBadgeProps = PropsRuntime<'conversation.chat.user-badges'>
 
 /** Optional prose file-mention provider consumed by Chat. */
 export interface ChatFileMentions {
@@ -130,6 +154,8 @@ export interface ChatViewInjected {
   hooks: {
     /** Persisted completed-Turn transcript presentation. */
     transcriptView: SnapshotStore<TranscriptViewMode>
+    /** Optional exact-preset assistant acknowledgement policies. */
+    assistantReactionPolicies: ObservableSnapshot<readonly ChatReactionPolicy[]>
   }
   keyedHooks: {
     /** Resolve the stable source for one Chat Node key. */
@@ -153,7 +179,7 @@ export interface ChatViewInjected {
 /** Full Chat view props. */
 export type ChatViewSlotProps =
   PropsRuntime<'conversation.view'>
-  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images'>
+  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images' | 'conversation.chat.user-badges'>
   & PropsStore<ChatStore>
   & InjectFace<ChatViewInjected>
   & PropsLocale<'chat'>
@@ -210,5 +236,15 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * that entry. With no entries, the standard action row remains unchanged.
      */
     'conversation.chat.assistant-actions': { kind: 'list'; scope: 'session'; owner: AssistantActionOwnerProps }
+    /**
+     * Ordered badges adjacent to a durable user or steering message. Chat
+     * dispatches the slot for admitted append events classified as user input;
+     * `browserPromptRequestId` is present only when the recorded user source
+     * carries a canonical browser prompt RPC identity, and `assistantReaction`
+     * is present only when the active agent preset exactly matches a registered
+     * reaction policy. Local echoes, queued rows, injected context, and
+     * replacements do not render this slot.
+     */
+    'conversation.chat.user-badges': { kind: 'list'; scope: 'session'; owner: UserBadgeOwnerProps }
   }
 }

@@ -105,6 +105,29 @@ describe('Chat apply wiring', () => {
     await b.runtime.dispose()
   })
 
+  it('publishes assistant reaction policies until their disposer runs', async () => {
+    const b = await bench()
+    const updates: number[] = []
+    const off = b.runtime.ctx.chatReactions.policies.subscribe(() => {
+      updates.push(b.runtime.ctx.chatReactions.policies.getSnapshot().length)
+    })
+    const dispose = b.runtime.ctx.chatReactions.register({
+      presetIds: ['personal-assistant'],
+      emoji: '👍',
+    })
+
+    expect(b.runtime.ctx.chatReactions.policies.getSnapshot()).toEqual([{
+      presetIds: ['personal-assistant'],
+      emoji: '👍',
+    }])
+    dispose()
+    expect(b.runtime.ctx.chatReactions.policies.getSnapshot()).toEqual([])
+    expect(updates).toEqual([1, 0])
+
+    off()
+    await b.runtime.dispose()
+  })
+
   it('shares one Chat store while keeping it distinct from Conversation state', async () => {
     const b = await bench()
     const conversationStore = storeOf(b.runtime, 'conversation.session')

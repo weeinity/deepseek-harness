@@ -12,6 +12,7 @@ WORKDIR /opt/work-assistant
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.check.json vitest.config.ts ./
 COPY packages ./packages
 COPY scripts ./scripts
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile && pnpm run build
 
 RUN useradd --create-home --uid 10001 assistant

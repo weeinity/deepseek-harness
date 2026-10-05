@@ -9,12 +9,13 @@ kind: "package-bundle"
 
 ## Summary
 
-为定时个人简报创建普通 DSH Session。五字段 cron 表达式和 IANA 时区定义触发时刻，按经过时间计算的前瞻窗口定义日历查询范围。每次运行都会挂载 `personal-assistant` preset，把模型可见工具限制为已配置的只读日历和记忆工具名，等待 Agent 进入 idle，刷新 Session 持久化，然后释放所拥有的 Agent。
+无需发送聊天消息，即可在助理收件箱接收定时个人简报。五字段 cron 表达式和 IANA 时区定义计划。成功的只读日历简报在重新连接和重启后仍可查看。你可以暂停或恢复后续简报、标为已读、忽略消息，或打开其普通对话继续回复。
 
 ## Contents
 
 - [Configuration](#configuration)
 - [Briefing runs](#briefing-runs)
+- [Inbox and pause](#inbox-and-pause)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 
@@ -42,7 +43,18 @@ kind: "package-bundle"
 
 每个到期运行都会创建一个根 Agent，设置 `meta.agentPreset: personal-assistant`，并把 `meta.cwd` 设为配置的工作区。setup hook 会先等待 `ctx.agentPresets.mount(agentCtx, 'personal-assistant')` 完成再发布，然后用精确的只读工具名调用 `ctx.tools.restrict()`。提示词是插件来源的用户消息，记录 `Window start`、`Window end` 和 `Time zone`，其中时间为 ISO instant，时区为 IANA 名称。
 
-调度器会跳过重叠触发，且不保存积压队列。它不会重试失败的工具调用、修改记忆、写日历、发送通知或发送邮件。卸载或超时时，它会取消所拥有的 Agent，等待 idle 收敛，刷新 Session，然后释放 handle。
+调度器跳过重叠触发，不保存错过执行时刻的积压队列。持久化的 UTC 分钟水位防止重复或更早的发生时刻再次启动 Agent。准入在创建前记录待处理 Session。重启只读取该待处理 Session：已成功持久化的回复无需新模型请求即可进入收件箱；不存在或未完成的运行不会重试。存储损坏会使启动失败，而不是清除待处理记录。
+
+发布到收件箱需要已完成的轮次、未中断的助理文本、成功的 `calendar_list` 结果、没有失败工具，也没有介入的直接人类输入。仅 `whenIdle()` 不代表成功。发布收件箱前先刷新 Session 持久化。卸载、超时或暂停会取消所拥有的工作并等待释放。运行器不能提出交互问题、写入记忆或日历，也不能向 DSH 外发送消息。
+
+<a id="inbox-and-pause"></a>
+## Inbox and pause
+
+[助理界面](../wa-ui/README.zh.md)独立于所选对话读取保存的收件箱状态。已读和忽略操作是明确的用户动作，不是推断的送达回执或动作审批。暂停跨重启保留，取消进行中的准备并阻止发布；恢复只允许未来的计划触发。`enabled: false` 的部署不能通过恢复按钮启用。
+
+`maxInboxItems` 默认为 50（1–200），包含已忽略项目。`maxPreviewChars` 默认为 2000 个 Unicode 码点（1–8000）。旧收件箱项目按数量淘汰；完整 Session 日志遵循 DSH 保留策略，不随收件箱淘汰。发生时刻去重在淘汰后仍有效。策略与收件箱记录使用该 profile 的现有存储后端，命名空间为 `workassist_briefing`。
+
+仅在 Web host 存在时注册 `GET` 和 `POST /api/work-assistant/briefing`。请求必须带 `x-dsh-assistant: 1` 和环回 Host（`localhost` 或 `127.0.0.1`）；POST 还要求匹配的 HTTP Origin 和有大小限制的 JSON 动作。端点只允许已读、忽略、暂停和恢复，不提供立即运行。它不支持代理来源或远程托管。
 
 <a id="model-experience"></a>
 ## Model Experience
@@ -51,7 +63,7 @@ kind: "package-bundle"
 
 #### Trigger
 
-当调度器已启用且空闲时，到期的 cron tick 或对 `ctx.workAssistBriefing.trigger()` 的宿主调用会启动一次运行。
+当已启用、未暂停、空闲且发生时刻晚于持久化水位时，到期 cron tick 或受信宿主对 `ctx.workAssistBriefing.trigger()` 的调用会启动一次运行。
 
 #### What the model sees
 
@@ -70,5 +82,6 @@ kind: "package-bundle"
 
 - 调度是进程本地能力。它不提供跨进程 exactly-once 保证；每个 DSH home 只运行一个实例。
 - 进程停止期间错过的发生时刻会被跳过；没有补跑队列。
-- 通知、邮件发送、日历写入和记忆修改不属于简报运行。
+- 安静时段、日历变更检测、约定跟进、浏览器推送和外部送达暂缓。请把 Cron 配置在合适的本地时段。
+- 崩溃可能留下没有收件箱项目的未完成发生时刻。恢复不会重新运行它；这不是 exactly-once 执行。
 - 调度器面向单用户，不能隔离挂载在同一 profile 中的恶意插件。

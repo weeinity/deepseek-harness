@@ -1,0 +1,919 @@
+diff --git a/lib/client.js b/lib/client.js
+index c6e0cb2749a06d0dbef96a2834d6920f69ae5101..84c013729d125b59602a9de8430ce657cc9be4c5 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -6,6 +6,7 @@ window.__ModuleLoader__.load({
+ 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+ 		let react_jsx_runtime = require("react/jsx-runtime");
+ 		let react = require("react");
++		let _deepseek_ai_cordis = require("@deepseek-ai/cordis");
+ 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
+ 		let _deepseek_ai_dsh_client_store = require("@deepseek-ai/dsh-client-store");
+ 		let react_dom = require("react-dom");
+@@ -1057,6 +1058,7 @@ window.__ModuleLoader__.load({
+ 			});
+ 			return (0, react_jsx_runtime.jsxs)("div", {
+ 				className: className === void 0 ? MessageIconActions_module_css_default.actions : `${MessageIconActions_module_css_default.actions} ${className}`,
++				"data-message-actions": true,
+ 				children: [
+ 					clock === "start" ? clockEl : null,
+ 					(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+@@ -1238,10 +1240,12 @@ window.__ModuleLoader__.load({
+ 			const showBubble = text !== "" || rest.length > 0;
+ 			return (0, react_jsx_runtime.jsxs)("div", {
+ 				className: MessageItem_module_css_default.userRow,
++				"data-user-message": true,
+ 				"data-pending-steering": pending || void 0,
+ 				"data-submission-echo": echo || void 0,
+ 				children: [(0, react_jsx_runtime.jsxs)("div", {
+ 					className: MessageItem_module_css_default.userStack,
++					"data-user-message-body": true,
+ 					children: [
+ 						attachments.length > 0 && (0, react_jsx_runtime.jsx)("div", {
+ 							className: MessageItem_module_css_default.attachmentRow,
+@@ -1505,13 +1509,28 @@ window.__ModuleLoader__.load({
+ 		}
+ 		//#endregion
+ 		//#region \0dsh-css:/home/runner/work/deepseek-harness/deepseek-harness/packages/client/ui-chat/src/client/chat/ChatView.module.css.mjs
+-		const css$11 = ".EvIC1a_root{flex-direction:column;flex:auto;min-height:0;display:flex;position:relative}.EvIC1a_scroll{min-height:0;padding:16px calc(var(--dsh-composer-side-clearance) + 16px);flex:auto;overflow-y:auto;container-type:inline-size}[data-conversation-scroll] .EvIC1a_root{flex:none;height:auto;min-height:auto}[data-conversation-scroll] .EvIC1a_scroll{flex:none;min-height:auto;overflow:visible}.EvIC1a_column{max-width:var(--dsh-chat-content-width);flex-direction:column;width:100%;margin:0 auto;display:flex}.EvIC1a_column>:not([hidden]):not(.EvIC1a_flowItem:empty)~:not([hidden]):not(.EvIC1a_flowItem:empty){margin-top:var(--dsh-chat-flow-gap,16px)}.EvIC1a_flowItem{min-width:0}.EvIC1a_flowItem[data-turn-process-answer]{--dsh-chat-flow-gap:8px}.EvIC1a_flowItem:empty{display:none}.EvIC1a_callRow{border-radius:6px}.EvIC1a_turnStatus{height:calc(26px + var(--dsh-content-font-delta,0px));font:var(--dsw-font-s-strong-14);font-size:var(--dsh-content-font-size,14px);line-height:calc(22px + var(--dsh-content-font-delta,0px));white-space:nowrap;background:linear-gradient(90deg, var(--dsw-static-deepseek-500) 0%, var(--dsw-static-deepseek-500) 40%, var(--dsw-static-deepseek-200) 50%, var(--dsw-static-deepseek-500) 60%, var(--dsw-static-deepseek-500) 100%);color:#0000;-webkit-text-fill-color:transparent;background-position:100% 0;background-size:250% 100%;-webkit-background-clip:text;background-clip:text;flex:none;align-self:flex-start;align-items:center;animation:1.8s linear infinite EvIC1a_dsh-turn-status-shimmer;display:inline-flex}.EvIC1a_turnStatusClock{font:var(--dsw-font-xs-13);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-caption);-webkit-text-fill-color:var(--dsw-alias-label-caption);margin-left:8px;font-weight:400}@keyframes EvIC1a_dsh-turn-status-shimmer{to{background-position:0 0}}@media (prefers-reduced-motion:reduce){.EvIC1a_turnStatus{background-position:0 0;background-size:100% 100%;animation:none}}.EvIC1a_hint{color:var(--dsw-alias-label-tertiary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(18px + var(--dsh-content-font-delta-secondary,0px))}.EvIC1a_openError{color:var(--dsw-alias-state-error-primary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(18px + var(--dsh-content-font-delta-secondary,0px))}.EvIC1a_older{justify-content:center;display:flex}.EvIC1a_older button{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover-solid);cursor:pointer;border:none;border-radius:14px;padding:4px 12px;font-size:12px}.EvIC1a_older button:disabled{cursor:default;opacity:.6}.EvIC1a_toBottomSlot{z-index:8;height:0;padding-right:max(0px, calc((100% - var(--dsh-chat-content-width)) / 2));pointer-events:none;justify-content:flex-end;display:flex;position:sticky;bottom:16px}[data-conversation-scroll] .EvIC1a_toBottomSlot{bottom:calc(var(--dsh-composer-height,152px) + 16px)}.EvIC1a_toBottom{--dsw-elevation-stroke-color:var(--dsw-alias-border-l3);corner-shape:round;width:34px;height:34px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-button-floating-fill);box-shadow:var(--dsw-elevation-panel);cursor:pointer;pointer-events:auto;border:0;border-radius:100px;justify-content:center;align-items:center;margin-top:-34px;padding:0;display:flex}.EvIC1a_toBottom:hover{background:var(--dsw-alias-button-floating-hover)}.EvIC1a_modalAction{min-width:72px}";
++		const css$11 = ".EvIC1a_root{flex-direction:column;flex:auto;min-height:0;display:flex;position:relative}.EvIC1a_scroll{min-height:0;padding:16px calc(var(--dsh-composer-side-clearance) + 16px);flex:auto;overflow-y:auto;container-type:inline-size}[data-conversation-scroll] .EvIC1a_root{flex:none;height:auto;min-height:auto}[data-conversation-scroll] .EvIC1a_scroll{flex:none;min-height:auto;overflow:visible}.EvIC1a_column{max-width:var(--dsh-chat-content-width);flex-direction:column;width:100%;margin:0 auto;display:flex}.EvIC1a_column>:not([hidden]):not(.EvIC1a_flowItem:empty)~:not([hidden]):not(.EvIC1a_flowItem:empty){margin-top:var(--dsh-chat-flow-gap,16px)}.EvIC1a_flowItem{min-width:0}.EvIC1a_flowItem[data-turn-process-answer]{--dsh-chat-flow-gap:8px}.EvIC1a_flowItem:empty{display:none}.EvIC1a_userBadgeRow{max-width:min(calc(var(--dsh-chat-content-width,748px)*.702),82%);justify-content:flex-end;margin-left:auto;display:flex}.EvIC1a_userBadgeRow:empty{display:none}.EvIC1a_callRow{border-radius:6px}.EvIC1a_turnStatus{height:calc(26px + var(--dsh-content-font-delta,0px));font:var(--dsw-font-s-strong-14);font-size:var(--dsh-content-font-size,14px);line-height:calc(22px + var(--dsh-content-font-delta,0px));white-space:nowrap;background:linear-gradient(90deg, var(--dsw-static-deepseek-500) 0%, var(--dsw-static-deepseek-500) 40%, var(--dsw-static-deepseek-200) 50%, var(--dsw-static-deepseek-500) 60%, var(--dsw-static-deepseek-500) 100%);color:#0000;-webkit-text-fill-color:transparent;background-position:100% 0;background-size:250% 100%;-webkit-background-clip:text;background-clip:text;flex:none;align-self:flex-start;align-items:center;animation:1.8s linear infinite EvIC1a_dsh-turn-status-shimmer;display:inline-flex}.EvIC1a_turnStatusClock{font:var(--dsw-font-xs-13);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-caption);-webkit-text-fill-color:var(--dsw-alias-label-caption);margin-left:8px;font-weight:400}@keyframes EvIC1a_dsh-turn-status-shimmer{to{background-position:0 0}}@media (prefers-reduced-motion:reduce){.EvIC1a_turnStatus{background-position:0 0;background-size:100% 100%;animation:none}}.EvIC1a_hint{color:var(--dsw-alias-label-tertiary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(18px + var(--dsh-content-font-delta-secondary,0px))}.EvIC1a_openError{color:var(--dsw-alias-state-error-primary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(18px + var(--dsh-content-font-delta-secondary,0px))}.EvIC1a_older{justify-content:center;display:flex}.EvIC1a_older button{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover-solid);cursor:pointer;border:none;border-radius:14px;padding:4px 12px;font-size:12px}.EvIC1a_older button:disabled{cursor:default;opacity:.6}.EvIC1a_toBottomSlot{z-index:8;height:0;padding-right:max(0px, calc((100% - var(--dsh-chat-content-width)) / 2));pointer-events:none;justify-content:flex-end;display:flex;position:sticky;bottom:16px}[data-conversation-scroll] .EvIC1a_toBottomSlot{bottom:calc(var(--dsh-composer-height,152px) + 16px)}.EvIC1a_toBottom{--dsw-elevation-stroke-color:var(--dsw-alias-border-l3);corner-shape:round;width:34px;height:34px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-button-floating-fill);box-shadow:var(--dsw-elevation-panel);cursor:pointer;pointer-events:auto;border:0;border-radius:100px;justify-content:center;align-items:center;margin-top:-34px;padding:0;display:flex}.EvIC1a_toBottom:hover{background:var(--dsw-alias-button-floating-hover)}.EvIC1a_modalAction{min-width:72px}";
+ 		const tagId$11 = "@deepseek-ai/dsh-client-ui-chat/ChatView.module.css";
+ 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$11) + "]") === null) {
+ 			const tag = document.createElement("style");
+ 			tag.dataset.plugin = "@deepseek-ai/dsh-client-ui-chat";
+ 			tag.dataset.pluginCss = tagId$11;
+-			tag.textContent = css$11;
++			tag.textContent = css$11 + `
++.EvIC1a_userBadgeRow:has(> [data-slot]:empty) { display: none; }
++.EvIC1a_flowItem:has(> .EvIC1a_userBadgeRow > [data-slot]:not(:empty)) {
++  display: grid;
++  grid-template-columns: minmax(0, 1fr);
++  justify-items: end;
++  row-gap: 6px;
++}
++.EvIC1a_flowItem:has(> .EvIC1a_userBadgeRow > [data-slot]:not(:empty)) > [data-slot] > [data-user-message] { display: contents; }
++.EvIC1a_flowItem:has(> .EvIC1a_userBadgeRow > [data-slot]:not(:empty)) [data-user-message-body] { grid-area: 1 / 1; }
++.EvIC1a_flowItem:has(> .EvIC1a_userBadgeRow > [data-slot]:not(:empty)) [data-message-actions] { grid-area: 3 / 1; }
++.EvIC1a_flowItem:has(> .EvIC1a_userBadgeRow > [data-slot]:not(:empty)) > .EvIC1a_userBadgeRow {
++  grid-area: 2 / 1;
++  margin: -16px 8px 0 0;
++}
++`;
+ 			document.head.appendChild(tag);
+ 		}
+ 		var ChatView_module_css_default = {
+@@ -1528,7 +1547,8 @@ window.__ModuleLoader__.load({
+ 			"toBottom": "EvIC1a_toBottom",
+ 			"toBottomSlot": "EvIC1a_toBottomSlot",
+ 			"turnStatus": "EvIC1a_turnStatus",
+-			"turnStatusClock": "EvIC1a_turnStatusClock"
++			"turnStatusClock": "EvIC1a_turnStatusClock",
++			"userBadgeRow": "EvIC1a_userBadgeRow"
+ 		};
+ 		//#endregion
+ 		//#region lib/types/client/chat/ChatNodeSeat.js
+@@ -1540,8 +1560,27 @@ window.__ModuleLoader__.load({
+ 			const location = node?.location;
+ 			return location?.kind === "turn" || location?.kind === "step" ? location.turn.turn : void 0;
+ 		}
++		function enabledAssistantReaction(reaction, emojis) {
++			return reaction !== void 0 && emojis.includes(reaction.emoji) ? reaction : void 0;
++		}
++		function userBadgeOwnerOf(node, assistantReactionEmojis) {
++			if (node?.kind !== "user" && node?.kind !== "steering") return void 0;
++			const requestId = node.data.browserPromptRequestId;
++			const assistantReaction = enabledAssistantReaction(node.data.assistantReaction, assistantReactionEmojis);
++			return {
++				messageId: node.data.messageId,
++				...requestId === void 0 ? {} : { browserPromptRequestId: requestId },
++				seq: node.data.seq,
++				time: node.data.time,
++				placement: node.kind,
++				...assistantReaction === void 0 ? {} : { assistantReaction }
++			};
++		}
++		function hidesAssistantReaction(node, emojis) {
++			return node?.kind === "assistant-step" && enabledAssistantReaction(node.data.assistantReaction, emojis) !== void 0;
++		}
+ 		/** Subscribe, apply Turn-process visibility, and dispatch one stable Context key. */
+-		const ChatNodeSeat = (0, react.memo)(function ChatNodeSeat({ nodeKey, useChatNode, useChatNodeProcess, historyIncomplete, compactTranscript, cwd, openFile, inspectCall, forkAt, loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot, t }) {
++		const ChatNodeSeat = (0, react.memo)(function ChatNodeSeat({ nodeKey, useChatNode, useChatNodeProcess, historyIncomplete, compactTranscript, cwd, openFile, inspectCall, forkAt, loadImage, renderMessageImages, fileMentions, useStore, actions, assistantReactionEmojis, renderSlot, t }) {
+ 			const node = useChatNode(nodeKey);
+ 			const routedNode = node;
+ 			const turn = turnOf(routedNode);
+@@ -1594,8 +1633,9 @@ window.__ModuleLoader__.load({
+ 				fileMentions,
+ 				turnProcess
+ 			]);
+-			if (routedNode === void 0 || owner === null) return null;
++			if (routedNode === void 0 || owner === null || hidesAssistantReaction(routedNode, assistantReactionEmojis)) return null;
+ 			const turnData = turnDataOf(routedNode);
++			const userBadgeOwner = userBadgeOwnerOf(routedNode, assistantReactionEmojis);
+ 			const routedOwner = {
+ 				...owner,
+ 				node: routedNode
+@@ -1610,15 +1650,21 @@ window.__ModuleLoader__.load({
+ 				"data-turn-process-member": processMember || void 0,
+ 				"data-turn-process-hidden": processHidden || void 0,
+ 				"data-turn-process-answer": compactAnswer || void 0,
+-				children: renderSlot("conversation.chat.node", routedOwner, {
+-					entryKey: routedNode.kind,
+-					hookContext: turnData,
+-					fallback: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.JsonBlock, {
+-						label: t("message.unknownSurface", { type: routedNode.kind }),
+-						payload: routedNode.data,
+-						truncatedLabel: (total) => t("json.truncated", { total })
++				children: [
++					renderSlot("conversation.chat.node", routedOwner, {
++						entryKey: routedNode.kind,
++						hookContext: turnData,
++						fallback: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.JsonBlock, {
++							label: t("message.unknownSurface", { type: routedNode.kind }),
++							payload: routedNode.data,
++							truncatedLabel: (total) => t("json.truncated", { total })
++						})
++					}),
++					userBadgeOwner === void 0 ? null : (0, react_jsx_runtime.jsx)("div", {
++						className: ChatView_module_css_default.userBadgeRow,
++						children: renderSlot("conversation.chat.user-badges", userBadgeOwner)
+ 					})
+-				})
++				]
+ 			});
+ 		});
+ 		//#endregion
+@@ -2009,6 +2055,9 @@ window.__ModuleLoader__.load({
+ 			const message = error instanceof Error ? error.message : String(error);
+ 			return message === "" ? fallback : message;
+ 		}
++		function isCanonicalBrowserRpcId(value) {
++			return typeof value === "string" && value.length > 0 && value.trim() === value;
++		}
+ 		/**
+ 		* Prompt-RPC identities already rendered by durable material: user/steering
+ 		* node sources plus queue occurrences. A submission echo whose identity
+@@ -2022,9 +2071,9 @@ window.__ModuleLoader__.load({
+ 				const node = nodes.get(key);
+ 				if (node === void 0 || node.kind !== "user" && node.kind !== "steering") continue;
+ 				const source = node.data.source;
+-				if (source?.kind === "user" && typeof source.rpcId === "string") observed.add(source.rpcId);
++				if (source?.kind === "user" && isCanonicalBrowserRpcId(source.rpcId)) observed.add(source.rpcId);
+ 			}
+-			for (const item of queue) if (item.rpcId !== void 0) observed.add(item.rpcId);
++			for (const item of queue) if (isCanonicalBrowserRpcId(item.rpcId)) observed.add(item.rpcId);
+ 			return observed;
+ 		}
+ 		function runningTurnStartTime(timeline) {
+@@ -2032,6 +2081,13 @@ window.__ModuleLoader__.load({
+ 			for (const turn of timeline.turns.values()) if (turn.status === "open") latest = turn.start?.time ?? null;
+ 			return latest;
+ 		}
++		const EMPTY_REACTION_EMOJIS = [];
++		function assistantReactionEmojisFor(policies, agentPreset) {
++			if (typeof agentPreset !== "string") return EMPTY_REACTION_EMOJIS;
++			const emojis = [];
++			for (const policy of policies) if (policy.presetIds.includes(agentPreset) && !emojis.includes(policy.emoji)) emojis.push(policy.emoji);
++			return emojis.length === 0 ? EMPTY_REACTION_EMOJIS : emojis;
++		}
+ 		/** Turn-level model activity label retained across first-token, tool, and streaming phases. */
+ 		function TurnStatus({ startTime, t }) {
+ 			const [mountedAt] = (0, react.useState)(() => Date.now());
+@@ -2069,11 +2125,14 @@ window.__ModuleLoader__.load({
+ 		* The chat view slot entry: pure component over the composed props; each
+ 		* ordered business Node crosses the keyed renderer seat.
+ 		*/
+-		function ChatView({ useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot, sessionId, openFile, loadOlder, loadThrough, loadImage, openView, chatScroll, forkAt, fileMentions, useTranscriptView, useProjection, t }) {
++		function ChatView({ useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot, sessionId, openFile, loadOlder, loadThrough, loadImage, openView, chatScroll, forkAt, fileMentions, useTranscriptView, useAssistantReactionPolicies, useProjection, t }) {
+ 			const order = useChat((s) => s.order);
+ 			const nodeStore = useChat((s) => s.nodes);
+ 			const turnNavigationItems = useChat((s) => s.navigation.items());
+ 			const turnOutline = useProjection("turnOutline");
++			const agentPreset = useProjection("agentPreset");
++			const assistantReactionPolicies = useAssistantReactionPolicies((value) => value);
++			const assistantReactionEmojis = (0, react.useMemo)(() => assistantReactionEmojisFor(assistantReactionPolicies, agentPreset), [assistantReactionPolicies, agentPreset]);
+ 			const railItems = (0, react.useMemo)(() => mergeTurnRailItems(turnNavigationItems, turnOutline), [turnNavigationItems, turnOutline]);
+ 			const timeline = useChat((s) => s.timeline);
+ 			const inbox = useSession((s) => s.queue);
+@@ -2540,6 +2599,7 @@ window.__ModuleLoader__.load({
+ 									compactTranscript,
+ 									useStore,
+ 									actions,
++									assistantReactionEmojis,
+ 									cwd,
+ 									openFile: requestOpenFile,
+ 									inspectCall,
+@@ -5193,6 +5253,260 @@ window.__ModuleLoader__.load({
+ 				return [...byKey.values()];
+ 			}
+ 		};
++		function sameAssistantReaction(left, right) {
++			return left?.assistantMessageId === right?.assistantMessageId && left?.emoji === right?.emoji && left?.assistantNodeId === right?.assistantNodeId && left?.userNodeId === right?.userNodeId && left?.userMessageId === right?.userMessageId;
++		}
++		function withAssistantReaction(node, reaction) {
++			const candidate = node;
++			if (candidate.kind !== "user" && candidate.kind !== "steering") return node;
++			const current = candidate.data.assistantReaction;
++			const hasReaction = Object.hasOwn(candidate.data, "assistantReaction");
++			if (sameAssistantReaction(current, reaction) && hasReaction === (reaction !== void 0)) return node;
++			const data = { ...candidate.data };
++			if (reaction === void 0) delete data.assistantReaction;
++			else data.assistantReaction = reaction;
++			return {
++				...candidate,
++				data
++			};
++		}
++		function withAssistantReactionPair(node, reaction) {
++			const candidate = node;
++			if (candidate.kind !== "assistant-step") return node;
++			const current = candidate.data.assistantReaction;
++			const hasReaction = Object.hasOwn(candidate.data, "assistantReaction");
++			if (sameAssistantReaction(current, reaction) && hasReaction === (reaction !== void 0)) return node;
++			const data = { ...candidate.data };
++			if (reaction === void 0) delete data.assistantReaction;
++			else data.assistantReaction = reaction;
++			return {
++				...candidate,
++				data
++			};
++		}
++		function singleAssistantReactionEmoji(node) {
++			const final = node.data.finalNode;
++			if (node.data.status !== "settled" || node.location.kind !== "step" || node.location.turn.end?.data.reason.kind !== "completed" || final === void 0 || final.interrupted === true || final.messageId === void 0) return void 0;
++			let emoji;
++			for (const block of node.data.blocks) {
++				if (block.kind === "reasoning") continue;
++				if (block.kind !== "text") return void 0;
++				const text = block.text.trim();
++				if (text === "") continue;
++				if (emoji !== void 0 || text !== "👍") return void 0;
++				emoji = text;
++			}
++			return emoji;
++		}
++		function reactionEntryOf(node) {
++			const candidate = node;
++			switch (candidate.kind) {
++				case "user":
++				case "steering":
++					if (candidate.data.browserPromptRequestId === void 0) return {
++						kind: "boundary",
++						key: candidate.key,
++						seq: candidate.anchorSeq
++					};
++					return {
++					kind: "message",
++					key: candidate.key,
++					seq: candidate.anchorSeq,
++					nodeId: candidate.id,
++					messageId: candidate.data.messageId
++				};
++				case "assistant-step": {
++					const emoji = singleAssistantReactionEmoji(candidate);
++					const messageId = candidate.data.finalNode?.messageId;
++					return emoji === void 0 || messageId === void 0 ? {
++						kind: "boundary",
++						key: candidate.key,
++						seq: candidate.anchorSeq
++					} : {
++						kind: "reaction",
++						key: candidate.key,
++						seq: candidate.anchorSeq,
++						nodeId: candidate.id,
++						assistantMessageId: messageId,
++						emoji
++					};
++				}
++				case "context":
++				case "model-retry":
++				case "system-prompt":
++				case "turn-process": return null;
++				default: return {
++					kind: "boundary",
++					key: candidate.key,
++					seq: candidate.anchorSeq
++				};
++			}
++		}
++		function sameReactionEntry(left, right) {
++			if (left.kind !== right.kind || left.seq !== right.seq) return false;
++			if (left.kind === "message" && right.kind === "message") return left.nodeId === right.nodeId && left.messageId === right.messageId;
++			if (left.kind === "reaction" && right.kind === "reaction") return left.nodeId === right.nodeId && left.assistantMessageId === right.assistantMessageId && left.emoji === right.emoji;
++			return true;
++		}
++		function buildReactionPair(message, reaction) {
++			return {
++				assistantNodeId: reaction.nodeId,
++				assistantMessageId: reaction.assistantMessageId,
++				emoji: reaction.emoji,
++				userNodeId: message.nodeId,
++				userMessageId: message.messageId
++			};
++		}
++		var AssistantReactionProjector = class {
++			entries = /* @__PURE__ */ new Map();
++			sorted = [];
++			messageReactions = /* @__PURE__ */ new Map();
++			assistantReactions = /* @__PURE__ */ new Map();
++			replace(nodes) {
++				this.entries.clear();
++				this.sorted = [];
++				this.messageReactions.clear();
++				this.assistantReactions.clear();
++				for (const node of nodes) {
++					const entry = reactionEntryOf(node);
++					if (entry === null) continue;
++					this.entries.set(entry.key, entry);
++					this.sorted.push(entry);
++				}
++				this.sorted.sort((left, right) => left.seq - right.seq);
++				for (let index = 0; index < this.sorted.length; index++) {
++					const entry = this.sorted[index];
++					if (entry === void 0 || entry.kind === "boundary") continue;
++					const end = this.runEnd(index);
++					this.replaceRun(index, end, /* @__PURE__ */ new Set());
++					index = end;
++				}
++				return nodes.map((node) => this.withMetadata(node));
++			}
++			apply(upserts, store) {
++				const dirty = [];
++				const affected = /* @__PURE__ */ new Set();
++				for (const node of upserts) {
++					const next = reactionEntryOf(node);
++					const previous = this.entries.get(node.key);
++					if (previous !== void 0) {
++						if (next !== null && sameReactionEntry(previous, next)) {
++							if (next.kind === "message" || next.kind === "reaction") {
++								dirty.push(next.seq);
++								affected.add(next.key);
++							}
++							continue;
++						}
++						this.remove(previous);
++						this.forget(previous, affected);
++						dirty.push(previous.seq);
++					}
++					if (next === null) continue;
++					this.insert(next);
++					dirty.push(next.seq);
++				}
++				if (dirty.length === 0) return upserts;
++				for (const seq of dirty) for (const [start, end] of this.runsAround(seq)) this.replaceRun(start, end, affected);
++				const byKey = new Map(upserts.map((node) => [node.key, node]));
++				for (const key of affected) {
++					const node = byKey.get(key) ?? store.get(key);
++					if (node === void 0) continue;
++					const next = this.withMetadata(node);
++					if (next !== node || byKey.has(key)) byKey.set(key, next);
++				}
++				return [...byKey.values()];
++			}
++			withMetadata(node) {
++				return withAssistantReactionPair(withAssistantReaction(node, this.messageReactions.get(node.key)), this.assistantReactions.get(node.key));
++			}
++			insert(entry) {
++				this.sorted.splice(this.lowerBound(entry.seq), 0, entry);
++				this.entries.set(entry.key, entry);
++			}
++			remove(entry) {
++				this.sorted.splice(this.sorted.indexOf(entry), 1);
++				this.entries.delete(entry.key);
++			}
++			forget(entry, affected) {
++				if (entry.kind === "message" && this.messageReactions.delete(entry.key)) affected.add(entry.key);
++				if (entry.kind === "reaction" && this.assistantReactions.delete(entry.key)) affected.add(entry.key);
++			}
++			lowerBound(seq) {
++				let low = 0;
++				let high = this.sorted.length;
++				while (low < high) {
++					const middle = low + high >>> 1;
++					if ((this.sorted[middle]?.seq ?? Number.POSITIVE_INFINITY) < seq) low = middle + 1;
++					else high = middle;
++				}
++				return low;
++			}
++			runEnd(index) {
++				let end = index;
++				while (end + 1 < this.sorted.length && this.sorted[end + 1]?.kind !== "boundary") end++;
++				return end;
++			}
++			runStart(index) {
++				let start = index;
++				while (start - 1 >= 0 && this.sorted[start - 1]?.kind !== "boundary") start--;
++				return start;
++			}
++			runsAround(seq) {
++				const at = this.lowerBound(seq);
++				const here = this.sorted[at];
++				const ranges = [];
++				const add = (index) => {
++					if (index < 0 || index >= this.sorted.length || this.sorted[index]?.kind === "boundary") return;
++					ranges.push([this.runStart(index), this.runEnd(index)]);
++				};
++				if (here !== void 0 && here.seq === seq && here.kind !== "boundary") add(at);
++				else {
++					add(at - 1);
++					add(here !== void 0 && here.seq === seq ? at + 1 : at);
++				}
++				ranges.sort((left, right) => left[0] - right[0] || left[1] - right[1]);
++				const merged = [];
++				for (const range of ranges) {
++					const previous = merged.at(-1);
++					if (previous !== void 0 && range[0] <= previous[1]) merged[merged.length - 1] = [previous[0], Math.max(previous[1], range[1])];
++					else merged.push(range);
++				}
++				return merged;
++			}
++			replaceRun(start, end, affected) {
++				let latestMessage;
++				const usedMessages = /* @__PURE__ */ new Set();
++				const nextMessages = /* @__PURE__ */ new Map();
++				const nextAssistants = /* @__PURE__ */ new Map();
++				for (let index = start; index <= end; index++) {
++					const entry = this.sorted[index];
++					if (entry?.kind === "message") latestMessage = entry;
++					if (entry?.kind !== "reaction" || latestMessage === void 0 || usedMessages.has(latestMessage.key)) continue;
++					const pair = buildReactionPair(latestMessage, entry);
++					nextMessages.set(latestMessage.key, {
++						assistantMessageId: pair.assistantMessageId,
++						emoji: pair.emoji
++					});
++					nextAssistants.set(entry.key, pair);
++					usedMessages.add(latestMessage.key);
++				}
++				for (let index = start; index <= end; index++) {
++					const entry = this.sorted[index];
++					if (entry?.kind === "message") {
++						const next = nextMessages.get(entry.key);
++						if (!sameAssistantReaction(this.messageReactions.get(entry.key), next)) affected.add(entry.key);
++						if (next === void 0) this.messageReactions.delete(entry.key);
++						else this.messageReactions.set(entry.key, next);
++					}
++					if (entry?.kind === "reaction") {
++						const next = nextAssistants.get(entry.key);
++						if (!sameAssistantReaction(this.assistantReactions.get(entry.key), next)) affected.add(entry.key);
++						if (next === void 0) this.assistantReactions.delete(entry.key);
++						else this.assistantReactions.set(entry.key, next);
++					}
++				}
++			}
++		};
+ 		function withSkillNames(node, names) {
+ 			const candidate = node;
+ 			if (candidate.kind !== "user" && candidate.kind !== "steering") return node;
+@@ -5575,6 +5889,7 @@ window.__ModuleLoader__.load({
+ 			legacy = new LegacySliceBuilder();
+ 			referenceLabels = new ReferenceLabelProjector();
+ 			skillNames = new SkillNameProjector();
++			assistantReactions = new AssistantReactionProjector();
+ 			order = EMPTY_KEYS;
+ 			/** Last published timeline: a Turn boundary can land without a new node. */
+ 			timeline = null;
+@@ -5586,7 +5901,7 @@ window.__ModuleLoader__.load({
+ 				});
+ 			}
+ 			replace(input) {
+-				const nodes = this.skillNames.replace(this.referenceLabels.replace(input.nodes));
++				const nodes = this.assistantReactions.replace(this.skillNames.replace(this.referenceLabels.replace(input.nodes)));
+ 				this.store.replace(nodes);
+ 				this.order = orderedVisibleChatNodes(nodes).map((node) => node.key);
+ 				this.locations.rebuild(this.order, this.store);
+@@ -5598,7 +5913,7 @@ window.__ModuleLoader__.load({
+ 				return snapshot;
+ 			}
+ 			apply(input) {
+-				const upserts = this.skillNames.apply(this.referenceLabels.apply(input.upserts, this.store), this.store);
++				const upserts = this.assistantReactions.apply(this.skillNames.apply(this.referenceLabels.apply(input.upserts, this.store), this.store), this.store);
+ 				const processTurns = /* @__PURE__ */ new Set();
+ 				let structural = false;
+ 				const contentOnly = [];
+@@ -6045,6 +6360,10 @@ window.__ModuleLoader__.load({
+ 			const source = event.data.source;
+ 			return source.kind === "plugin" && source.plugin === "compact";
+ 		}
++		function browserPromptRequestId(source) {
++			if (typeof source !== "object" || source === null) return void 0;
++			return source.kind === "user" && typeof source.rpcId === "string" && source.rpcId.length > 0 && source.rpcId.trim() === source.rpcId ? source.rpcId : void 0;
++		}
+ 		/** User, steering, and injected-context message classification Definition. */
+ 		const messageDefinition = {
+ 			kind: "input-message",
+@@ -6065,19 +6384,25 @@ window.__ModuleLoader__.load({
+ 					provenance: contextProvenance(event.data.source),
+ 					form: contextForm(event.data.source)
+ 				};
+-				return reader.previous("inbox-next-step")?.state.currentClaimed.has(String(event.data.id)) === true ? {
++				const claimed = reader.previous("inbox-next-step")?.state.currentClaimed.has(String(event.data.id)) === true;
++				const rpcId = browserPromptRequestId(event.data.source);
++				const rpc = rpcId === void 0 ? {} : { browserPromptRequestId: rpcId };
++				return claimed ? {
+ 					kind: "steering",
+ 					messageId: event.data.id,
+ 					seq: event.seq,
+ 					time: event.time,
+ 					content: event.data.content,
+-					source: event.data.source
++					source: event.data.source,
++					...rpc
+ 				} : {
+ 					kind: "user",
++					messageId: event.data.id,
+ 					seq: event.seq,
+ 					time: event.time,
+ 					content: event.data.content,
+-					source: event.data.source
++					source: event.data.source,
++					...rpc
+ 				};
+ 			},
+ 			update: (context) => context.state,
+@@ -8210,6 +8535,42 @@ window.__ModuleLoader__.load({
+ 			}
+ 		};
+ 		//#endregion
++		//#region lib/types/client/reactions.js
++		var ChatReactionRegistry = class extends _deepseek_ai_cordis.Service {
++			records = [];
++			nextId = 1;
++			policies = (0, _deepseek_ai_dsh_client_store.createSnapshotStore)([]);
++			constructor(ctx) {
++				super(ctx, "chatReactions");
++			}
++			register(policy) {
++				const normalized = {
++					presetIds: [...policy.presetIds],
++					emoji: policy.emoji
++				};
++				const dispose = this.ctx.effect(() => {
++					const record = {
++						id: this.nextId++,
++						policy: normalized
++					};
++					this.records.push(record);
++					this.publish();
++					return () => {
++						const index = this.records.findIndex((candidate) => candidate.id === record.id);
++						if (index < 0) return;
++						this.records.splice(index, 1);
++						this.publish();
++					};
++				}, "chatReactions.register()");
++				return () => {
++					void dispose();
++				};
++			}
++			publish() {
++				this.policies.set(this.records.map((record) => record.policy));
++			}
++		};
++		//#endregion
+ 		//#region lib/types/client/chat/use-turn-data.js
+ 		const EMPTY_SOURCE = {
+ 			getSnapshot: () => void 0,
+@@ -8247,6 +8608,7 @@ window.__ModuleLoader__.load({
+ 		* @param ctx - Client root context.
+ 		*/
+ 		function apply(ctx) {
++			ctx.plugin(ChatReactionRegistry);
+ 			const chatSources = /* @__PURE__ */ new WeakMap();
+ 			const chatSource = (binding) => {
+ 				let source = chatSources.get(binding);
+@@ -8286,8 +8648,9 @@ window.__ModuleLoader__.load({
+ 					}
+ 				})
+ 			}, TranscriptViewRow));
+-			ctx.slots.inject("conversation.view", () => {
+-				return ctx.slots.register({
++			ctx.inject(["chatReactions"], (scope) => {
++				scope.slots.inject("conversation.view", () => {
++					return scope.slots.register({
+ 					name: "conversation.view",
+ 					id: "chat",
+ 					order: 0,
+@@ -8302,6 +8665,10 @@ window.__ModuleLoader__.load({
+ 						"conversation.message.images": {
+ 							kind: "single",
+ 							scope: "session"
++						},
++						"conversation.chat.user-badges": {
++							kind: "list",
++							scope: "session"
+ 						}
+ 					},
+ 					store: chatStore,
+@@ -8311,7 +8678,10 @@ window.__ModuleLoader__.load({
+ 						const session = binding.session;
+ 						const chat = chatSource(binding);
+ 						return {
+-							hooks: { transcriptView: transcriptView.mode },
++							hooks: {
++								transcriptView: transcriptView.mode,
++								assistantReactionPolicies: scope.chatReactions.policies
++							},
+ 							keyedHooks: {
+ 								chatNode: (key) => chat.getSnapshot().nodes.source(key),
+ 								chatNodeProcess: (key) => chat.getSnapshot().nodes.processSource(key)
+@@ -8347,7 +8717,8 @@ window.__ModuleLoader__.load({
+ 							}
+ 						};
+ 					}
+-				}, ChatView);
++					}, ChatView);
++				});
+ 			});
+ 			ctx.slots.inject("conversation.composer.dock", () => ctx.slots.register({
+ 				name: "conversation.composer.dock",
+diff --git a/lib/types/client/chat/ChatNodeSeat.d.ts b/lib/types/client/chat/ChatNodeSeat.d.ts
+index 7dfb9194a0cbbf1783ecc19ce80c6336ff5411df..0a2d0c6933e1f10a2079ac3e3a66a428411905d8 100644
+--- a/lib/types/client/chat/ChatNodeSeat.d.ts
++++ b/lib/types/client/chat/ChatNodeSeat.d.ts
+@@ -7,10 +7,11 @@ interface ChatNodeSeatProps extends ChatNodeOwnerProps {
+     readonly compactTranscript: boolean;
+     readonly useStore: ChatViewSlotProps['useStore'];
+     readonly actions: ChatViewSlotProps['actions'];
++    readonly assistantReactionEmojis: readonly string[];
+     readonly renderSlot: ChatViewSlotProps['renderSlot'];
+     readonly t: ChatViewSlotProps['t'];
+ }
+ /** Subscribe, apply Turn-process visibility, and dispatch one stable Context key. */
+-export declare const ChatNodeSeat: import("react").MemoExoticComponent<({ nodeKey, useChatNode, useChatNodeProcess, historyIncomplete, compactTranscript, cwd, openFile, inspectCall, forkAt, loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot, t, }: ChatNodeSeatProps) => import("react").JSX.Element | null>;
++export declare const ChatNodeSeat: import("react").MemoExoticComponent<({ nodeKey, useChatNode, useChatNodeProcess, historyIncomplete, compactTranscript, cwd, openFile, inspectCall, forkAt, loadImage, renderMessageImages, fileMentions, useStore, actions, assistantReactionEmojis, renderSlot, t, }: ChatNodeSeatProps) => import("react").JSX.Element | null>;
+ export {};
+ //# sourceMappingURL=ChatNodeSeat.d.ts.map
+\ No newline at end of file
+diff --git a/lib/types/client/chat/ChatView.d.ts b/lib/types/client/chat/ChatView.d.ts
+index 4184ca49540b15c119e04bcf6f81aec1994f4353..33360bb344594b7ca66dae774688d44988ad3c0f 100644
+--- a/lib/types/client/chat/ChatView.d.ts
++++ b/lib/types/client/chat/ChatView.d.ts
+@@ -3,5 +3,5 @@ import type { ChatViewSlotProps } from '../contract/slots.ts';
+  * The chat view slot entry: pure component over the composed props; each
+  * ordered business Node crosses the keyed renderer seat.
+  */
+-export declare function ChatView({ useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot, sessionId, openFile, loadOlder, loadThrough, loadImage, openView, chatScroll, forkAt, fileMentions, useTranscriptView, useProjection, t, }: ChatViewSlotProps): import("react").JSX.Element;
++export declare function ChatView({ useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot, sessionId, openFile, loadOlder, loadThrough, loadImage, openView, chatScroll, forkAt, fileMentions, useTranscriptView, useAssistantReactionPolicies, useProjection, t, }: ChatViewSlotProps): import("react").JSX.Element;
+ //# sourceMappingURL=ChatView.d.ts.map
+\ No newline at end of file
+diff --git a/lib/types/client/contract/chat-nodes.d.ts b/lib/types/client/contract/chat-nodes.d.ts
+index 8a2f698bfa8be0a8a07f5912a4e90a2e4da61d68..4335090b00bfe4c7543eb79244c3a77f13177d0e 100644
+--- a/lib/types/client/contract/chat-nodes.d.ts
++++ b/lib/types/client/contract/chat-nodes.d.ts
+@@ -1,4 +1,5 @@
+ import type { AssistantBlock, AssistantMessageNode, CommandNode, CompactionSummaryNode, ConversationLocation, ConversationViewNode, ModelRetryNode, RunningToolCall, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-conversation/client';
++import type { AssistantReactionPair } from './reactions.ts';
+ /** Final Chat render unit produced by a Chat business Definition. */
+ export interface ChatConversationViewNode extends ConversationViewNode {
+     readonly target: 'chat';
+@@ -27,6 +28,7 @@ export interface AssistantChatData {
+     readonly time: number;
+     readonly usage?: unknown;
+     readonly finalNode?: AssistantMessageNode;
++    readonly assistantReaction?: AssistantReactionPair;
+ }
+ /** Settled or interrupted Assistant payload with its durable presentation node. */
+ export type FinalAssistantChatData = AssistantChatData & {
+diff --git a/lib/types/client/contract/reactions.d.ts b/lib/types/client/contract/reactions.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd80c79a4cff9e13869846e5c6f9800d5a59560f
+--- /dev/null
++++ b/lib/types/client/contract/reactions.d.ts
+@@ -0,0 +1,32 @@
++import type { MessageId } from '@deepseek-ai/dsh-llm/brand';
++/** User-side acknowledgement metadata exposed to badge renderers. */
++export interface AssistantReaction {
++    readonly assistantMessageId: MessageId;
++    readonly emoji: string;
++}
++/** Full pairing metadata retained on the paired assistant row. */
++export interface AssistantReactionPair extends AssistantReaction {
++    readonly assistantNodeId: string;
++    readonly userNodeId: string;
++    readonly userMessageId: MessageId;
++}
++/** Exact-preset policy enabling assistant acknowledgements for one emoji. */
++export interface ChatReactionPolicy {
++    readonly presetIds: readonly string[];
++    readonly emoji: string;
++}
++/** Registry of optional assistant acknowledgement policies. */
++export interface ChatReactions {
++    readonly policies: {
++        getSnapshot(): readonly ChatReactionPolicy[];
++        subscribe(listener: () => void): () => void;
++    };
++    register(policy: ChatReactionPolicy): () => void;
++}
++declare module '@deepseek-ai/cordis' {
++    interface Context {
++        /** Optional assistant acknowledgement reaction registry. */
++        chatReactions: ChatReactions;
++    }
++}
++//# sourceMappingURL=reactions.d.ts.map
+diff --git a/lib/types/client/contract/slots.d.ts b/lib/types/client/contract/slots.d.ts
+index 646baac5ad27c493bf4d283bb0a2abe1b6c1d233..37e80a2683a0cfcc5ebb49ac0db1482719d3a539 100644
+--- a/lib/types/client/contract/slots.d.ts
++++ b/lib/types/client/contract/slots.d.ts
+@@ -1,11 +1,13 @@
+ /** Chat-owned Slot declarations and composed component props. */
+ import type { MessageId } from '@deepseek-ai/dsh-llm/brand';
++import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types';
+ import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types';
+ import type { CommandNode, CompactionSummaryNode, ConversationLocationDataStore, ConversationTurnDataMap, MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation } from '@deepseek-ai/dsh-client-ui-conversation/client';
+ import type { InjectFace, KeyedSnapshotSelectorHook, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore, SlotHookFactory, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots';
+-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store';
++import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store';
+ import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives';
+ import type { createChatStore } from '../stores.ts';
++import type { AssistantReaction, ChatReactionPolicy } from './reactions.ts';
+ import type { ToolCallId } from './store.ts';
+ import type { ChatConversationViewNode, ChatNode, ChatNodeKind } from './chat-nodes.ts';
+ import type { ChatNodeProcessSource, ChatNodeSource, ChatSnapshot, ChatTurnProcessPresentation } from './snapshot.ts';
+@@ -32,6 +34,25 @@ export interface TurnTailOwnerProps {
+ export interface AssistantActionOwnerProps {
+     messageId: MessageId;
+ }
++/** Durable user-message class eligible for adjacent provenance badges. */
++export type UserBadgePlacement = 'user' | 'steering';
++/** Owner currency of browser-prompt badges rendered beside admitted user input. */
++export interface UserBadgeOwnerProps {
++    /** Durable user or steering message identity. */
++    messageId: MessageId;
++    /** Browser prompt RPC identity recorded on the admitted user message, when present. */
++    browserPromptRequestId?: SessionRequestId;
++    /** Sequence of the admitted `user/message` event. */
++    seq: number;
++    /** Unix epoch ms from the admitted `user/message` event. */
++    time: number;
++    /** Whether the message opened a turn or steered an active turn. */
++    placement: UserBadgePlacement;
++    /** Assistant acknowledgement enabled for this message by the active exact-preset policy. */
++    assistantReaction?: AssistantReaction;
++}
++/** Full props of a browser-prompt badge contribution. */
++export type UserBadgeProps = PropsRuntime<'conversation.chat.user-badges'>;
+ /** Optional prose file-mention provider consumed by Chat. */
+ export interface ChatFileMentions {
+     /**
+@@ -103,6 +124,8 @@ export interface ChatViewInjected {
+     hooks: {
+         /** Persisted completed-Turn transcript presentation. */
+         transcriptView: SnapshotStore<TranscriptViewMode>;
++        /** Optional exact-preset assistant acknowledgement policies. */
++        assistantReactionPolicies: ObservableSnapshot<readonly ChatReactionPolicy[]>;
+     };
+     keyedHooks: {
+         /** Resolve the stable source for one Chat Node key. */
+@@ -123,7 +146,7 @@ export interface ChatViewInjected {
+     fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined;
+ }
+ /** Full Chat view props. */
+-export type ChatViewSlotProps = PropsRuntime<'conversation.view'> & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images'> & PropsStore<ChatStore> & InjectFace<ChatViewInjected> & PropsLocale<'chat'>;
++export type ChatViewSlotProps = PropsRuntime<'conversation.view'> & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images' | 'conversation.chat.user-badges'> & PropsStore<ChatStore> & InjectFace<ChatViewInjected> & PropsLocale<'chat'>;
+ /** Full props of the durable-message image renderer. */
+ export type MessageImagesProps = PropsRuntime<'conversation.message.images'> & PropsLocale<'conversation'>;
+ declare module '@deepseek-ai/dsh-client-ui-slots' {
+@@ -163,6 +186,20 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
+             scope: 'session';
+             owner: MessageImagesOwnerProps;
+         };
++        /**
++         * Ordered badges adjacent to a durable user or steering message. Chat
++         * dispatches the slot for admitted append events classified as user input;
++         * `browserPromptRequestId` is present only when the recorded user source
++         * carries a canonical browser prompt RPC identity, and `assistantReaction`
++         * is present only when the active agent preset exactly matches a registered
++         * reaction policy. Local echoes, queued rows, injected context, and
++         * replacements do not render this slot.
++         */
++        'conversation.chat.user-badges': {
++            kind: 'list';
++            scope: 'session';
++            owner: UserBadgeOwnerProps;
++        };
+         /**
+          * Command row keyed by the command name. The component receives the folded
+          * command lifecycle and linked compaction when present. Reusing a key
+diff --git a/lib/types/client/conversation-nodes/chat-snapshot-builder.d.ts b/lib/types/client/conversation-nodes/chat-snapshot-builder.d.ts
+index 0aeb79e06ac37dfecded9ba3aa1ffc7135543ff8..2340fbea83307ad8f020898a28fab8f60eea3cd2 100644
+--- a/lib/types/client/conversation-nodes/chat-snapshot-builder.d.ts
++++ b/lib/types/client/conversation-nodes/chat-snapshot-builder.d.ts
+@@ -10,6 +10,24 @@ import type { ChatNodeStore, ChatSnapshot } from '../contract/snapshot.ts';
+  * @returns visible Nodes in presentation order.
+  */
+ export declare function orderedVisibleChatNodes(nodes: readonly ChatConversationViewNode[]): ChatConversationViewNode[];
++/** Pairs settled assistant-only acknowledgements with the nearest direct message. */
++export declare class AssistantReactionProjector {
++    private readonly entries;
++    private sorted;
++    private readonly messageReactions;
++    private readonly assistantReactions;
++    replace(nodes: readonly ChatConversationViewNode[]): readonly ChatConversationViewNode[];
++    apply(upserts: readonly ChatConversationViewNode[], store: ChatNodeStore): readonly ChatConversationViewNode[];
++    private withMetadata;
++    private insert;
++    private remove;
++    private forget;
++    private lowerBound;
++    private runEnd;
++    private runStart;
++    private runsAround;
++    private replaceRun;
++}
+ /**
+  * Attaches each direct message's step-loaded skill names to its Node.
+  *
+@@ -71,6 +89,7 @@ export declare class ChatSnapshotBuilder implements ConversationViewBuilder<Chat
+     private readonly legacy;
+     private readonly referenceLabels;
+     private readonly skillNames;
++    private readonly assistantReactions;
+     private order;
+     /** Last published timeline: a Turn boundary can land without a new node. */
+     private timeline;
+diff --git a/lib/types/client/conversation-nodes/message.d.ts b/lib/types/client/conversation-nodes/message.d.ts
+index b327904e4a2e47b9aafd36b5d3df3fa52fa40cf3..b26c570730ebc44d374a6a1634360d0902da9fd5 100644
+--- a/lib/types/client/conversation-nodes/message.d.ts
++++ b/lib/types/client/conversation-nodes/message.d.ts
+@@ -1,16 +1,26 @@
+ import type { Context } from '@deepseek-ai/cordis';
++import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types';
+ import type { ContextMessageNode, ConversationNodeDefinition, SteeringMessageNode, UserMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client';
++import type { AssistantReaction } from '../contract/reactions.ts';
+ interface ReferencedUserMessageNode extends UserMessageNode {
++    /** Browser prompt RPC identity recorded on the admitted user message. */
++    readonly browserPromptRequestId?: SessionRequestId;
+     /** Labels cited by the immediately following session-reference context. */
+     readonly referenceLabels?: readonly string[];
+     /** Skill names the same step's `skill-invocation` injections loaded. */
+     readonly skillNames?: readonly string[];
++    /** Assistant acknowledgement paired with this message by Chat projection. */
++    readonly assistantReaction?: AssistantReaction;
+ }
+ interface ReferencedSteeringMessageNode extends SteeringMessageNode {
++    /** Browser prompt RPC identity recorded on the admitted steering message. */
++    readonly browserPromptRequestId?: SessionRequestId;
+     /** Labels cited by the immediately following session-reference context. */
+     readonly referenceLabels?: readonly string[];
+     /** Skill names the same step's `skill-invocation` injections loaded. */
+     readonly skillNames?: readonly string[];
++    /** Assistant acknowledgement paired with this message by Chat projection. */
++    readonly assistantReaction?: AssistantReaction;
+ }
+ type MessageNode = ReferencedUserMessageNode | ReferencedSteeringMessageNode | ContextMessageNode;
+ declare module '../contract/chat-nodes.ts' {
+diff --git a/lib/types/client/index.d.ts b/lib/types/client/index.d.ts
+index 24526daa3767117bdc6077ae421acd8c90bb94c4..4c5f0dca1a86a20bf5800c58e6ef0452f764339a 100644
+--- a/lib/types/client/index.d.ts
++++ b/lib/types/client/index.d.ts
+@@ -17,7 +17,8 @@ export type { AssistantChatData, ChatConversationViewNode, ChatNode, ChatNodeKin
+ export type { ChatStoreState, ToolCallId, TurnProcessViewEntry } from './contract/store.ts';
+ export type { TranscriptViewRowInjected, TranscriptViewRowProps } from './settings/TranscriptViewRow.tsx';
+ export type { TranscriptViewMode } from '../chat-settings.ts';
+-export type { AssistantActionOwnerProps, ChatFileMentions, ChatNodeOwnerProps, ChatNodeTurnDataInjected, ChatNodeViewProps, ChatScrollPosition, ChatStore, ChatViewInjected, ChatViewSlotProps, CommandRowOwnerProps, CommandRowProps, MessageImagesProps, OpenFileOptions, TurnProcessOwnerProps, TurnTailOwnerProps, UseChat, UseChatNodeTurnData, } from './contract/slots.ts';
++export type { AssistantActionOwnerProps, ChatFileMentions, ChatNodeOwnerProps, ChatNodeTurnDataInjected, ChatNodeViewProps, ChatScrollPosition, ChatStore, ChatViewInjected, ChatViewSlotProps, CommandRowOwnerProps, CommandRowProps, MessageImagesProps, OpenFileOptions, TurnProcessOwnerProps, TurnTailOwnerProps, UseChat, UseChatNodeTurnData, UserBadgeOwnerProps, UserBadgePlacement, UserBadgeProps, } from './contract/slots.ts';
++export type { AssistantReaction, AssistantReactionPair, ChatReactionPolicy, ChatReactions, } from './contract/reactions.ts';
+ export type { TurnProcessSpec, } from './contract/turn-process.ts';
+ export type { ChatKey } from './locale.ts';
+ export type { ConversationContext, ConversationContextOriginKind } from './model/conversation-context.ts';
+diff --git a/lib/types/client/reactions.d.ts b/lib/types/client/reactions.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..78d3d75633f0db6f757f9e0fb2ca5dcf840f2509
+--- /dev/null
++++ b/lib/types/client/reactions.d.ts
+@@ -0,0 +1,15 @@
++/** Registry backing Chat acknowledgement-reaction opt-ins. */
++import { Service, type Context } from '@deepseek-ai/cordis';
++import type { SnapshotStore } from '@deepseek-ai/dsh-client-store';
++import type { ChatReactionPolicy, ChatReactions } from './contract/reactions.ts';
++/** Root Chat reaction registry exposed as `ctx.chatReactions`. */
++export declare class ChatReactionRegistry extends Service implements ChatReactions {
++    private readonly records;
++    private nextId;
++    readonly policies: SnapshotStore<readonly ChatReactionPolicy[]>;
++    /** @param ctx - owning Chat plugin context. */
++    constructor(ctx: Context);
++    register(policy: ChatReactionPolicy): () => void;
++    private publish;
++}
++//# sourceMappingURL=reactions.d.ts.map
+diff --git a/package.json b/package.json
+index da79b754c1c937993f57509b2571abdedbc4536a..88c8cdf1b473097f95a31d4863fcf5b2135aed01 100644
+--- a/package.json
++++ b/package.json
+@@ -94,5 +94,14 @@
+   "scripts": {
+     "bundle": "tsdown",
+     "watch": "tsdown --watch"
++  },
++  "dshReceiptRuntimePatch": {
++    "tag": "personal-assistant-receipts-alpha2-backport",
++    "base": "@deepseek-ai/dsh-client-ui-chat@0.1.5-alpha.2",
++    "patches": [
++      "conversation.chat.user-badges slot",
++      "user/steering browserPromptRequestId projection",
++      "assistant-chosen acknowledgement reactions"
++    ]
+   }
+ }

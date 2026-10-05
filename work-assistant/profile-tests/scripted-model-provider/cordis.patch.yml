@@ -1,0 +1,3 @@
+- insert:
+    - id: wa-profile-test-model
+      name: '@deepseek-ai/dsh-wa-profile-test-model'

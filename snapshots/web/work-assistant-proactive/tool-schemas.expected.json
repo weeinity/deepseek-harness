@@ -1,0 +1,88 @@
+[
+  [
+    {
+      "name": "calendar_find_conflicts",
+      "description": "Find overlapping busy events from the configured read-only personal calendar source.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "Inclusive ISO instant with Z or numeric offset."
+          },
+          "end": {
+            "type": "string",
+            "description": "Exclusive ISO instant with Z or numeric offset."
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "IANA time zone used to render local times."
+          },
+          "maxResults": {
+            "type": "integer",
+            "description": "Maximum results to return, capped by deployment config."
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "timeZone"
+        ]
+      }
+    },
+    {
+      "name": "calendar_list",
+      "description": "List events from the configured read-only personal calendar source in a bounded time window.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "Inclusive ISO instant with Z or numeric offset."
+          },
+          "end": {
+            "type": "string",
+            "description": "Exclusive ISO instant with Z or numeric offset."
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "IANA time zone used to render local times."
+          },
+          "maxResults": {
+            "type": "integer",
+            "description": "Maximum results to return, capped by deployment config."
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "timeZone"
+        ]
+      }
+    },
+    {
+      "name": "memory_list",
+      "description": "List existing allowed personal Markdown memory notes in the configured repository.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "memory_read",
+      "description": "Read one allowed personal Markdown memory note from the configured repository.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "One allowed note id: profile.md, people.md, decisions.md, or projects/<safe-slug>.md."
+          }
+        },
+        "required": [
+          "note"
+        ]
+      }
+    }
+  ]
+]

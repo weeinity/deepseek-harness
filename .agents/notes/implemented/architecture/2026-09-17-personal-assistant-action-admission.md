@@ -16,13 +16,15 @@ A connector registers an exact tool definition and fixed action classification. 
 
 Reads are admitted; every write requires a fresh grant from the existing [one-time approval service](../feature/2026-07-06-approval-seam.md). Deployment configuration supplies the owner identity, and DSH's execution context supplies the Session and call identities. Model arguments cannot replace these identities or select a policy. External-content exposure is audit metadata, never permission to omit approval.
 
+The [scoped human-question contribution](../feature/2026-09-18-personal-assistant-receipts-and-questions.md) admits the exact built-in interaction definition separately from connector dispatch. Its answers remain ordinary Session tool results, not write grants or duplicate connector audit bodies. A pending write review uses captured arguments and is invalidated by new direct-human input in the same live Agent.
+
 The gateway persists admission in a versioned DSH storage domain before dispatch. Records contain attribution, an argument digest, the decision, and the dispatch outcome; the Session log owns model-visible argument and result bodies. Interrupted records are marked on restart, not replayed. A failure after dispatch does not establish that no side effect occurred.
 
 Credential references are resolved at use by trusted connector code. They keep a configured feed credential out of model arguments but do not isolate credentials from other plugins in the same process. Plugins, configuration, and the operating-system account remain trusted.
 
 The [memory bundle](../../../../work-assistant/packages/wa-memory/README.md) couples each approved, revision-checked note replacement to a local commit of that note. Mutable memory reaches the model as tool-result data, not system instructions. Session lifetime is not the write transaction: a Session can span many turns and process launches.
 
-The opt-in [briefing bundle](../../../../work-assistant/packages/wa-briefing/README.md) uses a maintained cron timer to create read-only DSH Agents. DSH Sessions retain their prompts and results. Timer state is process-local: configuration persists, but missed occurrences are skipped rather than queued.
+The opt-in [briefing bundle](../../../../work-assistant/packages/wa-briefing/README.md) uses a maintained cron timer to create read-only DSH Agents. DSH Sessions retain their prompts and results. The timer is process-local and missed occurrences are skipped. The [proactive Inbox decision](../feature/2026-09-21-personal-assistant-proactive-inbox.md) owns persisted pause, occurrence deduplication, and response delivery.
 
 ## Alternatives considered
 
@@ -40,7 +42,7 @@ The opt-in [briefing bundle](../../../../work-assistant/packages/wa-briefing/REA
 
 ## Consequences
 
-Each new assistant tool must register through the gateway. Arbitrary coding tools and corporate MCP connectors are not automatically available, and unattended writes without an approval answerer fail closed.
+Each connector tool must register through the gateway; the scoped question tool requires exact interaction admission. Arbitrary coding tools and corporate MCP connectors are not automatically available, and unattended writes without an approval answerer fail closed.
 
 The [gateway tests](../../../../work-assistant/packages/wa-gateway/tests/gateway.spec.ts) exercise the real registry, approval service, and SQLite-backed domain, including scoped shadows, caller attribution, cancellation, storage failure, restart persistence, and independent audit snapshots. This evidence does not establish real-account or container operation.
 

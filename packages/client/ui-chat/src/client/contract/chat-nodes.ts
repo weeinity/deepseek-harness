@@ -3,6 +3,7 @@ import type {
   ConversationLocation, ConversationViewNode, ModelRetryNode, RunningToolCall,
   ToolCallBlock,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { AssistantReactionPair } from './reactions.ts'
 
 /** Final Chat render unit produced by a Chat business Definition. */
 export interface ChatConversationViewNode extends ConversationViewNode {
@@ -35,6 +36,8 @@ export interface AssistantChatData {
   readonly time: number
   readonly usage?: unknown
   readonly finalNode?: AssistantMessageNode
+  /** Present when a policy may collapse this Assistant into a user-message reaction. */
+  readonly assistantReaction?: AssistantReactionPair
 }
 
 /** Settled or interrupted Assistant payload with its durable presentation node. */

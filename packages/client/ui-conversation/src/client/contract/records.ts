@@ -40,6 +40,8 @@ export type AssistantBlock =
 /** A finalized user message. */
 export interface UserMessageNode {
   kind: 'user'
+  /** Stable message identity from the admitted `user/message` event. */
+  messageId: MessageId
   seq: number
   /** Unix epoch ms from the source session event. */
   time: number

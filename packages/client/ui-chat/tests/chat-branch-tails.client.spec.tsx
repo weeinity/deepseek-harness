@@ -90,6 +90,7 @@ describe('MessageItem arms', () => {
         referenceLabels={['你好']}
         node={{
           kind: 'user',
+          messageId: 'user-message' as never,
           seq: 1,
           time: 1_000,
           content: [{ type: 'text', text: '@你好这个在讲啥' }] as never,
@@ -110,6 +111,7 @@ describe('MessageItem arms', () => {
         referenceLabels={['Research notes']}
         node={{
           kind: 'user',
+          messageId: 'user-message' as never,
           seq: 1,
           time: 1_000,
           content: [{ type: 'text', text: '@Research notes what changed?' }] as never,
@@ -126,6 +128,7 @@ describe('MessageItem arms', () => {
     const view = render(
       <MessageItem t={t} node={{
         kind: 'user',
+        messageId: 'user-message' as never,
         seq: 1,
         time: 1_000,
         content: [{ type: 'text', text: 'Read @Dockerfile and @src/README.md, please.' }] as never,
@@ -141,6 +144,7 @@ describe('MessageItem arms', () => {
   it('decorates a slash token as a skill chip only when the step resolved that skill', () => {
     const message = {
       kind: 'user' as const,
+      messageId: 'user-message' as never,
       seq: 1,
       time: 1_000,
       content: [{ type: 'text', text: '/123 then /demo-skill go' }] as never,
@@ -166,6 +170,7 @@ describe('MessageItem arms', () => {
     render(
       <MessageItem t={t} node={{
         kind: 'user', seq: 1, time,
+        messageId: 'user-message' as never,
         content: [{ type: 'text', text: 'hello bubble' }] as never,
         source: null,
       }}
@@ -192,6 +197,7 @@ describe('MessageItem arms', () => {
     render(
       <MessageItem t={t} node={{
         kind: 'user', seq: 1, time: 1_000,
+        messageId: 'user-message' as never,
         content: [{ type: 'text', text: 'fallback body' }] as never,
         source: null,
       }}
@@ -209,6 +215,7 @@ describe('MessageItem arms', () => {
     render(
       <MessageItem t={t} node={{
         kind: 'user', seq: 1, time: 1_000,
+        messageId: 'user-message' as never,
         content: [{ type: 'text', text: 'quiet' }] as never,
         source: null,
       }}
@@ -233,6 +240,7 @@ describe('MessageItem arms', () => {
     render(
       <MessageItem t={t} node={{
         kind: 'user', seq: 1, time: 1_000,
+        messageId: 'user-message' as never,
         content: [{ type: 'text', text: 'copied body' }] as never,
         source: null,
       }}
@@ -266,6 +274,7 @@ describe('MessageItem arms', () => {
     const view = render(
       <MessageItem t={t} node={{
         kind: 'user', seq: 1, time: 1_000,
+        messageId: 'user-message' as never,
         content: [{ type: 'text', text: 'copied body' }] as never,
         source: null,
       }}
@@ -283,6 +292,7 @@ describe('MessageItem arms', () => {
     const mounted = render(
       <MessageItem t={t} node={{
         kind: 'user', seq: 2, time: 1_000,
+        messageId: 'user-message' as never,
         content: [{ type: 'text', text: 'copied body' }] as never,
         source: null,
       }}
@@ -1008,6 +1018,7 @@ describe('useCalendarDay boundary refresh', () => {
     render(
       <MessageItem t={t} node={{
         kind: 'user', seq: 1, time,
+        messageId: 'user-message' as never,
         content: [{ type: 'text', text: 'night bubble' }] as never,
         source: null,
       }}
@@ -1070,6 +1081,7 @@ describe('user file attachments', () => {
         t={t}
         node={{
           kind: 'user',
+          messageId: 'user-message' as never,
           seq: 1,
           time: 1_000,
           content: [

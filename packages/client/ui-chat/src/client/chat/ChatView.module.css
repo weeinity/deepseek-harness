@@ -70,6 +70,44 @@
   display: none;
 }
 
+.userBadgeRow {
+  display: flex;
+  justify-content: flex-end;
+  max-width: min(calc(var(--dsh-chat-content-width, 748px) * 0.702), 82%);
+  margin-left: auto;
+}
+
+.userBadgeRow:empty,
+.userBadgeRow:has(> :global([data-slot]):empty) {
+  display: none;
+}
+
+/* An occupied reaction overlaps the message edge, without covering its controls.
+   Empty contributions retain the ordinary message layout. */
+.flowItem:has(> .userBadgeRow > :global([data-slot]):not(:empty)) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: end;
+  row-gap: 6px;
+
+  & > :global([data-slot]) > :global([data-user-message]) {
+    display: contents;
+  }
+
+  & :global([data-user-message-body]) {
+    grid-area: 1 / 1;
+  }
+
+  & :global([data-message-actions]) {
+    grid-area: 3 / 1;
+  }
+
+  & > .userBadgeRow {
+    grid-area: 2 / 1;
+    margin: -16px 8px 0 0;
+  }
+}
+
 .callRow {
   border-radius: 6px;
 }

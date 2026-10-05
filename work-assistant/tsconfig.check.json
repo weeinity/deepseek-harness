@@ -24,5 +24,9 @@
     "packages/*/src/**/*.ts",
     "packages/*/tests/**/*.ts",
     "tests/**/*.ts"
+  ],
+  "exclude": [
+    "packages/wa-ui/src/client/**",
+    "packages/wa-ui/tests/**"
   ]
 }

@@ -1,0 +1,25 @@
+{
+  "name": "@deepseek-ai/dsh-wa-profile-test-model",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Profile-smoke-only scripted model provider for Work Assistant browser tests",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "src"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-llm": "0.1.5-alpha.2"
+  }
+}

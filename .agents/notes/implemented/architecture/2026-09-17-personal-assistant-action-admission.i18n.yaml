@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-17-personal-assistant-action-admission.md
-2026-09-17-personal-assistant-action-admission.md: dbedcb35ffb72cb2bb3c81180e5530e809a74afa
-2026-09-17-personal-assistant-action-admission.zh.md: dee9924f1916df3b6c7ff3246d7767a127d6f7d0
+2026-09-17-personal-assistant-action-admission.md: be5c75631860d52a6a883cb5b792085d39d52e73
+2026-09-17-personal-assistant-action-admission.zh.md: 1566783943d085a44ba512125b0fd79dae8d74fc
