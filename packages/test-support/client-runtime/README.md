@@ -137,6 +137,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define how the bench is consumed. They are current package constraints, not a task backlog.
 
 - **Vitest and jsdom only** — every consumer is an in-repository browser-oriented Vitest suite. The package is not a product plugin or a general Node test harness.
+- **Read leases are not simulated** — `TestSessions.retain()` rejects; use the production `ClientSessions` fixture in the [Session Controller lease tests](../../api/session-controller/tests/session-lease.client.spec.ts) for history ownership, cancellation, and release tests.
 - **Session, Conversation, and Chat fixtures stay separate** — `sessionSnapshot` contains only Session Controller state, `conversationSnapshot` contains target-neutral Conversation state, and `chatSnapshot` contains Chat target state. Assembly tests provide Session event entries instead of adding Conversation or Chat fields to `SessionSnapshot`.
 
 <a id="dev-note"></a>

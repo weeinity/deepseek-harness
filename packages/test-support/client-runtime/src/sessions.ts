@@ -388,6 +388,11 @@ export class TestSessions implements ISessions {
     return record.binding
   }
 
+  /** Reject read leases; fixture sessions have no remote read lifetime. */
+  retain(sessionId: SessionId, _signal?: AbortSignal): ReturnType<ISessions['retain']> {
+    return Promise.reject(new Error(`test session "${sessionId}": retain requires a real ClientSessions fixture`))
+  }
+
   /**
    * Read the session scope tag off a context (service-method boundary mirror).
    * @param ctx - any client context.

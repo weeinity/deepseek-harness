@@ -1212,16 +1212,17 @@ describe('ChatView', () => {
     // The durable node arrives while the echo is STILL in the session
     // snapshot: the render-time rpcId dedupe keeps exactly one bubble.
     act(() => {
+      const admitted: ChatNode<'user'>['data'] = {
+        kind: 'user', seq: 2, time: 2_000,
+        messageId: 'admitted-2' as never,
+        content: [{ type: 'text', text: '即发即显' }],
+        source: { kind: 'user', rpcId: 'req-1' },
+        browserPromptRequestId: 'req-1' as never,
+      }
       h.setChat({
         nodes: [
           assistant(1, 'working'),
-          {
-            kind: 'user', seq: 2, time: 2_000,
-            messageId: 'admitted-2' as never,
-            content: [{ type: 'text', text: '即发即显' }] as never,
-            source: { kind: 'user', rpcId: 'req-1' },
-            browserPromptRequestId: 'req-1' as never,
-          },
+          admitted,
         ],
       })
     })

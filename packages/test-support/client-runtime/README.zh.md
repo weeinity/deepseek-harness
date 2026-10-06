@@ -137,6 +137,7 @@ expect(view.getByRole('alert')).toHaveTextContent('goal/not-found')
 这些限制说明本测试台如何被消费。它们是当前包约束，不是任务积压。
 
 - **仅限 Vitest 与 jsdom**——所有消费方都是仓内、面向浏览器的 Vitest 套件。本包不是产品插件，也不是通用 Node 测试框架。
+- **不模拟读取租约**——`TestSessions.retain()` 会拒绝调用；历史读取的所有权、取消和释放测试应使用 [Session Controller 租约测试](../../api/session-controller/tests/session-lease.client.spec.ts)中的生产 `ClientSessions` fixture。
 - **Session、Conversation 与 Chat fixture 保持分离**——`sessionSnapshot` 只包含 Session Controller 状态，`conversationSnapshot` 包含 target-neutral Conversation 状态，`chatSnapshot` 包含 Chat target 状态。组装测试提供 Session event entry，而不是向 `SessionSnapshot` 添加 Conversation 或 Chat 字段。
 
 <a id="dev-note"></a>

@@ -1,28 +1,42 @@
 import { describe, expect, it } from 'vitest'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
-import type { ConversationLocation } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConversationLocation, StepLocation, TurnLocation } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { ChatConversationViewNode } from '../src/client/contract/chat-nodes.ts'
 import type { ChatNodeStore } from '../src/client/contract/snapshot.ts'
 import { AssistantReactionProjector } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
 
-function completedStepLocation(reason: string = 'completed'): Extract<ConversationLocation, { kind: 'step' }> {
-  const turn = {
-    turn: 1,
-    start: undefined,
-    end: { data: { reason: { kind: reason } } },
-    status: 'closed',
-    steps: [],
-    data: {},
-  }
-  const step = {
+function completedStepLocation(
+  reason: 'completed' | 'aborted' = 'completed',
+): Extract<ConversationLocation, { kind: 'step' }> {
+  const empty = createSnapshotStore(undefined)
+  const data = { get: () => undefined, source: () => empty }
+  const step: StepLocation = {
     turn: 1,
     step: 1,
     start: undefined,
-    end: {},
+    end: { type: 'step/end', seq: SessionSeq(99), time: 99, data: { turn: 1, step: 1 } },
     status: 'closed',
-    data: {},
+    data,
   }
-  return { kind: 'step', turn, step } as unknown as ConversationLocation
+  const turn: TurnLocation = {
+    turn: 1,
+    start: undefined,
+    end: {
+      type: 'turn/end',
+      seq: SessionSeq(100),
+      time: 100,
+      data: {
+        turn: 1,
+        reason: reason === 'completed' ? { kind: 'completed' } : { kind: 'aborted', reason: { kind: 'user' } },
+      },
+    },
+    status: 'closed',
+    steps: [step],
+    data,
+  }
+  return { kind: 'step', turn, step }
 }
 
 function viewNode(

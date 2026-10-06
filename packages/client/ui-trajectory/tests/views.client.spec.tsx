@@ -32,6 +32,7 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import {
   ConversationSession, ConversationSessionHeader,
@@ -83,7 +84,7 @@ beforeEach(() => {
 
 /** Node fixture: user prologue, two turns, one tool result inside turn 1. */
 const NODES: LegacyConversationSlice['nodes'] = [
-  { kind: 'user', seq: 1, time: 1_000, content: [], source: null },
+  { kind: 'user', messageId: MessageId('user-1'), seq: 1, time: 1_000, content: [], source: null },
   {
     kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1, blocks: [],
     timing: { stepStartTime: 1_800, firstTokenTime: 1_900, completedTime: 2_000 },
@@ -547,12 +548,12 @@ describe('tab switching in ConversationRoot', () => {
 
   it('labels a standalone compaction as between-turn work in the ledger and inspector', async () => {
     const nodes: LegacyConversationSlice['nodes'] = [
-      { kind: 'user', seq: 1, time: 1_000, content: [], source: null },
+      { kind: 'user', messageId: MessageId('user-1'), seq: 1, time: 1_000, content: [], source: null },
       {
         kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1,
         blocks: [{ kind: 'text', text: 'before' }],
       },
-      { kind: 'user', seq: 5, time: 5_000, content: [], source: null },
+      { kind: 'user', messageId: MessageId('user-5'), seq: 5, time: 5_000, content: [], source: null },
       {
         kind: 'assistant', seq: 6, time: 6_000, turn: 2, step: 1,
         blocks: [{ kind: 'text', text: 'after' }],
@@ -582,17 +583,17 @@ describe('tab switching in ConversationRoot', () => {
 
   it('activates only the selected standalone compaction section', async () => {
     const nodes: LegacyConversationSlice['nodes'] = [
-      { kind: 'user', seq: 1, time: 1_000, content: [], source: null },
+      { kind: 'user', messageId: MessageId('user-1'), seq: 1, time: 1_000, content: [], source: null },
       {
         kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1,
         blocks: [{ kind: 'text', text: 'before first compaction' }],
       },
-      { kind: 'user', seq: 5, time: 5_000, content: [], source: null },
+      { kind: 'user', messageId: MessageId('user-5'), seq: 5, time: 5_000, content: [], source: null },
       {
         kind: 'assistant', seq: 6, time: 6_000, turn: 2, step: 1,
         blocks: [{ kind: 'text', text: 'between compactions' }],
       },
-      { kind: 'user', seq: 9, time: 9_000, content: [], source: null },
+      { kind: 'user', messageId: MessageId('user-9'), seq: 9, time: 9_000, content: [], source: null },
       {
         kind: 'assistant', seq: 10, time: 10_000, turn: 3, step: 1,
         blocks: [{ kind: 'text', text: 'after second compaction' }],
@@ -1276,6 +1277,7 @@ describe('TrajectoryView state', () => {
   it('reveals resident history one bounded page at a time', async () => {
     const nodes: LegacyConversationSlice['nodes'] = Array.from({ length: 5_000 }, (_, index) => ({
       kind: 'user' as const,
+      messageId: MessageId(`user-${String(index + 1)}`),
       seq: index + 1,
       time: index + 1,
       content: [{ type: 'text' as const, text: `prompt ${String(index + 1)}` }],
@@ -1300,7 +1302,7 @@ describe('TrajectoryView state', () => {
     expect(loadOlder).not.toHaveBeenCalled()
 
     act(() => { trajectory.set(historySnapshot([...nodes, {
-      kind: 'user', seq: 5_001, time: 5_001,
+      kind: 'user', messageId: MessageId('user-5001'), seq: 5_001, time: 5_001,
       content: [{ type: 'text', text: 'appended prompt' }], source: null,
     }])) })
     expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('102')
@@ -1311,6 +1313,7 @@ describe('TrajectoryView state', () => {
       { length: 100 },
       (_, index) => ({
         kind: 'user' as const,
+        messageId: MessageId(`user-${String(start + index)}`),
         seq: start + index,
         time: start + index,
         content: [],
@@ -1419,7 +1422,7 @@ describe('TrajectoryView state', () => {
     }, 'hidden-child'],
   ])('reveals a hidden resident %s call for cross-view inspection', (_kind, target, focus) => {
     const nodes: LegacyConversationSlice['nodes'] = [
-      { kind: 'user', seq: 1, time: 1, content: [], source: null },
+      { kind: 'user', messageId: MessageId('user-1'), seq: 1, time: 1, content: [], source: null },
       {
         kind: 'tool-result', seq: 2, time: 2, callId: 'unrelated', call: null, callTime: null,
         content: [], isError: false, subCalls: [],
@@ -1427,6 +1430,7 @@ describe('TrajectoryView state', () => {
       target,
       ...Array.from({ length: 50 }, (_, index) => ({
         kind: 'user' as const,
+        messageId: MessageId(`user-${String(index + 4)}`),
         seq: index + 4,
         time: index + 4,
         content: [{ type: 'text' as const, text: `later ${String(index + 1)}` }],
@@ -1483,7 +1487,7 @@ describe('TrajectoryView state', () => {
 
   it('keeps ledger and timeline selection on the same event after prepend', () => {
     const older: LegacyConversationSlice['nodes'][number] = {
-      kind: 'user', seq: 1, time: 1_000,
+      kind: 'user', messageId: MessageId('user-1'), seq: 1, time: 1_000,
       content: [{ type: 'text', text: 'older prompt' }], source: null,
     }
     const current: LegacyConversationSlice['nodes'][number] = {

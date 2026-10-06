@@ -76,6 +76,20 @@ describe('fixture helpers', () => {
 })
 
 describe('Session fixture lifecycle', () => {
+  it('rejects read leases without materializing a session or changing navigation', async () => {
+    const runtime = await SlotTestRuntime.create()
+    try {
+      const before = runtime.sessions.list.getSnapshot()
+      await expect(runtime.sessions.retain('reader' as SessionId)).rejects.toThrow(
+        'retain requires a real ClientSessions fixture',
+      )
+      expect(runtime.sessions.binding('reader')).toBeUndefined()
+      expect(runtime.sessions.list.getSnapshot()).toBe(before)
+    } finally {
+      await runtime.dispose()
+    }
+  })
+
   it('initializes and drives complete event windows through replace, prepend, and append', async () => {
     const runtime = await SlotTestRuntime.create()
     const first = entry(1)

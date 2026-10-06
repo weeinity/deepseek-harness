@@ -478,7 +478,8 @@ describe('built-in conversation node Definitions', () => {
       at(7, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
     ]))
 
-    expect(node(current, 'assistant-step')?.data.blocks).toContainEqual(expect.objectContaining({ kind: 'text', text: '👍' }))
+    const answer = node(current, 'assistant-step')?.data as AssistantChatData
+    expect(answer.blocks).toContainEqual(expect.objectContaining({ kind: 'text', text: '👍' }))
     expect(current.nodes.values().every(candidate => (
       (candidate.data as { assistantReaction?: unknown }).assistantReaction === undefined
     ))).toBe(true)

@@ -61,7 +61,7 @@ describe('ConnectorMark', () => {
   )
 
   it.each([undefined, '', '   '])('uses the filled plug when the name is absent or blank (%j)', (name) => {
-    const { container, rerender } = render(<ConnectorMark name={name} />)
+    const { container, rerender } = render(<ConnectorMark {...name === undefined ? {} : { name }} />)
     const paths = container.querySelector('[data-connector-mark="unnamed"] svg')!.innerHTML
     rerender(<PlugIcon weight="fill" />)
     expect(paths).toBe(container.querySelector('svg')!.innerHTML)

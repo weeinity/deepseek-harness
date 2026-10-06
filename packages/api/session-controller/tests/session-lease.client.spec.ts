@@ -7,7 +7,7 @@ import { RemoteError, type RemoteResult } from '@deepseek-ai/dsh-typert-protocol
 import type { ISessions, SessionLease } from '../src/client/index.ts'
 import { ClientSessions } from '../src/client/sessions/service.ts'
 import type { SessionFollowFrame, SessionPage } from '../src/types.ts'
-import { ev, historyValue as page } from './event-script.client.ts'
+import { entries, ev, historyValue as page } from './event-script.client.ts'
 import { deferred, err, FakeApiClient, fakeRemote, ok, type RuntimeRemotes } from './fake-api.client.ts'
 
 const roots: Context[] = []
@@ -63,7 +63,7 @@ function snapshot(sessionId: SessionId): SessionFollowFrame {
 describe('Session history leases', () => {
   it('exports only a binding and asynchronous release through the public service', () => {
     expectTypeOf<ISessions['retain']>().parameters
-      .toEqualTypeOf<[sessionId: SessionId, signal?: AbortSignal]>()
+      .toEqualTypeOf<[sessionId: SessionId, signal?: AbortSignal | undefined]>()
     expectTypeOf<ISessions['retain']>().returns.toEqualTypeOf<Promise<SessionLease>>()
     expectTypeOf<SessionLease['dispose']>().returns.toEqualTypeOf<Promise<void>>()
   })
@@ -87,7 +87,7 @@ describe('Session history leases', () => {
       { address: { kind: 'session', sessionId: a }, assistantStream: true, maxMessages: 50 },
       { address: { kind: 'session', sessionId: b }, assistantStream: true, maxMessages: 50 },
     ])
-    await api.pushFollow(a, { type: 'event', event: ev.turnStart(SessionSeq(1), 1) })
+    await api.pushFollow(a, entries([ev.turnStart(SessionSeq(1), 1)])[0]!)
     expect(first.binding.eventSource.getSnapshot().entries).toHaveLength(2)
     expect(second.binding.eventSource.getSnapshot().entries).toHaveLength(1)
     await first.dispose()
@@ -136,7 +136,7 @@ describe('Session history leases', () => {
       expect(sessions.list.getSnapshot().current).toBe(b)
       expect(api.followStarts.filter(id => id === a)).toHaveLength(1)
       expect(api.activeFollows(a)).toBe(1)
-      await api.pushFollow(a, { type: 'event', event: ev.turnStart(SessionSeq(0), 1) })
+      await api.pushFollow(a, entries([ev.turnStart(SessionSeq(0), 1)])[0]!)
       expect(binding?.eventSource.getSnapshot().entries).toHaveLength(1)
     },
   )
@@ -174,7 +174,7 @@ describe('Session history leases', () => {
 
   it.each(['missing', 'malformed'] as const)('rejects %s history and permits a fresh acquisition', async (failure) => {
     const { api, sessions } = await setup()
-    const error = new RemoteError('session/not-found', 'missing', {})
+    const error = new RemoteError('session/not-found', 'missing', { sessionId: a })
     api.onHistory = () => Promise.resolve(failure === 'missing'
       ? err(error)
       : ok({ records: [{ type: 'event', event: {} }], hasMore: false } as unknown as SessionPage))
@@ -322,7 +322,7 @@ describe('Session history leases', () => {
   it('rejects a shared opening failure for every owner and releases the source once', async () => {
     const { api, sessions } = await setup()
     const gate = openingGate(api)
-    const failure = new RemoteError('session/not-found', 'missing', {})
+    const failure = new RemoteError('session/not-found', 'missing', { sessionId: a })
     const results = Promise.allSettled([sessions.retain(a), sessions.retain(a)])
     await gate.started
     gate.response.resolve(err(failure))
@@ -434,7 +434,7 @@ describe('Session history leases', () => {
     expect(second.binding.eventSource.getSnapshot().entries[0]?.event).toMatchObject({
       type: 'assistant/live-chunk', data: { chunk: { text: 'streaming' } },
     })
-    const failure = new RemoteError('session/not-found', 'gone', {})
+    const failure = new RemoteError('session/not-found', 'gone', { sessionId: a })
     api.failStreams(failure)
     await vi.waitFor(() => {
       expect(second.binding.session.getSnapshot()).toMatchObject({ openState: 'error', openError: failure })
