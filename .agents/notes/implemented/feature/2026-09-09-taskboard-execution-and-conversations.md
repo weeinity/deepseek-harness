@@ -16,7 +16,7 @@ The [native Taskboard presentation decision](2026-09-01-native-workspace-taskboa
 
 Each task has one current DSH or Copilot conversation. Run Again continues it until explicit disconnect. Historical executions retain their own identities. Existing dual-link records preserve both choices and block execution until the user selects one; migration does not choose for the user or invent execution history.
 
-The task definition owns its editable prompt and explicit execution choices. Each admitted request snapshots its effective inputs, Workspace, conversation, handover, and asserted initiation provenance. Version-1 task reads preserve the title-and-description input by materializing an explicit prompt. Released Session log generations are unchanged.
+The task definition owns its editable prompt and explicit execution choices. Each admitted request snapshots its effective inputs, Workspace, conversation, handover, and asserted initiation source. Version-1 task reads preserve the title-and-description input by materializing an explicit prompt. Released Session log generations are unchanged.
 
 **Superseded prompt default:** Blank prompts use only the title; description remains planning text. [Default run prompts](2026-09-10-taskboard-default-run-prompt.md) owns the active fallback.
 
@@ -30,7 +30,7 @@ Manual runs and cron use the same admission and provider operations. Cron stores
 
 DSH input uses the shared Session Controller and exact inbox/turn evidence. Unpinned settings preserve connected Session choices; task-specific model selection does not rewrite the default for new Sessions. Copilot uses the supported SDK execution interface, bounded Agency discovery, and exact conversation identities. Permission setup must succeed before input; read-only is the unattended default, and elevated task choices require explicit saved confirmation.
 
-Frozen handover text is ordinary user input, not a system instruction or an authorization grant. Provenance identifies the asserted source rather than authenticating a person. Permission or handover changes invalidate the relevant confirmation. Planning edits do not rewrite the immutable inputs of an open execution.
+Frozen handover text is ordinary user input, not a system instruction or an authorization grant. The handover source label identifies the asserted source rather than authenticating a person. Permission or handover changes invalidate the relevant confirmation. Planning edits do not rewrite the immutable inputs of an open execution.
 
 **Superseded status policy:** Execution outcome and task status remain separate. An agent finishing does not move a card to In Review or Done. The [column decision](2026-09-09-taskboard-execution-driven-columns.md) owns the active workflow. Association, navigation, disconnect, archive, restore, and task deletion do not submit work or erase conversations. Open never recreates missing history.
 
