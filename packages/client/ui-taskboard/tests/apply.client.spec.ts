@@ -9,6 +9,32 @@ import type {
 } from '../src/client/contract.ts'
 import { copilot, dsh, options, runtime, task } from './fixtures.client.ts'
 
+const surfaceFunctions = [
+  'watchJobRows', 'createTask', 'updateTask', 'moveTask', 'archiveTask', 'deleteTask',
+  'startWork', 'connectTask', 'disconnectTask', 'restoreTask', 'confirmPermissions',
+  'executionOptions', 'openSession', 'agencyCopilotCapability', 'listAgencyCopilotSessions',
+  'openAgencyCopilot', 'refreshAgencyCopilot', 'closeSurface',
+] as const satisfies readonly (keyof TaskboardSurfaceInjected)[]
+
+function isTaskboardSurfaceInjected(value: object): value is TaskboardSurfaceInjected {
+  const hooks: unknown = Reflect.get(value, 'hooks')
+  return typeof hooks === 'object' && hooks !== null
+    && typeof Reflect.get(hooks, 'taskboard') === 'object'
+    && typeof Reflect.get(hooks, 'jobs') === 'object'
+    && typeof Reflect.get(value, 'isLoopback') === 'boolean'
+    && surfaceFunctions.every(key => typeof Reflect.get(value, key) === 'function')
+}
+
+function isTaskboardSessionActionInjected(value: object): value is TaskboardSessionActionInjected {
+  const hooks: unknown = Reflect.get(value, 'hooks')
+  return typeof hooks === 'object' && hooks !== null
+    && typeof Reflect.get(hooks, 'taskboard') === 'object'
+}
+
+function isTaskboardSessionButtonInjected(value: object): value is TaskboardSessionButtonInjected {
+  return typeof Reflect.get(value, 'openSurface') === 'function'
+}
+
 async function bench() {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
@@ -44,7 +70,8 @@ async function bench() {
   const disposeRoot = declareRoot()
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  const face = slots.entries('main')[0]!.inject!() as TaskboardSurfaceInjected
+  const face = slots.entries('main')[0]!.inject!()
+  if (!isTaskboardSurfaceInjected(face)) throw new Error('Taskboard surface injection is incomplete')
   return { ctx, taskboard, sessions, jobs, layout, uiWorkspace, slots, fiber, face, declareRoot, disposeRoot }
 }
 
@@ -78,9 +105,11 @@ describe('ui-taskboard apply', () => {
       expect(header.store).toBeUndefined()
       expect(control.store).toBe(board.store)
       expect(control.store).toBeDefined()
-      const headerFace = header.inject!() as TaskboardSessionActionInjected
+      const headerFace = header.inject!()
+      if (!isTaskboardSessionActionInjected(headerFace)) throw new Error('Taskboard Session action injection is incomplete')
       expect(headerFace.hooks.taskboard).toBe(b.taskboard.list)
-      const controlFace = control.inject!() as TaskboardSessionButtonInjected
+      const controlFace = control.inject!()
+      if (!isTaskboardSessionButtonInjected(controlFace)) throw new Error('Taskboard Session button injection is incomplete')
       controlFace.openSurface()
       expect(b.layout.selectPanel).toHaveBeenCalledExactlyOnceWith('taskboard')
       expect(b.uiWorkspace.openSession).not.toHaveBeenCalled()
