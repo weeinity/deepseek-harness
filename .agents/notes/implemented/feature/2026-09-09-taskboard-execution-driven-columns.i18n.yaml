@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-09-taskboard-execution-driven-columns.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-09-taskboard-execution-driven-columns.md
+/agent-note-taskboard-execution-driven-columns:
+  en: c2d31e8e4e757404
+  zh: 273287d276169562
+/agent-note-taskboard-execution-driven-columns/problem:
+  en: adf6479f80a50fb5
+  zh: e0a1f4129eb2dbdf
+/agent-note-taskboard-execution-driven-columns/decision:
+  en: 9d44565f86331b9a
+  zh: ceda0385472b14e0
+/agent-note-taskboard-execution-driven-columns/alternatives-considered:
+  en: f09697a34b79708b
+  zh: 07fb38640020c670
+/agent-note-taskboard-execution-driven-columns/testing:
+  en: 33cda9f3bfff6523
+  zh: cd2d9bdd6dec47bb
+/agent-note-taskboard-execution-driven-columns/consequences:
+  en: aeaf277ff83e2da2
+  zh: b95f951b340ce8cc

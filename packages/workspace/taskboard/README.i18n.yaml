@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/workspace/taskboard/README.md
+/:
+  en: d3ede531ab651e0d
+  zh: 2bec20730ce3427f
+/deepseek-ai-dsh-taskboard:
+  en: f0c859998b571ad3
+  zh: c679e7bca0b4d021
+/deepseek-ai-dsh-taskboard/summary:
+  en: 762276c203d549e6
+  zh: 7eae64f6191723ac
+/deepseek-ai-dsh-taskboard/table-of-contents:
+  en: 76368b6b1da79c80
+  zh: 52384aee991ac542
+/deepseek-ai-dsh-taskboard/use-this-package:
+  en: fd5ccd4332977bed
+  zh: 5ac82e367ad8e030
+/deepseek-ai-dsh-taskboard/understand-the-implementation:
+  en: 22d3d0fbdb14a33c
+  zh: a1b6db9614d94107
+/deepseek-ai-dsh-taskboard/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-taskboard/model-experience/taskboard-records:
+  en: ce05656b496c7075
+  zh: bd5906d3807367ed
+/deepseek-ai-dsh-taskboard/model-experience/taskboard-records/what-the-model-sees:
+  en: 44479854f2fcc69b
+  zh: 0a503ed2f31b497b
+/deepseek-ai-dsh-taskboard/model-experience/taskboard-records/token-effect:
+  en: c659e27bcb9016e9
+  zh: de97c72b03e1b1b3
+/deepseek-ai-dsh-taskboard/model-experience/taskboard-records/kv-cache-effect:
+  en: ab673e5ed744ae4c
+  zh: 85ffa49bea5ee12c
+/deepseek-ai-dsh-taskboard/known-limitations-and-deferred-work:
+  en: 33d3d87957a50920
+  zh: f3d5095c53bb95f2
+/deepseek-ai-dsh-taskboard/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

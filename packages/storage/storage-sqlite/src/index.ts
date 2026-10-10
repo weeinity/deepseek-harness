@@ -103,10 +103,14 @@ export class SqliteStorageBackend implements StorageBackend {
     if (row === undefined) {
       db.prepare('INSERT INTO units (name, version) VALUES (?, ?)').run(descriptor.name, descriptor.version)
     } else if (row.version !== descriptor.version) {
-      throw new StorageError(
-        'version-mismatch',
-        `kv unit '${descriptor.name}' is stamped version ${row.version} on the medium, incompatible with descriptor version ${descriptor.version}`,
-      )
+      const compatible = descriptor.layout === 'per-record'
+        && descriptor.compatibleVersions?.includes(row.version) === true
+      if (!compatible) {
+        throw new StorageError(
+          'version-mismatch',
+          `kv unit '${descriptor.name}' is stamped version ${row.version} on the medium, incompatible with descriptor version ${descriptor.version}`,
+        )
+      }
     }
     for (const table of descriptor.tables) {
       // Both segments passed UNIT_NAME_RE, so the identifier is safe in DDL.
@@ -116,6 +120,9 @@ export class SqliteStorageBackend implements StorageBackend {
           value TEXT NOT NULL
         ) STRICT
       `)
+    }
+    if (row !== undefined && row.version !== descriptor.version) {
+      db.prepare('UPDATE units SET version = ? WHERE name = ?').run(descriptor.version, descriptor.name)
     }
     return new SqliteKvUnit(db, descriptor, () => {
       this.units.delete(descriptor.name)

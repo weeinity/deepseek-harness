@@ -29,6 +29,12 @@
     path: ':memory:'
     openAt: never
 
+- id: storage-domain
+  config:
+    backend: json
+    routes:
+      taskboard: sqlite
+
 - id: tools
   config:
     # TEMPORARY workaround: DSH_TOOLS_MODE (native|ptc) opts a whole dsh
@@ -61,6 +67,12 @@
         enabled: true
         appVersion: !!js process.env.DSH_CLIENT_VERSION
 
+    - id: storage-sqlite
+      name: '@deepseek-ai/dsh-storage-sqlite'
+      inject: [webStartup]
+      config:
+        path: !!js dshHomePath('storages', 'taskboard.db')
+
     # Host-owned opt-in sampled when a new Web session receives its preset
     # delegation tools. The Plugins page edits this settings namespace.
     - id: subagent-model-selection-settings
@@ -90,6 +102,10 @@
 
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
+
+    - id: taskboard
+      name: '@deepseek-ai/dsh-taskboard'
+      inject: [webStartup]
 
     - id: session-reference
       name: '@deepseek-ai/dsh-session-reference'
@@ -153,6 +169,12 @@
     # Workspace commands and reconnect-safe projection over Typert Remote.
     - id: workspace-controller
       name: '@deepseek-ai/dsh-api-workspace-controller'
+
+    - id: taskboard-controller
+      name: '@deepseek-ai/dsh-api-taskboard-controller'
+      inject: [webStartup]
+      config:
+        agencyCopilotLaunch: !!js (ctx.webStartup.host ?? '127.0.0.1') === '127.0.0.1'
 
     - id: cordis-host-runner
       name: '@deepseek-ai/dsh-cordis-host-runner'
@@ -355,6 +377,9 @@
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
+
+    - id: ui-taskboard
+      name: '@deepseek-ai/dsh-client-ui-taskboard'
 
     # Durable workflow lifecycle as an independent Chat node after the
     # existing generic workflow tool row.

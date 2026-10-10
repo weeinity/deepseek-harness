@@ -1,0 +1,41 @@
+# Keep discovery and persistence inside the scenario's private home.
+- id: agent-presets
+  config:
+    default: standard
+    includeUserRoot: false
+
+- id: skill-filesystem
+  config:
+    includeDefaultRoots: false
+    watch: false
+
+- id: agent-instructions
+  disabled: true
+
+# Background title inference must not consume the task's replay stream.
+- id: session-title-llm
+  disabled: true
+
+- id: session-telemetry-otel
+  disabled: true
+
+- id: session-persistence-jsonl
+  config:
+    root: !!js dshHomePath('sessions')
+    compression: none
+
+- id: open-in-app
+  disabled: true
+
+- id: ui-open-in-app
+  disabled: true
+
+# Browser automation uses the shipped in-page directory picker on every host.
+- id: directory-picker
+  disabled: true
+
+- insert:
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: ui-directory-picker-browse
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'

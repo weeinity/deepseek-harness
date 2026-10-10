@@ -1,0 +1,52 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-taskboard/README.md
+/:
+  en: a9112d15efc07a13
+  zh: 5e8e307156325eb1
+/deepseek-ai-dsh-client-ui-taskboard:
+  en: 86bee0cab9d7bf11
+  zh: f3c049121c2d63e5
+/deepseek-ai-dsh-client-ui-taskboard/summary:
+  en: f86ef9de99008020
+  zh: f794721686c2bee3
+/deepseek-ai-dsh-client-ui-taskboard/table-of-contents:
+  en: c9089fc3b0b160de
+  zh: 1a1c1a76890eb286
+/deepseek-ai-dsh-client-ui-taskboard/use-this-package:
+  en: 216cd1a568f887e0
+  zh: 358ad3fd77e99329
+/deepseek-ai-dsh-client-ui-taskboard/run-a-task:
+  en: 3531b620081674fb
+  zh: f6470ed0bce95306
+/deepseek-ai-dsh-client-ui-taskboard/connect-an-existing-conversation:
+  en: eee8622939a5c1fe
+  zh: f78f5ef4bff8b07b
+/deepseek-ai-dsh-client-ui-taskboard/execution-options-and-scheduling:
+  en: a450a16e3a8d4464
+  zh: 4337739c24ba51de
+/deepseek-ai-dsh-client-ui-taskboard/understand-the-implementation:
+  en: 9d5420e97849d86b
+  zh: 14015ec15f1c0bd2
+/deepseek-ai-dsh-client-ui-taskboard/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-client-ui-taskboard/model-experience/task-execution-requests:
+  en: edfabba9e327b869
+  zh: e21eb735c654683a
+/deepseek-ai-dsh-client-ui-taskboard/model-experience/task-execution-requests/what-the-model-sees:
+  en: f68710c1c561fe08
+  zh: 76c489da8350f1e4
+/deepseek-ai-dsh-client-ui-taskboard/model-experience/task-execution-requests/token-effect:
+  en: ca75b565d3050384
+  zh: e1b55e49709a11d2
+/deepseek-ai-dsh-client-ui-taskboard/model-experience/task-execution-requests/kv-cache-effect:
+  en: 9d9611d9612695ff
+  zh: 2ac791d0dfc9bbd5
+/deepseek-ai-dsh-client-ui-taskboard/known-limitations-and-deferred-work:
+  en: 5596b48d86af31c9
+  zh: 174fe641ece7dc53
+/deepseek-ai-dsh-client-ui-taskboard/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

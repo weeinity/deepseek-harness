@@ -25,6 +25,7 @@ The workspace family lets a host product keep an ordered list of named projects 
 | Package | Role | ctx key |
 |---|---|---|
 | [`workspace`](workspace/README.md) | Provides named, ordered projects with the sessions that ran in each directory | `ctx.workspaceRegistry` |
+| [`taskboard`](taskboard/README.md) | Persists revision-checked five-column tasks for Workspaces | `ctx.taskboard` |
 
 -----
 

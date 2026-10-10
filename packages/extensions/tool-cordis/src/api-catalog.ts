@@ -1982,9 +1982,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote(\'selectModel\') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>',
-        description: 'Select one Session-local model after explicitly resuming the Session; save the default in the background.',
-        parameters: [{ name: 'request', description: 'Session identity and requested model selection.' }],
-        returns: 'the normalized selection installed for the Session, without waiting for default persistence.',
+        description: 'Select one Session-local model after explicitly resuming the Session.',
+        parameters: [{ name: 'request', description: 'Session identity, requested model selection, and optional default-persistence policy.' }],
+        returns: 'the normalized selection installed for the Session, without waiting for requested default persistence.',
       },
       {
         signature: '@Remote async initializeDefaultModel(): Promise<void>',
@@ -3098,6 +3098,248 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Assemble global and scoped providers, detach tool parameters, apply canonical ordering, then run the assembly waterfall. Scoped sections and variables shadow globals. The returned waterfall value is authoritative except that an effective complete section is restored afterwards as the sole prompt section.',
         parameters: [{ name: 'context', description: 'the optional scope and plugin-defined assembly fields.' }],
         returns: 'the post-waterfall assembly with any complete prompt enforced.',
+      },
+    ],
+  },
+  {
+    key: 'taskboard',
+    summary: 'Durable commands; external provider dispatch belongs to the Host runner.',
+    description: 'Durable commands; external provider dispatch belongs to the Host runner.',
+    methods: [
+      {
+        signature: 'list(workspaceId?: WorkspaceId, includeArchived: boolean = false): TaskboardTask[]',
+        description: 'List in deterministic board order.',
+        parameters: [{ name: 'workspaceId', description: 'Optional Workspace filter.' }, { name: 'includeArchived', description: 'Include archived records.' }],
+        returns: 'deeply detached current tasks.',
+      },
+      {
+        signature: 'get(taskId: TaskId): TaskboardTask | undefined',
+        description: 'Read one task.',
+        parameters: [{ name: 'taskId', description: 'Stable identity.' }],
+        returns: 'detached task or undefined when absent.',
+      },
+      {
+        signature: 'getRunRequest(input: TaskboardRunRequestLookupInput): TaskboardBeginExecutionValue | undefined',
+        description: 'Find a committed retry before provider resolution, even after its displayed history is pruned.',
+        parameters: [{ name: 'input', description: 'Original manual request identity, expected revision, and initiator; changed caller fields reject.' }],
+        returns: 'the original execution identity and current task, or undefined for an absent or expired receipt.',
+      },
+      {
+        signature: 'create(input: TaskboardCreateInput, signal?: AbortSignal): Promise<TaskboardTask>',
+        description: 'Create a Todo task unless a column is explicit; an existing conversation commits in the same write.',
+        parameters: [{ name: 'input', description: 'Initial choices; the Host validates Copilot membership before selecting a connection.' }, { name: 'signal', description: 'Cancellation checked before the durable write begins.' }],
+        returns: 'committed task.',
+      },
+      {
+        signature: 'update(input: TaskboardUpdateInput, signal?: AbortSignal): Promise<TaskboardTask>',
+        description: 'Apply planning changes with CAS; open attempts forbid execution-input changes.',
+        parameters: [{ name: 'input', description: 'Exact revision and patch; null clears handover or schedule.' }, { name: 'signal', description: 'Cancellation checked before durability begins.' }],
+        returns: 'committed task, unchanged for a material no-op.',
+      },
+      {
+        signature: 'connect(input: TaskboardConnectInput, signal?: AbortSignal): Promise<TaskboardTask>',
+        description: 'Select the exclusive connection or one preserved legacy choice.',
+        parameters: [{ name: 'input', description: 'Exact revision and identity; caller validates Copilot Workspace membership.' }, { name: 'signal', description: 'Cancellation checked before durability begins.' }],
+        returns: 'committed connected task.',
+      },
+      {
+        signature: 'disconnect(taskId: TaskId, expectedRevision: number, signal?: AbortSignal): Promise<TaskboardTask>',
+        description: 'Clear connection choices without touching provider conversations.',
+        parameters: [{ name: 'taskId', description: 'Task identity.' }, { name: 'expectedRevision', description: 'Exact planning revision.' }, { name: 'signal', description: 'Cancellation checked before durability begins.' }],
+        returns: 'committed disconnected task.',
+      },
+      {
+        signature: 'confirmPermissions(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>',
+        description: 'Record explicit approval of current permission and handover choices.',
+        parameters: [{ name: 'taskId', description: 'Task identity.' }, { name: 'expectedRevision', description: 'Exact revision displayed to the approving user.' }],
+        returns: 'committed confirmation; open attempts reject.',
+      },
+      {
+        signature: 'move(input: TaskboardMoveInput): Promise<TaskboardTask>',
+        description: 'Move or reorder an active task with CAS.',
+        parameters: [{ name: 'input', description: 'Exact revision and destination.' }],
+        returns: 'committed task or unchanged same-position task.',
+      },
+      {
+        signature: 'archive(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>',
+        description: 'Archive without altering planning status or provider conversations; disable scheduling.',
+        parameters: [{ name: 'taskId', description: 'Task identity.' }, { name: 'expectedRevision', description: 'Exact revision.' }],
+        returns: 'committed task or unchanged archived record.',
+      },
+      {
+        signature: 'restore(taskId: TaskId, expectedRevision: number): Promise<TaskboardTask>',
+        description: 'Restore archived planning state without enabling its schedule.',
+        parameters: [{ name: 'taskId', description: 'Task identity.' }, { name: 'expectedRevision', description: 'Exact revision.' }],
+        returns: 'restored task or unchanged active record.',
+      },
+      {
+        signature: 'duplicate(input: TaskboardDuplicateInput, signal?: AbortSignal): Promise<TaskboardTask>',
+        description: 'Copy planning and execution choices with fresh identity, no history, and a disabled schedule.',
+        parameters: [{ name: 'input', description: 'Source revision and optional replacement title.' }, { name: 'signal', description: 'Cancellation checked before durability begins.' }],
+        returns: 'new task; the original is never archived or modified.',
+      },
+      {
+        signature: 'delete(taskId: TaskId, expectedRevision: number, signal?: AbortSignal): Promise<TaskboardDeleteValue>',
+        description: 'Permanently delete a task without touching Workspace or provider conversations.',
+        parameters: [{ name: 'taskId', description: 'Task identity.' }, { name: 'expectedRevision', description: 'Exact revision checked before deletion.' }, { name: 'signal', description: 'Cancellation checked before durability begins; submitted writes settle normally.' }],
+        returns: 'permanent removal tombstone; an open attempt rejects.',
+      },
+      {
+        signature: 'beginExecution(input: TaskboardBeginExecutionInput, signal?: AbortSignal): Promise<TaskboardBeginExecutionValue>',
+        description: 'Persist pending admission, immutable inputs, and In Progress placement before external dispatch.',
+        parameters: [{ name: 'input', description: 'Stable retry id, execution pins, and manual CAS or exact due occurrence.' }, { name: 'signal', description: 'Cancellation checked before durability begins.' }],
+        returns: 'original execution id on matching replay, even with a stale task revision.',
+      },
+      {
+        signature: 'attachExecution(input: TaskboardAttachExecutionInput): Promise<TaskboardTask>',
+        description: 'Persist an open attempt\'s connection, monotonic receipt, or diagnostic without changing its status.',
+        parameters: [{ name: 'input', description: 'Exact attempt and provider identity; the Host validates Copilot membership.' }],
+        returns: 'committed task; already committed identities cannot be replaced.',
+      },
+      {
+        signature: 'advanceExecution(input: TaskboardAdvanceExecutionInput): Promise<TaskboardTask>',
+        description: 'Observe running work; waiting for input places it in In Review, otherwise In Progress.',
+        parameters: [{ name: 'input', description: 'Exact attempt, optional input-wait flag, and receipt enrichment; the start timestamp is immutable.' }],
+        returns: 'committed task, unchanged for a repeated observation; terminal attempts reject.',
+      },
+      {
+        signature: 'recordExecutionError(input: TaskboardRecordExecutionErrorInput): Promise<TaskboardTask>',
+        description: 'Persist an open diagnostic without provider lookup or a pending/running transition.',
+        parameters: [{ name: 'input', description: 'Exact attempt and diagnostic, or null to clear it.' }],
+        returns: 'committed task; terminal attempts reject and unchanged diagnostics are no-ops.',
+      },
+      {
+        signature: 'settleExecution(input: TaskboardSettleExecutionInput): Promise<TaskboardTask>',
+        description: 'Settle one exact attempt into Done on success or In Review on failure/cancellation.',
+        parameters: [{ name: 'input', description: 'Terminal outcome; runtime settlement does not use planning CAS.' }],
+        returns: 'committed task with the terminal diagnostic; matching repeats preserve subsequent human column changes.',
+      },
+      {
+        signature: 'rollForwardSchedule(input: TaskboardRollForwardScheduleInput): Promise<TaskboardTask>',
+        description: 'Advance a due busy/missed occurrence without opening an attempt.',
+        parameters: [{ name: 'input', description: 'Exact current occurrence and Host-calculated successor.' }],
+        returns: 'committed task; stale or not-yet-due occurrences reject.',
+      },
+    ],
+  },
+  {
+    key: 'taskboardController',
+    summary: 'Host owner of revision-checked planning and execution commands.',
+    description: 'Host owner of revision-checked planning and execution commands.',
+    methods: [
+      {
+        signature: '@Remote(\'list\') list(request: TaskboardListRequest): Promise<TaskboardListValue>',
+        description: 'Read active and archived tasks in registered Workspaces.',
+        parameters: [{ name: 'request', description: 'Optional Workspace filter.' }],
+        returns: 'the current task and Host runtime baseline.',
+      },
+      {
+        signature: '@Remote(\'create\') async create(request: TaskboardCreateRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>',
+        description: 'Create a task and an optional validated existing connection atomically.',
+        parameters: [{ name: 'request', description: 'Saved task inputs; association never submits a prompt.' }, { name: 'signal', description: 'Cancellation before the durable write.' }],
+        returns: 'the committed task.',
+      },
+      {
+        signature: '@Remote(\'update\') async update(request: TaskboardUpdateRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>',
+        description: 'Save planning and execution inputs without changing the current connection.',
+        parameters: [{ name: 'request', description: 'Exact revision and explicit field patch.' }, { name: 'signal', description: 'Cancellation before the durable write.' }],
+        returns: 'the committed task; open-attempt restrictions are enforced by the domain.',
+      },
+      {
+        signature: '@Remote(\'connect\') async connect(request: TaskboardConnectRequest, signal: AbortSignal): Promise<TaskboardTaskValue>',
+        description: 'Select one existing conversation, including resolution of preserved legacy choices.',
+        parameters: [{ name: 'request', description: 'Exact task revision and selected connection.' }, { name: 'signal', description: 'Cancellation of discovery or pre-commit work.' }],
+        returns: 'the committed task; neither provider is activated by association.',
+      },
+      {
+        signature: '@Remote(\'disconnect\') async disconnect(request: TaskboardDisconnectRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>',
+        description: 'Remove the task connection without stopping or deleting the conversation.',
+        parameters: [{ name: 'request', description: 'Exact task revision.' }, { name: 'signal', description: 'Cancellation before durability.' }],
+        returns: 'the committed task; open attempts prevent disconnect.',
+      },
+      {
+        signature: '@Remote(\'run\') async run(request: TaskboardRunRequest, signal: AbortSignal): Promise<TaskboardRunValue>',
+        description: 'Admit one request and await prompt acknowledgement, not agent completion.',
+        parameters: [{ name: 'request', description: 'Exact task revision and stable manual retry identity.' }, { name: 'signal', description: 'Caller cancellation only before durable admission.' }],
+        returns: 'the durable execution identity and current task.',
+      },
+      {
+        signature: '@Remote(\'move\') async move(request: TaskboardMoveRequest): Promise<TaskboardTaskValue>',
+        description: 'Move a task between manual planning columns.',
+        parameters: [{ name: 'request', description: 'Exact task revision and destination.' }],
+        returns: 'the committed task.',
+      },
+      {
+        signature: '@Remote(\'archive\') async archive(request: TaskboardArchiveRequest): Promise<TaskboardTaskValue>',
+        description: 'Archive a task and disable its schedule without changing its conversation.',
+        parameters: [{ name: 'request', description: 'Exact task revision.' }],
+        returns: 'the committed archived task.',
+      },
+      {
+        signature: '@Remote(\'restore\') async restore(request: TaskboardRestoreRequest): Promise<TaskboardTaskValue>',
+        description: 'Restore a task with its history retained and schedule disabled.',
+        parameters: [{ name: 'request', description: 'Exact archived revision.' }],
+        returns: 'the restored task.',
+      },
+      {
+        signature: '@Remote(\'duplicate\') async duplicate(request: TaskboardDuplicateRequest, signal?: AbortSignal): Promise<TaskboardTaskValue>',
+        description: 'Copy saved task inputs without copying its connection, history, or permission confirmation.',
+        parameters: [{ name: 'request', description: 'Exact source revision and optional edited title.' }, { name: 'signal', description: 'Cancellation before creation.' }],
+        returns: 'the new task; the source is not archived implicitly.',
+      },
+      {
+        signature: '@Remote(\'confirmPermissions\') async confirmPermissions(request: TaskboardConfirmPermissionsRequest): Promise<TaskboardTaskValue>',
+        description: 'Confirm the task\'s current explicit permission and handover choices.',
+        parameters: [{ name: 'request', description: 'Exact revision being confirmed.' }],
+        returns: 'the committed confirmation; later relevant edits invalidate it.',
+      },
+      {
+        signature: '@Remote(\'delete\') async delete(request: TaskboardDeleteRequest, signal?: AbortSignal): Promise<TaskboardDeleteValue>',
+        description: 'Delete a task without deleting its provider conversations.',
+        parameters: [{ name: 'request', description: 'Exact task revision.' }, { name: 'signal', description: 'Cancellation before the durable deletion.' }],
+        returns: 'the committed removal tombstone; open attempts prevent deletion.',
+      },
+      {
+        signature: '@Remote(\'executionOptions\') async executionOptions(): Promise<TaskboardExecutionOptionsValue>',
+        description: 'List the current execution choices without activating a conversation.',
+        parameters: [],
+        returns: 'preset, permission, and model choices, with explicit catalog failures.',
+      },
+      {
+        signature: '@Remote(\'updateSettings\') updateSettings(request: TaskboardUpdateSettingsRequest): Promise<TaskboardRuntimeState>',
+        description: 'Persist Taskboard user switches through the ordinary settings service.',
+        parameters: [{ name: 'request', description: 'Explicit changes to enabled, announcement, or idle-sleep protection.' }],
+        returns: 'the applied Host runtime observation.',
+      },
+      {
+        signature: '@Remote(\'agencyCopilotCapability\') agencyCopilotCapability(): TaskboardAgencyCopilotCapabilityValue',
+        description: 'Report deployment availability for native Copilot execution and navigation.',
+        parameters: [],
+        returns: 'the local execution and terminal-handoff capability.',
+      },
+      {
+        signature: '@Remote(\'listAgencyCopilotSessions\') async listAgencyCopilotSessions( request: TaskboardListAgencyCopilotSessionsRequest, signal: AbortSignal, ): Promise<TaskboardListAgencyCopilotSessionsValue>',
+        description: 'Discover local Copilot conversations without activating them.',
+        parameters: [{ name: 'request', description: 'Workspace whose canonical folder must match.' }, { name: 'signal', description: 'Cancellation of bounded discovery.' }],
+        returns: 'matching metadata and whether discovery was truncated.',
+      },
+      {
+        signature: '@Remote(\'openAgencyCopilot\') async openAgencyCopilot( request: TaskboardOpenAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardOpenAgencyCopilotValue>',
+        description: 'Open a current or historical Copilot conversation without submitting a prompt.',
+        parameters: [{ name: 'request', description: 'Task and optional retained execution selecting the stored identity.' }, { name: 'signal', description: 'Caller cancellation of the handoff wait.' }],
+        returns: 'an existing-running or accepted-resume outcome; missing history is never recreated.',
+      },
+      {
+        signature: '@Remote(\'inspectAgencyCopilot\') async inspectAgencyCopilot( request: TaskboardInspectAgencyCopilotRequest, signal: AbortSignal, ): Promise<TaskboardInspectAgencyCopilotValue>',
+        description: 'Inspect current Copilot connections without changing task planning or execution outcomes.',
+        parameters: [{ name: 'request', description: 'Bounded task identities.' }, { name: 'signal', description: 'Cancellation of discovery.' }],
+        returns: 'transient observations tied to their exact connection identities.',
+      },
+      {
+        signature: '@Remote({ mode: \'stream\' }) follow(signal: AbortSignal): AsyncIterable<TaskboardFollowFrame>',
+        description: 'Follow tasks and runtime observations from a complete reconnect baseline.',
+        parameters: [{ name: 'signal', description: 'Follow generation cancellation.' }],
+        returns: 'ordered task, removal, and Host runtime frames.',
       },
     ],
   },
@@ -4584,6 +4826,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AfterScheduleRecord',
     declaration: 'export interface AfterScheduleRecord {\n    readonly id: ScheduleId;\n    readonly kind: \'after\';\n    readonly title: string;\n    readonly prompt: string;\n    readonly afterSeconds: number;\n    readonly scheduledAt: string;\n}',
+  },
+  {
+    name: 'AgencyCopilotObservation',
+    declaration: 'export interface AgencyCopilotObservation {\n    readonly taskId: TaskId;\n    readonly sessionId: AgencyCopilotSessionId;\n    readonly status: AgencyCopilotObservationStatus;\n}',
+  },
+  {
+    name: 'AgencyCopilotObservationStatus',
+    declaration: 'export type AgencyCopilotObservationStatus = \'unknown\' | \'missing\' | \'workspace_mismatch\' | \'idle\' | \'in_use\';',
+  },
+  {
+    name: 'AgencyCopilotSessionOption',
+    declaration: 'export interface AgencyCopilotSessionOption {\n    readonly sessionId: AgencyCopilotSessionId;\n    readonly summary?: string;\n    readonly status: \'idle\' | \'in_use\';\n}',
   },
   {
     name: 'Agent',
@@ -7135,7 +7389,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionSelectModelRequest',
-    declaration: 'export interface SessionSelectModelRequest extends ModelSelection {\n    readonly sessionId: SessionId;\n}',
+    declaration: 'export interface SessionSelectModelRequest extends ModelSelection {\n    readonly sessionId: SessionId;\n    readonly saveDefault?: boolean;\n}',
   },
   {
     name: 'SessionSelectModelValue',
@@ -7724,6 +7978,230 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TableValueOf',
     declaration: 'export type TableValueOf<S extends DomainSpec, N extends keyof S[\'tables\']> = S[\'tables\'][N] extends DomainTableSpec<string, infer V> ? V : never;',
+  },
+  {
+    name: 'TaskboardAdvanceExecutionInput',
+    declaration: 'export interface TaskboardAdvanceExecutionInput {\n    readonly taskId: TaskId;\n    readonly executionId: TaskExecutionId;\n    readonly receipt?: TaskExecutionReceipt;\n    readonly startedAt?: string;\n    readonly waitingForInput?: boolean;\n    readonly error?: TaskExecutionDiagnostic | null;\n}',
+  },
+  {
+    name: 'TaskboardAgencyCopilotCapabilityValue',
+    declaration: 'export interface TaskboardAgencyCopilotCapabilityValue {\n    readonly launch: boolean;\n}',
+  },
+  {
+    name: 'TaskboardArchiveRequest',
+    declaration: 'export interface TaskboardArchiveRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardAttachExecutionInput',
+    declaration: 'export interface TaskboardAttachExecutionInput {\n    readonly taskId: TaskId;\n    readonly executionId: TaskExecutionId;\n    readonly connection: TaskConnection;\n    readonly receipt?: TaskExecutionReceipt;\n    readonly error?: TaskExecutionDiagnostic | null;\n}',
+  },
+  {
+    name: 'TaskboardBaseline',
+    declaration: 'export interface TaskboardBaseline {\n    readonly tasks: readonly TaskboardTask[];\n    readonly runtime: TaskboardRuntimeState;\n}',
+  },
+  {
+    name: 'TaskboardBeginExecutionInput',
+    declaration: 'export type TaskboardBeginExecutionInput = {\n    readonly taskId: TaskId;\n    readonly requestId: TaskRunRequestId;\n    readonly executionSettings: TaskExecutionSettings;\n    readonly proposedConnection?: TaskConnection;\n    readonly initiator?: TaskConnection;\n} & ({\n    readonly trigger: \'manual\';\n    readonly expectedRevision: number;\n} | {\n    readonly trigger: \'schedule\';\n    readonly scheduledAt: string;\n    readonly nextRunAt: string;\n    readonly now?: string;\n});',
+  },
+  {
+    name: 'TaskboardBeginExecutionValue',
+    declaration: 'export interface TaskboardBeginExecutionValue {\n    readonly task: TaskboardTask;\n    readonly executionId: TaskExecutionId;\n    readonly replayed: boolean;\n}',
+  },
+  {
+    name: 'TaskboardConfirmPermissionsRequest',
+    declaration: 'export interface TaskboardConfirmPermissionsRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardConnectInput',
+    declaration: 'export interface TaskboardConnectInput {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly connection: TaskConnection;\n    readonly executionSettings?: TaskExecutionSettings;\n}',
+  },
+  {
+    name: 'TaskboardConnectRequest',
+    declaration: 'export type TaskboardConnectRequest = TaskboardConnectInput;',
+  },
+  {
+    name: 'TaskboardCreateInput',
+    declaration: 'export interface TaskboardCreateInput {\n    readonly workspaceId: WorkspaceId;\n    readonly title: string;\n    readonly description?: string;\n    readonly status?: TaskStatus;\n    readonly priority?: TaskPriority;\n    readonly labels?: readonly string[];\n    readonly prompt?: string;\n    readonly executionSettings?: TaskExecutionSettings;\n    readonly connection?: TaskConnection;\n    readonly schedule?: TaskScheduleInput;\n    readonly handover?: TaskHandover;\n}',
+  },
+  {
+    name: 'TaskboardCreateRequest',
+    declaration: 'export type TaskboardCreateRequest = TaskboardCreateInput;',
+  },
+  {
+    name: 'TaskboardDeleteRequest',
+    declaration: 'export interface TaskboardDeleteRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardDeleteValue',
+    declaration: 'export interface TaskboardDeleteValue {\n    readonly taskId: TaskId;\n    readonly revision: number;\n}',
+  },
+  {
+    name: 'TaskboardDisconnectRequest',
+    declaration: 'export interface TaskboardDisconnectRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardDuplicateInput',
+    declaration: 'export interface TaskboardDuplicateInput {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly title?: string;\n}',
+  },
+  {
+    name: 'TaskboardDuplicateRequest',
+    declaration: 'export type TaskboardDuplicateRequest = TaskboardDuplicateInput;',
+  },
+  {
+    name: 'TaskboardExecutionOptionsValue',
+    declaration: 'export interface TaskboardExecutionOptionsValue {\n    readonly presets: readonly {\n        readonly id: string;\n        readonly name: string;\n        readonly broken?: string;\n        readonly isDefault: boolean;\n    }[];\n    readonly permissions: readonly {\n        readonly name: string;\n    }[];\n    readonly models: readonly {\n        readonly provider: string;\n        readonly model: string;\n        readonly name: string;\n    }[];\n    readonly timeZone: string;\n    readonly copilotAvailable: boolean;\n}',
+  },
+  {
+    name: 'TaskboardFollowFrame',
+    declaration: 'export type TaskboardFollowFrame = {\n    readonly type: \'baseline\';\n    readonly value: TaskboardBaseline;\n} | TaskboardFollowIncrement;',
+  },
+  {
+    name: 'TaskboardFollowIncrement',
+    declaration: 'export type TaskboardFollowIncrement = {\n    readonly type: \'upsert\';\n    readonly task: TaskboardTask;\n} | {\n    readonly type: \'remove\';\n    readonly taskId: TaskId;\n    readonly revision: number;\n} | {\n    readonly type: \'runtime\';\n    readonly value: TaskboardRuntimeState;\n};',
+  },
+  {
+    name: 'TaskboardInspectAgencyCopilotRequest',
+    declaration: 'export interface TaskboardInspectAgencyCopilotRequest {\n    readonly taskIds: readonly TaskId[];\n}',
+  },
+  {
+    name: 'TaskboardInspectAgencyCopilotValue',
+    declaration: 'export interface TaskboardInspectAgencyCopilotValue {\n    readonly observations: readonly AgencyCopilotObservation[];\n}',
+  },
+  {
+    name: 'TaskboardListAgencyCopilotSessionsRequest',
+    declaration: 'export interface TaskboardListAgencyCopilotSessionsRequest {\n    readonly workspaceId: WorkspaceId;\n}',
+  },
+  {
+    name: 'TaskboardListAgencyCopilotSessionsValue',
+    declaration: 'export interface TaskboardListAgencyCopilotSessionsValue {\n    readonly sessions: readonly AgencyCopilotSessionOption[];\n    readonly truncated: boolean;\n}',
+  },
+  {
+    name: 'TaskboardListRequest',
+    declaration: 'export interface TaskboardListRequest {\n    readonly workspaceId?: WorkspaceId;\n}',
+  },
+  {
+    name: 'TaskboardListValue',
+    declaration: 'export type TaskboardListValue = TaskboardBaseline;',
+  },
+  {
+    name: 'TaskboardMoveInput',
+    declaration: 'export interface TaskboardMoveInput {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly status: TaskStatus;\n    readonly beforeTaskId?: TaskId;\n}',
+  },
+  {
+    name: 'TaskboardMoveRequest',
+    declaration: 'export type TaskboardMoveRequest = TaskboardMoveInput;',
+  },
+  {
+    name: 'TaskboardOpenAgencyCopilotRequest',
+    declaration: 'export interface TaskboardOpenAgencyCopilotRequest {\n    readonly taskId: TaskId;\n    readonly executionId?: TaskExecutionId;\n}',
+  },
+  {
+    name: 'TaskboardOpenAgencyCopilotValue',
+    declaration: 'export interface TaskboardOpenAgencyCopilotValue {\n    readonly outcome: \'launch-pending\' | \'already-running\' | \'resume-accepted\';\n}',
+  },
+  {
+    name: 'TaskboardPowerState',
+    declaration: 'export interface TaskboardPowerState {\n    readonly phase: \'disabled\' | \'idle\' | \'acquiring\' | \'active\' | \'unsupported\' | \'error\';\n    readonly platform: string;\n    readonly runningSessions: number;\n    readonly enabledSchedules: number;\n    readonly sessionStateKnown: boolean;\n    readonly error?: string;\n}',
+  },
+  {
+    name: 'TaskboardRecordExecutionErrorInput',
+    declaration: 'export interface TaskboardRecordExecutionErrorInput {\n    readonly taskId: TaskId;\n    readonly executionId: TaskExecutionId;\n    readonly error: TaskExecutionDiagnostic | null;\n}',
+  },
+  {
+    name: 'TaskboardRestoreRequest',
+    declaration: 'export interface TaskboardRestoreRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n}',
+  },
+  {
+    name: 'TaskboardRollForwardScheduleInput',
+    declaration: 'export interface TaskboardRollForwardScheduleInput {\n    readonly taskId: TaskId;\n    readonly scheduledAt: string;\n    readonly nextRunAt: string;\n    readonly now?: string;\n}',
+  },
+  {
+    name: 'TaskboardRunRequest',
+    declaration: 'export interface TaskboardRunRequest {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly requestId: TaskRunRequestId;\n    readonly initiator?: TaskConnection;\n}',
+  },
+  {
+    name: 'TaskboardRunRequestLookupInput',
+    declaration: 'export interface TaskboardRunRequestLookupInput {\n    readonly taskId: TaskId;\n    readonly requestId: TaskRunRequestId;\n    readonly expectedRevision: number;\n    readonly initiator?: TaskConnection;\n}',
+  },
+  {
+    name: 'TaskboardRuntimeState',
+    declaration: 'export interface TaskboardRuntimeState {\n    readonly settings: TaskboardSettings;\n    readonly timeZone: string;\n    readonly power: TaskboardPowerState;\n    readonly error?: string;\n    readonly scheduler: {\n        readonly lastTickAt?: string;\n        readonly error?: string;\n    };\n}',
+  },
+  {
+    name: 'TaskboardRunValue',
+    declaration: 'export interface TaskboardRunValue {\n    readonly task: TaskboardTask;\n    readonly executionId: TaskExecutionId;\n}',
+  },
+  {
+    name: 'TaskboardSettings',
+    declaration: 'export interface TaskboardSettings {\n    readonly enabled: boolean;\n    readonly announceToAgent: boolean;\n    readonly preventIdleSleep: boolean;\n}',
+  },
+  {
+    name: 'TaskboardSettleExecutionInput',
+    declaration: 'export interface TaskboardSettleExecutionInput {\n    readonly taskId: TaskId;\n    readonly executionId: TaskExecutionId;\n    readonly status: \'succeeded\' | \'failed\' | \'cancelled\';\n    readonly error?: TaskExecutionDiagnostic;\n    readonly endedAt?: string;\n}',
+  },
+  {
+    name: 'TaskboardTask',
+    declaration: 'export interface TaskboardTask {\n    readonly id: TaskId;\n    readonly revision: number;\n    readonly ordinal: number;\n    readonly workspaceId: WorkspaceId;\n    readonly title: string;\n    readonly description: string;\n    readonly status: TaskStatus;\n    readonly allowedManualStatuses: readonly TaskStatus[];\n    readonly rank: number;\n    readonly priority?: TaskPriority;\n    readonly labels: readonly string[];\n    readonly connection?: TaskConnection;\n    readonly unresolvedConnections?: readonly TaskConnection[];\n    readonly prompt: string;\n    readonly executionSettings: TaskExecutionSettings;\n    readonly executions: readonly TaskExecution[];\n    readonly schedule?: TaskSchedule;\n    readonly handover?: TaskHandover;\n    readonly permissionConfirmedAt?: string;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n    readonly archivedAt?: string;\n}',
+  },
+  {
+    name: 'TaskboardTaskValue',
+    declaration: 'export interface TaskboardTaskValue {\n    readonly task: TaskboardTask;\n}',
+  },
+  {
+    name: 'TaskboardUpdateInput',
+    declaration: 'export interface TaskboardUpdateInput {\n    readonly taskId: TaskId;\n    readonly expectedRevision: number;\n    readonly patch: TaskboardUpdatePatch;\n}',
+  },
+  {
+    name: 'TaskboardUpdatePatch',
+    declaration: 'export interface TaskboardUpdatePatch {\n    readonly workspaceId?: WorkspaceId;\n    readonly title?: string;\n    readonly description?: string;\n    readonly priority?: TaskPriority | null;\n    readonly labels?: readonly string[];\n    readonly prompt?: string;\n    readonly executionSettings?: TaskExecutionSettings;\n    readonly schedule?: TaskScheduleInput | null;\n    readonly handover?: TaskHandover | null;\n}',
+  },
+  {
+    name: 'TaskboardUpdateRequest',
+    declaration: 'export type TaskboardUpdateRequest = TaskboardUpdateInput;',
+  },
+  {
+    name: 'TaskboardUpdateSettingsRequest',
+    declaration: 'export interface TaskboardUpdateSettingsRequest {\n    readonly patch: Partial<TaskboardSettings>;\n}',
+  },
+  {
+    name: 'TaskConnection',
+    declaration: 'export type TaskConnection = {\n    readonly kind: \'dsh\';\n    readonly sessionId: SessionId;\n} | {\n    readonly kind: \'copilot\';\n    readonly sessionId: AgencyCopilotSessionId;\n};',
+  },
+  {
+    name: 'TaskExecution',
+    declaration: 'export interface TaskExecution {\n    readonly id: TaskExecutionId;\n    readonly requestId: TaskRunRequestId;\n    readonly trigger: \'manual\' | \'schedule\';\n    readonly scheduledAt?: string;\n    readonly requestedAt: string;\n    readonly startedAt?: string;\n    readonly endedAt?: string;\n    readonly status: \'pending\' | \'running\' | \'succeeded\' | \'failed\' | \'cancelled\';\n    readonly connection?: TaskConnection;\n    readonly createsConnection: boolean;\n    readonly initiator?: TaskConnection;\n    readonly workspaceId: WorkspaceId;\n    readonly prompt: string;\n    readonly executionSettings: TaskExecutionSettings;\n    readonly handover?: TaskHandover;\n    readonly receipt?: TaskExecutionReceipt;\n    readonly error?: TaskExecutionDiagnostic;\n}',
+  },
+  {
+    name: 'TaskExecutionDiagnostic',
+    declaration: 'export interface TaskExecutionDiagnostic {\n    readonly code: string;\n    readonly message: string;\n}',
+  },
+  {
+    name: 'TaskExecutionReceipt',
+    declaration: 'export type TaskExecutionReceipt = {\n    readonly kind: \'dsh\';\n    readonly afterSequence: number;\n    readonly messageId?: string;\n} | {\n    readonly kind: \'copilot\';\n    readonly afterCursor: string | null;\n    readonly messageId?: string;\n};',
+  },
+  {
+    name: 'TaskExecutionSettings',
+    declaration: 'export type TaskExecutionSettings = {\n    readonly kind: \'dsh\';\n    readonly presetId?: AgentPresetRow[\'id\'];\n    readonly permission?: string;\n    readonly model?: {\n        readonly provider: string;\n        readonly model: string;\n        readonly reasoningEffort?: ReasoningEffortId;\n    };\n} | {\n    readonly kind: \'copilot\';\n    readonly model?: string;\n    readonly permission?: \'read-only\' | \'workspace-write\' | \'full-access\';\n};',
+  },
+  {
+    name: 'TaskHandover',
+    declaration: 'export interface TaskHandover {\n    readonly goal: string;\n    readonly progress: string;\n    readonly next: string;\n    readonly references: readonly string[];\n    readonly source?: TaskConnection;\n    readonly frozenAt: string;\n}',
+  },
+  {
+    name: 'TaskPriority',
+    declaration: 'export type TaskPriority = \'low\' | \'medium\' | \'high\' | \'urgent\';',
+  },
+  {
+    name: 'TaskSchedule',
+    declaration: 'export interface TaskSchedule extends TaskScheduleInput {\n    readonly nextRunAt?: string;\n    readonly lastTriggeredAt?: string;\n}',
+  },
+  {
+    name: 'TaskScheduleInput',
+    declaration: 'export interface TaskScheduleInput {\n    readonly enabled: boolean;\n    readonly cron: string;\n    readonly timeZone: string;\n}',
+  },
+  {
+    name: 'TaskStatus',
+    declaration: 'export type TaskStatus = \'backlog\' | \'todo\' | \'in_progress\' | \'in_review\' | \'done\';',
   },
   {
     name: 'TeamId',

@@ -5,8 +5,8 @@
  * both artifacts; ordinary Vitest inventory deterministically skips it.
  * The child runs built artifacts under plain Node with the real shipped
  * web profile (dsh-base + dsh-web-app bundle patches, auto-initialized).
- * Its URL line follows the settled profile boot; SIGTERM then exercises the
- * shipped quiescent disposer.
+ * Its URL line follows the settled profile boot. POSIX SIGTERM exercises the
+ * shipped disposer; Windows reports direct child termination.
  */
 
 import { spawn } from 'node:child_process'
@@ -43,8 +43,13 @@ const jsExprType = new yaml.Type('tag:yaml.org,2002:js', {
 })
 const configSchema = yaml.JSON_SCHEMA.extend(jsExprType)
 
-/** Boot the built Web CLI, wait for its settled URL, then dispose through SIGTERM. */
-function runBuiltWeb(cwd: string): Promise<{ stdout: string; stderr: string; code: number }> {
+/** Boot the built Web CLI, wait for its settled URL, then request SIGTERM. */
+function runBuiltWeb(cwd: string): Promise<{
+  stdout: string
+  stderr: string
+  code: number | null
+  signal: NodeJS.Signals | null
+}> {
   return new Promise((resolveRun, rejectRun) => {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
@@ -88,19 +93,19 @@ function runBuiltWeb(cwd: string): Promise<{ stdout: string; stderr: string; cod
       clearTimeout(timer)
       rejectRun(error)
     })
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       clearTimeout(timer)
       if (!settled) {
         rejectRun(new Error(`built Web CLI exited before settled startup (code ${String(code)})\nstdout:\n${stdout}\nstderr:\n${stderr}`))
         return
       }
-      resolveRun({ stdout, stderr, code: code ?? -1 })
+      resolveRun({ stdout, stderr, code, signal })
     })
   })
 }
 
 describe.skipIf(!requireBuiltArtifacts)('built CLI lazy-search startup', () => {
-  it('boots and disposes the shipped composition with full-text search off by default', async () => {
+  it('boots the shipped composition with full-text search off by default', async () => {
     expect(existsSync(builtBin), `missing built CLI ${resolve(builtBin)}; run pnpm build`).toBe(true)
     expect(existsSync(webDist), `missing Web dist ${resolve(webDist)}; run pnpm run build:web`).toBe(true)
     const baseRows = (yaml.load(await readFile(baseConfigPath, 'utf8'), { schema: configSchema }) as PatchEntry[])
@@ -114,13 +119,17 @@ describe.skipIf(!requireBuiltArtifacts)('built CLI lazy-search startup', () => {
     // The web restatement keeps the shipped default; opting in is a later layer's override.
     expect(webRow?.config?.openAt).toBe('never')
     expect(webRow?.disabled).toBeUndefined()
+    // Taskboard persistence also loads node:sqlite, so only these profile values determine whether full-text search is enabled.
 
     const cwd = await mkdtemp(join(tmpdir(), 'dsh-cli-lazy-search-'))
     try {
       const result = await runBuiltWeb(cwd)
       expect(result.stdout).toMatch(/dsh web: http:\/\/127\.0\.0\.1:\d+/u)
-      expect(result.code).toBe(0)
-      expect(result.stderr).not.toMatch(/ExperimentalWarning: SQLite/u)
+      if (process.platform === 'win32') {
+        expect(result).toMatchObject({ code: null, signal: 'SIGTERM' })
+      } else {
+        expect(result).toMatchObject({ code: 0, signal: null })
+      }
     } finally {
       await rm(cwd, { recursive: true, force: true })
     }

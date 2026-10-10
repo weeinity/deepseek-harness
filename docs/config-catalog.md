@@ -249,6 +249,78 @@ export interface SettingsControllerInternals {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-settings-controller -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-api-taskboard-controller -->
+<a id="deepseek-aidsh-api-taskboard-controller"></a>
+
+## `@deepseek-ai/dsh-api-taskboard-controller`
+
+- `inject`: `typert` · `taskboard` · `workspaceRegistry` · `sessionController` · `sessionPersistence` · `sessions` · `sessionProjections` · `agents` · `agentPresets` · `permissionPresets` · `settings` · `systemPrompt` · `llm`
+- `refs`: `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/api/taskboard-controller/src/index.ts:51`](../packages/api/taskboard-controller/src/index.ts)
+
+```ts config-catalog
+/** Deployment policy for Taskboard execution, scheduling, and native integrations. */
+export interface Config extends Partial<Omit<TaskboardHostConfig, 'enabled' | 'announceToAgent' | 'preventIdleSleep'>> {
+  /** Admit manual runs and scheduled occurrences. */
+  readonly enabled?: boolean
+  /** Include the Taskboard usage section in subsequent model requests. */
+  readonly announceToAgent?: boolean
+  /** Request idle-sleep protection while work or armed schedules exist. */
+  readonly preventIdleSleep?: boolean
+  /** Permit local Copilot execution and terminal handoff in a loopback-only deployment. */
+  readonly agencyCopilotLaunch?: boolean
+  /** Suppress repeated terminal opens for this interval after an accepted handoff. */
+  readonly agencyOpenCooldownMs?: number
+  /** Deadline for native discovery and terminal handoff. */
+  readonly agencyOpenTimeoutMs?: number
+  /** Maximum persisted Copilot events read per recovery page. */
+  readonly copilotRecoveryPageSize?: number
+  /** Maximum pages read for one recovery observation. */
+  readonly copilotRecoveryMaxPages?: number
+}
+
+/** Fully resolved Host policy; configuration defaults belong to the Controller. */
+export interface TaskboardHostConfig {
+  /** Admit manual runs and scheduled occurrences. */
+  readonly enabled: Volatile<boolean>
+  /** Include the Taskboard usage section in subsequent model requests. */
+  readonly announceToAgent: Volatile<boolean>
+  /** Request idle-sleep protection while work or armed schedules exist. */
+  readonly preventIdleSleep: Volatile<boolean>
+  /** Absolute private directory containing the permanent ownership file. */
+  readonly lockPath: string
+  /** POSIX lock-path identity observation interval. */
+  readonly lockUpdateMs: number
+  /** Bounded reopen attempts if a POSIX lock inode changes during acquisition. */
+  readonly lockMaxAcquireAttempts: number
+  /** Initial timezone offered to new schedules. */
+  readonly timeZone: string
+  /** Execution and linked-conversation attention observation interval. */
+  readonly pollIntervalMs: number
+  /** Due-schedule observation interval. */
+  readonly schedulerIntervalMs: number
+  /** A longer clock gap skips missed occurrences instead of dispatching them. */
+  readonly schedulerRecoveryGapMs: number
+  /** Deadline for one provider operation. */
+  readonly operationTimeoutMs: number
+  /** Deadline for OS acknowledgement of an idle-sleep assertion. */
+  readonly powerReadinessTimeoutMs: number
+  /** Graceful helper-exit deadline. */
+  readonly powerShutdownTimeoutMs: number
+  /** Forced helper-exit deadline. */
+  readonly powerKillTimeoutMs: number
+  /** Delay between bounded inhibitor acquisition retries. */
+  readonly powerRetryDelayMs: number
+  /** Maximum retries during one uninterrupted demand interval. */
+  readonly powerMaxRetries: number
+  /** Maximum complete retained helper diagnostic size. */
+  readonly powerMaxDiagnosticBytes: number
+  /** macOS assertion observation interval within the readiness deadline. */
+  readonly powerAssertionPollMs: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-taskboard-controller -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-api-terminal-controller -->
 <a id="deepseek-aidsh-api-terminal-controller"></a>
 
@@ -3504,6 +3576,25 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-system-prompt -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-taskboard -->
+<a id="deepseek-aidsh-taskboard"></a>
+
+## `@deepseek-ai/dsh-taskboard`
+
+- `inject`: `storageDomain` · `workspaceRegistry`
+- `source`: [`packages/workspace/taskboard/src/index.ts:71`](../packages/workspace/taskboard/src/index.ts)
+
+```ts config-catalog
+/** Retention bounds, independently configurable for display and retry protection. */
+export interface Config {
+  /** Maximum settled attempts retained per task; open attempts are never pruned. */
+  executionHistoryLimit?: number
+  /** Maximum request receipts retained per task, including every open attempt's receipt. */
+  requestDeduplicationLimit?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-taskboard -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-terminal-bash -->
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -4548,6 +4639,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-client-ui-sidebar-terminal` | — | [`packages/client/ui-sidebar-terminal/src/index.ts`](../packages/client/ui-sidebar-terminal/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-skill` | — | [`packages/client/ui-skill/src/index.ts`](../packages/client/ui-skill/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-subagent` | — | [`packages/client/ui-subagent/src/index.ts`](../packages/client/ui-subagent/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-taskboard` | — | [`packages/client/ui-taskboard/src/index.ts`](../packages/client/ui-taskboard/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-tool` | — | [`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-trajectory` | — | [`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-user-questions` | — | [`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts) |

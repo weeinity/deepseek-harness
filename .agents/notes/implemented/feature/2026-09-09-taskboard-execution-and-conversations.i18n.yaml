@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-09-taskboard-execution-and-conversations.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-09-taskboard-execution-and-conversations.md
+/agent-note-taskboard-executions-and-exclusive-conversations:
+  en: e06e8c2c4da57a27
+  zh: 78da2cec8ef53843
+/agent-note-taskboard-executions-and-exclusive-conversations/problem:
+  en: 2c93175fff91ee99
+  zh: b4dcc7c043dbf841
+/agent-note-taskboard-executions-and-exclusive-conversations/decision:
+  en: 739e3b2bf2198ced
+  zh: 441df2372c09abab
+/agent-note-taskboard-executions-and-exclusive-conversations/alternatives-considered:
+  en: 7b570a1472ff7329
+  zh: 6fb67ed3c5c00a53
+/agent-note-taskboard-executions-and-exclusive-conversations/testing:
+  en: 2203e1299a1ba3d3
+  zh: 929c08dffdbc0da2
+/agent-note-taskboard-executions-and-exclusive-conversations/consequences:
+  en: fe42d895f84bffc8
+  zh: f17dd224d0442689

@@ -79,6 +79,9 @@
       "path": "../session-controller/tsconfig.client.json"
     },
     {
+      "path": "../taskboard-controller/tsconfig.client.json"
+    },
+    {
       "path": "../workspace-files/tsconfig.client.json"
     },
     {

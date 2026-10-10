@@ -62,9 +62,33 @@ const SAFE_HOST_DEPENDENCY_EXPORTS = {
 /** Runtime exports that require every consumer to resolve the provider's shared peer instance. */
 const PEER_REQUIRED_HOST_EXPORTS = {
   '@deepseek-ai/dsh-client-connection': ['OperatorPeer'],
+  '@deepseek-ai/dsh-home-paths': ['dshHomePath'],
+  '@deepseek-ai/dsh-launch-environment': ['launchEnvironmentOf'],
   '@deepseek-ai/dsh-scope': ['carrierKeyOf', 'createScope', 'scopeOf', 'scopeTarget'],
   '@deepseek-ai/dsh-session': ['SESSION_FORMAT_VERSION'],
-  '@deepseek-ai/dsh-session-persistence': ['SessionPersistenceNotFoundError'],
+  '@deepseek-ai/dsh-session-persistence': [
+    'SessionPersistenceCorruptionError',
+    'SessionPersistenceNotFoundError',
+  ],
+  '@deepseek-ai/dsh-taskboard': [
+    'AgencyCopilotSessionId',
+    'TaskId',
+    'TaskRunRequestId',
+    'TaskboardExecutionError',
+    'TaskboardInputError',
+    'TaskboardMoveInvalidError',
+    'TaskboardRevisionConflictError',
+    'TaskboardSessionInvalidError',
+    'TaskboardTaskArchivedError',
+    'TaskboardTaskNotFoundError',
+    'TaskboardWorkspaceNotFoundError',
+    'createTaskboardOwnershipCapability',
+    'nextTaskScheduleRun',
+    'taskRecord',
+    'taskboardTaskView',
+  ],
+  '@deepseek-ai/dsh-win32-process': ['extendWin32ProcessBindings', 'quoteArg'],
+  '@deepseek-ai/dsh-workspace': ['WorkspaceId', 'realpathNormalize'],
 } as const satisfies HostDependencyExports
 
 /** Exact import specifier to reviewed runtime exports. */

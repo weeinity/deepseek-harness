@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-25-taskboard-manual-status-control.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-25-taskboard-manual-status-control.md
+/agent-note-taskboard-manual-status-control:
+  en: 382b2bf73e9abb45
+  zh: efdd4983525122b5
+/agent-note-taskboard-manual-status-control/problem:
+  en: bb8abc3227bf5807
+  zh: 3177752d60f2f855
+/agent-note-taskboard-manual-status-control/decision:
+  en: 11cbe85bf6056f4c
+  zh: 6b314b79d8f3c993
+/agent-note-taskboard-manual-status-control/alternatives-considered:
+  en: c5703dad15a8d9f6
+  zh: 59c70259cb5066db
+/agent-note-taskboard-manual-status-control/testing:
+  en: 9efdb04481f8e1bc
+  zh: 18cd4305379d9984
+/agent-note-taskboard-manual-status-control/consequences:
+  en: 9b6eb172f25582cb
+  zh: 63d5ec03de87287b

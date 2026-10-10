@@ -66,6 +66,9 @@
       "path": "../session-controller/tsconfig.host.json"
     },
     {
+      "path": "../taskboard-controller/tsconfig.host.json"
+    },
+    {
       "path": "../workspace-files/tsconfig.host.json"
     },
     {

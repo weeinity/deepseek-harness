@@ -1,0 +1,20 @@
+- strong: Backlog
+- text: "1"
+- article "Backlog anchor":
+  - text: DSH-002 Backlog anchor Backlog
+  - time: Updated just now
+  - text: No session linked
+- strong: Todo
+- text: 0 No tasks in this column
+- strong: In Progress
+- text: 0 No tasks in this column
+- strong: In Review
+- text: 0 No tasks in this column
+- strong: Done
+- text: "1"
+- article "Organize a task by dragging":
+  - text: DSH-001 Organize a task by dragging
+  - paragraph: Manual moves do not start execution.
+  - text: Done
+  - time: Updated just now
+  - text: No session linked

@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for taskboard.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/subsystems/taskboard.md
+/taskboard:
+  en: cec02b2cd2eb24d5
+  zh: 3d6f089e6a64bc3d
+/taskboard/durable-records:
+  en: f3e4576ff9f099ac
+  zh: f9cb7b6c712e3354
+/taskboard/browser-transport-and-ui:
+  en: 04846fc2d4e1d4e7
+  zh: 73a09b41533dcb55
+/taskboard/operational-limits:
+  en: 3993aaded45f9124
+  zh: 043f50d464eb831f

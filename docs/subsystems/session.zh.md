@@ -867,9 +867,9 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
 @Remote('create') create(request: SessionCreateRequest): Promise<SessionCreateValue>
 
 /**
- * Select one Session-local model after explicitly resuming the Session; save the default in the background.
- * @param request - Session identity and requested model selection.
- * @returns the normalized selection installed for the Session, without waiting for default persistence.
+ * Select one Session-local model after explicitly resuming the Session.
+ * @param request - Session identity, requested model selection, and optional default-persistence policy.
+ * @returns the normalized selection installed for the Session, without waiting for requested default persistence.
  */
 @Remote('selectModel') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>
 

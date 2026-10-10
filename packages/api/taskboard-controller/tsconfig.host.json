@@ -1,0 +1,38 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
+  },
+  "include": ["src/*.ts", "src/runtime/**/*.ts"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/loader" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../../native/system/packages/entry" },
+    { "path": "../../storage/storage-domain" },
+    { "path": "../../subprocess/subprocess" },
+    { "path": "../../subprocess/win32-process" },
+    { "path": "../../util/launch-environment" },
+    { "path": "../../util/brand" },
+    { "path": "../../util/home-paths" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/session" },
+    { "path": "../../core/system-prompt" },
+    { "path": "../../extensions/cordis-host-runner" },
+    { "path": "../session-controller/tsconfig.host.json" },
+    { "path": "../../session/session-persistence" },
+    { "path": "../../session/session-projection" },
+    { "path": "../../preset/agent-preset-registry" },
+    { "path": "../../interaction/permission-presets" },
+    { "path": "../../interaction/user-approval" },
+    { "path": "../../interaction/user-questions" },
+    { "path": "../../sandbox/sandbox-policy" },
+    { "path": "../../settings/settings" },
+    { "path": "../../llm/llm" },
+    { "path": "../../typert/protocol" },
+    { "path": "../../workspace/taskboard" },
+    { "path": "../../workspace/workspace" }
+  ]
+}

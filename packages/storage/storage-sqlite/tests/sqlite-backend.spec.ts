@@ -72,6 +72,40 @@ describe('sqlite backend specifics', () => {
     }
   })
 
+  it('opens declared per-record predecessor versions and stamps the unit current', async () => {
+    const path = await freshDbPath()
+    const first = backendAt(path)
+    const legacy = await first.kv.open({ ...DESCRIPTOR, layout: 'per-record' })
+    await legacy.putRecord('records', 'legacy', { n: 1 })
+    await first.close()
+
+    const second = backendAt(path)
+    const current = await second.kv.open({
+      ...DESCRIPTOR, version: 2, layout: 'per-record', compatibleVersions: [1],
+    })
+    expect((await current.loadAll()).tables.records).toEqual({ legacy: { n: 1 } })
+    await second.close()
+
+    const db = new DatabaseSync(path)
+    try {
+      expect(db.prepare('SELECT version FROM units WHERE name = ?').get(DESCRIPTOR.name)).toEqual({ version: 2 })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('rejects predecessor versions for single-layout units', async () => {
+    const path = await freshDbPath()
+    const first = backendAt(path)
+    await (await first.kv.open(DESCRIPTOR)).close()
+    await first.close()
+
+    const second = backendAt(path)
+    await expect(second.kv.open({ ...DESCRIPTOR, version: 2, compatibleVersions: [1] }))
+      .rejects.toMatchObject({ code: 'version-mismatch' })
+    await second.close()
+  })
+
   it('rejects a mismatched database schema version', async () => {
     const path = await freshDbPath()
     const db = new DatabaseSync(path)

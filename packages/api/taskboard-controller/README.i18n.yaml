@@ -1,0 +1,52 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/api/taskboard-controller/README.md
+/:
+  en: 36d1ab31af726dd6
+  zh: 5f40bbd4bcde4363
+/deepseek-ai-dsh-api-taskboard-controller:
+  en: 73fc1e4e82991f97
+  zh: c0c7f0d71516e541
+/deepseek-ai-dsh-api-taskboard-controller/summary:
+  en: 8e64eb26e2168899
+  zh: ce447adafda4d9ce
+/deepseek-ai-dsh-api-taskboard-controller/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-api-taskboard-controller/use-this-package:
+  en: c6753aea64700584
+  zh: 28945c72079a1589
+/deepseek-ai-dsh-api-taskboard-controller/use-this-package/execution-and-connections:
+  en: a955a8cac235e1de
+  zh: f1cc6b39c0bf36e5
+/deepseek-ai-dsh-api-taskboard-controller/use-this-package/host-settings:
+  en: 0efb633025f6ab4b
+  zh: f58cd725db633bb9
+/deepseek-ai-dsh-api-taskboard-controller/understand-the-implementation:
+  en: a1336d2244dc8d19
+  zh: 6d0f83ffd92dd1a4
+/deepseek-ai-dsh-api-taskboard-controller/further-exploration:
+  en: 7d1da159aba73d05
+  zh: 0f87b09aa34a31b9
+/deepseek-ai-dsh-api-taskboard-controller/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-api-taskboard-controller/model-experience/task-execution-and-optional-guidance:
+  en: 98b670a8ba3bd1c9
+  zh: 16effbc2f6b7bb39
+/deepseek-ai-dsh-api-taskboard-controller/model-experience/task-execution-and-optional-guidance/what-the-model-sees:
+  en: 11f4a1cd2690c789
+  zh: 953430bb4ed582c1
+/deepseek-ai-dsh-api-taskboard-controller/model-experience/task-execution-and-optional-guidance/token-effect:
+  en: d44a238ae03b3157
+  zh: 4d6e7b2f7e8e2e5a
+/deepseek-ai-dsh-api-taskboard-controller/model-experience/task-execution-and-optional-guidance/kv-cache-effect:
+  en: d38d249d7e46f778
+  zh: 175376d175137ec0
+/deepseek-ai-dsh-api-taskboard-controller/known-limitations-and-deferred-work:
+  en: 2e1cf06538fe9997
+  zh: 61375115af152711
+/deepseek-ai-dsh-api-taskboard-controller/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

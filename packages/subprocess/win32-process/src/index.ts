@@ -24,6 +24,7 @@ export {
   isJobEmpty,
   pollProcessExit,
   probeCurrentTokenJobSupport,
+  quoteArg,
   spawnInheritedJobProcess,
   spawnCurrentTokenJobProcess,
   spawnPipedProcess,

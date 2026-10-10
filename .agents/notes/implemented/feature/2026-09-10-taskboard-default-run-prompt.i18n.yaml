@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-10-taskboard-default-run-prompt.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-10-taskboard-default-run-prompt.md
+/agent-note-taskboard-default-run-prompts:
+  en: ec38e45738c7a79a
+  zh: 0aa11c0b30dde6b9
+/agent-note-taskboard-default-run-prompts/problem:
+  en: 63292dba2f1a6fb8
+  zh: b96e4ab5222545fe
+/agent-note-taskboard-default-run-prompts/decision:
+  en: 088a6b24a553a23e
+  zh: 4d4b1c15e2f27e2c
+/agent-note-taskboard-default-run-prompts/alternatives-considered:
+  en: 0c6d0d2b7537b65b
+  zh: 8e98f05f7aae7abc
+/agent-note-taskboard-default-run-prompts/testing:
+  en: a3e47a922c290d1f
+  zh: 2f55c7be93404afd
+/agent-note-taskboard-default-run-prompts/consequences:
+  en: 82e6ec7dfd5e408b
+  zh: 9c28be7f5863b8a2

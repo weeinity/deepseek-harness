@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-01-native-workspace-taskboard.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-01-native-workspace-taskboard.md
+/agent-note-native-workspace-taskboard-mode:
+  en: 0ab73eb97ea1646a
+  zh: 49a5f3f283716906
+/agent-note-native-workspace-taskboard-mode/problem:
+  en: bcc6be75f648ccc3
+  zh: 45ecdb9e77defb67
+/agent-note-native-workspace-taskboard-mode/decision:
+  en: 9e4cff0ec5d869b1
+  zh: 6109dd2012c7b835
+/agent-note-native-workspace-taskboard-mode/alternatives-considered:
+  en: 69539d24a0a2283f
+  zh: 9871c067bac2e06f
+/agent-note-native-workspace-taskboard-mode/testing:
+  en: 4500f9f2f7e9a53d
+  zh: eccb91b65afe286b
+/agent-note-native-workspace-taskboard-mode/consequences:
+  en: f2e1d380530d7e63
+  zh: f1de51c19a48622f

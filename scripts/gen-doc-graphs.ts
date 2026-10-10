@@ -349,6 +349,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns Workspace commands and reconnect-safe Workspace state delivery through the generated Remote namespace.',
   },
   {
+    key: 'taskboardController',
+    pkg: 'api-taskboard-controller',
+    title: 'Host Taskboard Remote controller',
+    mode: 'core',
+    note: 'Projects durable Taskboard commands, execution admission, and linked-conversation state through the generated Remote namespace.',
+  },
+  {
     key: 'directoryPickerController',
     pkg: 'api-workspace-controller',
     title: 'Host directory-picking Remote controller',
@@ -500,6 +507,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'core',
     consumers: ['api-workspace-controller', 'api-session-controller'],
     note: 'Owns WorkspaceId-branded records over the domain facility; stable sessionIds accounts drive Host RPC and GUI projections.',
+  },
+  {
+    key: 'taskboard',
+    pkg: 'taskboard',
+    title: 'Durable Taskboard state',
+    mode: 'core',
+    consumers: ['api-taskboard-controller'],
+    note: 'Owns task definitions, five-column placement, linked conversations, execution history, and compare-and-set mutations.',
   },
   {
     key: 'sessionQuery',

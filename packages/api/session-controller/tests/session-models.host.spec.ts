@@ -649,6 +649,7 @@ describe('Web session model selection', () => {
 
   it('saves an accepted selection as the default and survives a storage failure', async () => {
     const { ctx, sessionId } = await harness()
+    registerTextOnly(ctx)
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     onTestFinished(() => { warn.mockRestore() })
     const saved: unknown[] = []
@@ -671,6 +672,13 @@ describe('Web session model selection', () => {
 
     // A refused selection never becomes anyone's default.
     await remote.selectModel(request({ sessionId, provider: 'missing', model: 'model' }))
+    expect(saved).toHaveLength(1)
+
+    const sessionOnly = expectValue(await remote.selectModel(request({
+      sessionId, provider: 'text-only', model: 'plain', saveDefault: false,
+    })))
+    expect(sessionOnly.selected).toEqual({ provider: 'text-only', model: 'plain' })
+    expect(currentSelection(ctx, sessionId)).toEqual({ provider: 'text-only', model: 'plain' })
     expect(saved).toHaveLength(1)
 
     // Storage failing is not the selection failing: the switch already applies
