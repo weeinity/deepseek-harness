@@ -86,11 +86,21 @@ export async function readPluginInventory(ctx: Context): Promise<PluginInventory
     if (entry.options.group) continue
     const base = entry.parent.tree.ctx.baseUrl
     const meta = base === undefined ? undefined : packages?.metaOf(entry.options.name, base)
+    const config: unknown = entry.options.config
+    const fields = typeof config === 'object' && config !== null && !Array.isArray(config) ? config : {}
+    const serverName: unknown = Reflect.get(fields, 'serverName')
+    const transport: unknown = Reflect.get(fields, 'transport')
     entries.push({
       entryId: pluginEntryId(entry.id),
       moduleName: entry.options.name,
       enabled: !entry.disabled,
       fiberPhase: entry.fiber === undefined ? null : FIBER_PHASE[entry.fiber.state],
+      ...entry.options.name !== '@deepseek-ai/dsh-mcp-client' ? {} : {
+        connector: {
+          serverName: typeof serverName === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(serverName) ? serverName : entry.id,
+          transport: transport === 'stdio' || transport === 'streamable-http' ? transport : null,
+        },
+      },
       ...meta === undefined ? {} : { meta },
     })
   }

@@ -67,6 +67,8 @@ kind: "package-reference"
 
 菜单图标使用 `--dsw-alias-menu-icon`：浅色模式为 neutral-bluish 800，深色模式为 `label-primary-dimmed`。
 
+连接器身份图块使用 `--dsw-alias-connector-*` 配色。已命名服务的颜色在不同主题和启用状态下保持不变；中性首字母使用随主题变化的背景、边框和文字别名。
+
 `base.css` 仅抑制[基础控件焦点工具](../ui-primitives/README.zh.md)通过 `data-dsh-automatic-focus` 标记的聚焦元素外轮廓线；正常键盘焦点样式、边框、阴影及错误状态保持不变。
 
 系统提示使用 `--dsw-alias-toast-bg` 和 `--dsw-alias-toast-label`，在各调用方之间统一背景与文字颜色。文档预览配对使用 `--dsw-alias-bg-document-preview` 与 `--dsw-alias-label-document-preview`，使底色与状态文字遵循相同主题。Tooltip 键帽使用 `--dsw-alias-tooltip-key-bg`，由各主题的 tooltip 背景派生稍浅的填充。开关滑块读取 `--dsw-alias-switch-thumb`：浅色模式为纯白，深色模式为 neutral-bluish 400，使关闭态滑块比轨道更亮，同时避免纯白在暗色下过亮。

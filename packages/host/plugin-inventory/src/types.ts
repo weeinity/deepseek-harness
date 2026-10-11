@@ -18,6 +18,13 @@ export interface PluginInventoryEntry {
   readonly entryId: PluginEntryId
   /** Exact module specifier imported by the Loader entry. */
   readonly moduleName: string
+  /** Allowlisted MCP identity; never includes endpoint URLs, commands, headers, or environment values. */
+  readonly connector?: {
+    /** Literal configured server name, or the entry id when the name is an expression or invalid. */
+    readonly serverName: string
+    /** Literal configured transport; null when it is not statically available. */
+    readonly transport: 'stdio' | 'streamable-http' | null
+  }
   /** Local package display metadata, independent of whether the entry is enabled. */
   readonly meta?: PluginLocalizedMeta
   /** Effective Loader enablement, including disabled ancestor groups. */

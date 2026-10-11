@@ -4,6 +4,7 @@
 - navigation "全局面板":
   - button "插件"
   - button "自动化任务"
+  - button "任务看板"
 - text: 工作区
 - button "搜索会话"
 - textbox "搜索会话名称"
@@ -15,7 +16,7 @@
 - button "设置"
 - banner:
   - button "打开右侧边栏"
-- text: 探索未至之境 预览版
+- text: 标记一切 预览版
 - button "选择工作区": workspace
 - button "标准模式"
 - textbox "描述你想要构建的内容, / 调用指令, @ 文件或对话"

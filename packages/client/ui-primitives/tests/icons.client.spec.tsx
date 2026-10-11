@@ -17,6 +17,21 @@ const icons = Object.fromEntries(
 const iconNames = Object.keys(icons)
 
 describe('product icon set', () => {
+  it('renders the fixed-palette MIP label mark without document-global ids', () => {
+    const view = render(<primitives.MipAutolabelingMark />)
+    expect(view.container.querySelector('svg')?.getAttribute('width')).toBe('24')
+    view.rerender(<primitives.MipAutolabelingMark size={34} className="hero-mark" />)
+    const mark = view.container.querySelector('svg')
+    expect(mark?.getAttribute('width')).toBe('34')
+    expect(mark?.getAttribute('height')).toBe('34')
+    expect(mark?.getAttribute('data-brand')).toBe('mip-autolabeling')
+    expect(mark?.getAttribute('class')).toBe('hero-mark')
+    expect(mark?.getAttribute('aria-hidden')).toBe('true')
+    expect(mark?.querySelector('[id]')).toBeNull()
+    expect([...view.container.querySelectorAll('path')].map(path => path.getAttribute('fill')))
+      .toEqual(['#0F6CBD', '#FFC53D'])
+  })
+
   it('exports regular and medium variants for all 94 public glyphs', () => {
     expect(iconNames.length).toBe(188)
     expect(iconNames.some(name => /\d+$/.test(name))).toBe(false)

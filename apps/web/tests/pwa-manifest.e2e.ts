@@ -28,14 +28,15 @@ it('ships install metadata with the built web application', async () => {
   })
 })
 
-it('ships fixed-color favicons selected by document media queries', async () => {
+it('ships the MIP label favicon for both document media queries', async () => {
   const index = await readFile(join(DIST_ROOT, 'index.html'), 'utf8')
-  expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon-dark.svg" media="(prefers-color-scheme: dark)" />')
-  expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon.svg" media="(prefers-color-scheme: light)" />')
+  expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon-dark.svg?v=mip-label" media="(prefers-color-scheme: dark)" />')
+  expect(index).toContain('<link rel="icon" type="image/svg+xml" href="./favicon.svg?v=mip-label" media="(prefers-color-scheme: light)" />')
   const light = await readFile(join(DIST_ROOT, 'favicon.svg'), 'utf8')
   const dark = await readFile(join(DIST_ROOT, 'favicon-dark.svg'), 'utf8')
   expect(light).not.toContain('<style>')
-  expect(light).toContain('fill="#000"')
-  expect(dark).toContain('fill="#fff"')
-  expect(dark.replace('fill="#fff"', 'fill="#000"')).toBe(light)
+  expect(light).toContain('data-brand="mip-autolabeling"')
+  expect(light).toContain('fill="#0F6CBD"')
+  expect(light).toContain('fill="#FFC53D"')
+  expect(dark).toBe(light)
 })

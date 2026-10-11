@@ -1,0 +1,54 @@
+- region "连接器":
+  - heading "连接器" [level=2]
+  - button "刷新连接器"
+  - paragraph: 管理此 DSH 配置方案中的 MCP 服务器。已启用的服务器仍可能正在连接。
+  - searchbox "搜索连接器"
+  - list:
+    - listitem "ado":
+      - strong: ado
+      - text: HTTP 已禁用
+      - switch "启用 ado"
+    - listitem "icm":
+      - strong: icm
+      - text: HTTP 已禁用
+      - switch "启用 icm"
+    - listitem "kusto":
+      - strong: kusto
+      - text: HTTP 已禁用
+      - switch "启用 kusto"
+    - listitem "enghub":
+      - strong: enghub
+      - text: HTTP 已禁用
+      - switch "启用 enghub"
+    - listitem "ecs":
+      - strong: ecs
+      - text: HTTP 已禁用
+      - switch "启用 ecs"
+    - listitem "teams":
+      - strong: teams
+      - text: HTTP 已禁用
+      - switch "启用 teams"
+    - listitem "reference_memory":
+      - strong: reference_memory
+      - text: HTTP 已禁用
+      - switch "启用 reference_memory"
+    - listitem "obsidian":
+      - strong: obsidian
+      - text: HTTP 已禁用
+      - switch "启用 obsidian"
+    - listitem "exa":
+      - strong: exa
+      - text: HTTP 已禁用
+      - switch "启用 exa"
+    - listitem "bluebird":
+      - strong: bluebird
+      - text: HTTP 已禁用
+      - switch "启用 bluebird"
+    - listitem "mrd":
+      - strong: mrd
+      - text: HTTP 已禁用
+      - switch "启用 mrd"
+    - listitem "WorkIQ":
+      - strong: WorkIQ
+      - text: 本地进程 已启用
+      - switch "启用 WorkIQ" [checked]

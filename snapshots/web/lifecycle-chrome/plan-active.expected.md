@@ -4,6 +4,7 @@
 - navigation "Global panels":
   - button "Plugins"
   - button "Automation tasks"
+  - button "Taskboard"
 - text: Workspaces
 - button "Search sessions"
 - textbox "Search session names"
@@ -15,7 +16,7 @@
 - button "Settings"
 - banner:
   - button "Open right sidebar"
-- text: Into the Unknown Preview
+- text: Label everything Preview
 - button "Choose workspace": workspace
 - button "Standard mode"
 - textbox "Describe what you want to build, / commands, @ files or sessions"

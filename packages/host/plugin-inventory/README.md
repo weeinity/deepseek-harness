@@ -33,6 +33,8 @@ Each row is one non-group Loader entry: its entry id, the exact module specifier
 
 Loader and preset rows can carry optional `meta` with a title, description, or metadata diagnostic. The Host returns available translations and literal fallbacks; the Client selects its language. Metadata diagnostics do not change enablement or fiber phase.
 
+Global `@deepseek-ai/dsh-mcp-client` rows also carry `connector` metadata, including disabled entries: a literal server name and transport. An invalid or expression-based name falls back to the entry id; an unknown transport is `null`. This projection never returns endpoint URLs, commands, headers, or environment values and never evaluates configuration expressions.
+
 ### Per-preset compositions
 
 With a roster composed, `agentPresets` carries one group per preset in roster order: its id, whether the deployment ships it or the user owns it (`trust`, which clients use to localize shipped names), published display name, whether a session naming no preset composes it, and flattened plugin rows — entry id (null when the file row declares none), module specifier, effective enablement, the row's own `!!js` disabled expression when it carries one, and a root-fiber phase when the composition is live. A preset some session already composed answers from its newest standing generation — even when its file has since broken, because the mount is what those sessions run; one never composed since boot answers from its composition file with disabled gates evaluated against the Loader context, and reading never mounts a preset. `conditional` enablement marks a gate the Host could not evaluate, and a broken preset nothing composed stays listed with its reason and no rows. Without a roster the field is absent.

@@ -3,6 +3,7 @@
  */
 
 export type { CodeToolbarLabels } from './CodeToolbar.tsx'
+export { MipAutolabelingMark } from './MipAutolabelingMark.tsx'
 export { StateDot } from './StateDot.tsx'
 export type { StateDotState } from './StateDot.tsx'
 export { DisclosureRow } from './DisclosureRow.tsx'

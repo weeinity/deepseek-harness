@@ -20,6 +20,57 @@ patchedDependencies:
 
 importers:
 
+  packages/client/ui-settings-connectors:
+    devDependencies:
+      "@deepseek-ai/cordis":
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      "@deepseek-ai/dsh-api-remotes":
+        specifier: workspace:*
+        version: link:../../api/remotes
+      "@deepseek-ai/dsh-client-locale":
+        specifier: workspace:*
+        version: link:../locale
+      "@deepseek-ai/dsh-client-store":
+        specifier: workspace:*
+        version: link:../store
+      "@deepseek-ai/dsh-client-test-runtime":
+        specifier: workspace:*
+        version: link:../../test-support/client-runtime
+      "@deepseek-ai/dsh-client-ui-layout":
+        specifier: workspace:*
+        version: link:../ui-layout
+      "@deepseek-ai/dsh-client-ui-primitives":
+        specifier: workspace:*
+        version: link:../ui-primitives
+      "@deepseek-ai/dsh-client-ui-renderer":
+        specifier: workspace:*
+        version: link:../ui-renderer
+      "@deepseek-ai/dsh-client-ui-settings":
+        specifier: workspace:*
+        version: link:../ui-settings
+      "@deepseek-ai/dsh-client-ui-slots":
+        specifier: workspace:*
+        version: link:../ui-slots
+      "@testing-library/react":
+        specifier: ^16.3.3
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      "@types/react":
+        specifier: ~18.3.1
+        version: 18.3.31
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+      "@phosphor-icons/react":
+        specifier: 2.1.10
+        version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+
   .:
     devDependencies:
       '@deepseek-ai/dsh-agent':
@@ -2757,6 +2808,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-settings-models':
         specifier: workspace:*
         version: link:../../client/ui-settings-models
+      '@deepseek-ai/dsh-client-ui-settings-connectors':
+        specifier: workspace:*
+        version: link:../../client/ui-settings-connectors
       '@deepseek-ai/dsh-client-ui-settings-plugin-inventory':
         specifier: workspace:*
         version: link:../../client/ui-settings-plugin-inventory
@@ -15856,6 +15910,14 @@ importers:
 
 packages:
 
+  "@phosphor-icons/react@2.1.10":
+    resolution: {integrity: sha512-vt8Tvq8GLjheAZZYa+YG/pW7HDbov8El/MANW8pOAz4eGxrwhnbfrQZq0Cp4q8zBEu8NIhHdnr+r8thnfRSNYA==}
+    engines:
+      node: ">=10"
+    peerDependencies:
+      react: ">= 16.8"
+      react-dom: ">= 16.8"
+
   '@agentclientprotocol/sdk@1.4.0':
     resolution: {integrity: sha512-/eufudw+aFY1LKLolT6yFE6UMmYRl7fMJ/DEONSIyR6wI3slHWITBsANRGqXEY8FRzqUxwh7QEaGiZHcJPVThg==}
     peerDependencies:
@@ -23496,6 +23558,11 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  "@phosphor-icons/react@2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)":
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   '@agentclientprotocol/sdk@1.4.0(zod@4.4.3)':
     dependencies:

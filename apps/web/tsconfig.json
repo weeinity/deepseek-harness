@@ -94,6 +94,7 @@
     "tests/client-plugin-live.e2e.ts",
     "tests/draft-initialization.e2e.ts",
     "tests/settings-chrome.e2e.ts",
+    "tests/settings-connectors.e2e.ts",
     "tests/session-log-upload.e2e.ts",
     "tests/caption-overlays.e2e.ts",
     "tests/settings-appearance.e2e.ts",

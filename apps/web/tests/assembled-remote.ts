@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { ok, RemoteMock } from '@deepseek-ai/dsh-remote-mock'
+import type { TaskboardFollowFrame } from '@deepseek-ai/dsh-api-taskboard-controller/types'
 import { remoteDefaultResponses } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/remote-default-responses.ts'
 
 interface SessionSummary {
@@ -179,6 +180,22 @@ export function createAssembledRemote(options: AssembledRemoteOptions = {}): Ass
   })
   mock.stream('job/list', (_args, stream) => {
     stream.push({ type: 'rows', jobs: [] })
+  })
+  mock.stream('taskboard/follow', (_args, stream) => {
+    stream.push({
+      type: 'baseline',
+      value: {
+        tasks: [],
+        runtime: {
+          settings: { enabled: true, announceToAgent: false, preventIdleSleep: false },
+          timeZone: 'UTC',
+          power: {
+            phase: 'disabled', platform: 'test', runningSessions: 0, enabledSchedules: 0, sessionStateKnown: true,
+          },
+          scheduler: {},
+        },
+      },
+    } satisfies TaskboardFollowFrame)
   })
   mock.stream('workspace/follow', (_args, stream) => {
     stream.push({

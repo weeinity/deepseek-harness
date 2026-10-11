@@ -66,6 +66,26 @@ function metadataFixture(mode: 'native' | 'runtime') {
 }
 
 describe('PluginInventoryGateway', () => {
+  it('exposes only literal MCP identity metadata, including disabled servers', async () => {
+    const { ctx, inventory } = await harness()
+    const id = await ctx.loader.create({
+      name: '@deepseek-ai/dsh-mcp-client', disabled: true,
+      config: { serverName: 'WorkIQ', transport: 'streamable-http', url: 'https://private.invalid',
+        headers: { Authorization: 'private-token' }, env: { PRIVATE: 'secret' }, command: 'private-command' },
+    })
+    expect((await inventory.list()).entries).toEqual([{
+      entryId: id, moduleName: '@deepseek-ai/dsh-mcp-client', enabled: false, fiberPhase: null,
+      connector: { serverName: 'WorkIQ', transport: 'streamable-http' },
+    }])
+  })
+
+  it.each([undefined, null, [], { serverName: { __jsExpr: 'private' }, transport: { __jsExpr: 'private' } },
+    { serverName: 'not a valid name', transport: 'other' }])('does not evaluate or expose nonliteral MCP config (%j)', async (config) => {
+    const { ctx, inventory } = await harness()
+    const id = await ctx.loader.create({ name: '@deepseek-ai/dsh-mcp-client', disabled: true, config })
+    expect((await inventory.list()).entries[0]?.connector).toEqual({ serverName: id, transport: null })
+  })
+
   it.each(['native', 'runtime'] as const)('reads local metadata while the package entry remains disabled with %s resolution', async (mode) => {
     const { dir, baseUrl, resolution, expectUnlinked } = metadataFixture(mode)
     mkdirSync(join(dir, 'locale'), { recursive: true })

@@ -4,6 +4,7 @@
 - navigation "Global panels":
   - button "Plugins"
   - button "Automation tasks"
+  - button "Taskboard"
 - text: Workspaces
 - button "Search sessions"
 - textbox "Search session names"
@@ -15,11 +16,10 @@
 - button "Settings"
 - banner:
   - button "Open right sidebar"
-- text: Into the Unknown Preview
+- text: Label everything Preview
 - button "Choose workspace": workspace
 - button "Standard mode"
-- textbox "Describe what you want to build, / commands, @ files or sessions":
-  - paragraph
+- textbox "Describe what you want to build, / commands, @ files or sessions"
 - button "Add files or run commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write
 - button "Select model, current DeepSeek-V4-Flash": DeepSeek-V4-Flash

@@ -67,6 +67,8 @@ In pointer modality, `html[data-input-modality='pointer'] body :focus-visible:no
 
 Menu icons use `--dsw-alias-menu-icon`: neutral-bluish 800 in light mode and `label-primary-dimmed` in dark mode.
 
+Connector identity tiles use the `--dsw-alias-connector-*` palette. Named service colors remain constant across themes and enablement states; neutral initials use theme-specific background, border, and label aliases.
+
 `base.css` suppresses only the outline of focused elements marked `data-dsh-automatic-focus` by the [primitive focus helper](../ui-primitives/README.md); ordinary keyboard focus styling, borders, shadows, and error states remain intact.
 
 System toasts use `--dsw-alias-toast-bg` and `--dsw-alias-toast-label` for a shared background and text color across callers. Document previews pair `--dsw-alias-bg-document-preview` with `--dsw-alias-label-document-preview` so the backdrop and status text follow the same theme. Tooltip keycaps use `--dsw-alias-tooltip-key-bg`, a lighter fill derived from the tooltip background in each palette. Switch thumbs read `--dsw-alias-switch-thumb`: white in light mode and neutral-bluish 400 in dark mode, so an off switch stays lighter than its track without the glare of pure white.

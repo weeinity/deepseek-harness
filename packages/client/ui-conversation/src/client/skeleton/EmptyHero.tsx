@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
-  FISH_LOGO_PATH, FISH_LOGO_VIEWBOX, IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
+  FISH_LOGO_PATH, FISH_LOGO_VIEWBOX, IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular, MipAutolabelingMark,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConversationContentProps } from '../contract/slots.ts'
@@ -146,7 +146,9 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
             onMouseLeave={() => { setHovering(false) }}
           >
             {renderSlot('conversation.hero.brand.mark', { size: 34, className: css.fish }, {
-              fallback: <HeroFish hovering={hovering} />,
+              fallback: process.env.DSH_CLIENT_BUILD_PROFILE === 'official'
+                ? <HeroFish hovering={hovering} />
+                : <MipAutolabelingMark size={34} className={css.fish} />,
             })}
           </span>
           <span className={css.titleGroup}>

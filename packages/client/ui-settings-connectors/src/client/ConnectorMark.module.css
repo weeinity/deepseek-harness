@@ -1,0 +1,47 @@
+.tile {
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--dsw-alias-connector-neutral-bg);
+  color: var(--dsw-alias-connector-glyph);
+}
+
+.tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 var(--dsw-alias-connector-highlight);
+  pointer-events: none;
+}
+
+.tile[data-connector-mark="workiq"] { background: var(--dsw-alias-connector-workiq); }
+.tile[data-connector-mark="reference_memory"] { background: var(--dsw-alias-connector-reference-memory); }
+.tile[data-connector-mark="exa"] { background: var(--dsw-alias-connector-exa); }
+.tile[data-connector-mark="bluebird"] { background: var(--dsw-alias-connector-bluebird); }
+
+.tile[data-connector-mark="monogram"],
+.tile[data-connector-mark="unnamed"] {
+  border: 0.5px solid var(--dsw-alias-connector-neutral-border);
+  color: var(--dsw-alias-connector-neutral-label);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.tile[data-connector-mark="unnamed"] {
+  border-style: dashed;
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: contain;
+}

@@ -99,6 +99,7 @@
     "@deepseek-ai/dsh-client-ui-settings-general": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-models": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-plugin-inventory": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-settings-connectors": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-plugins": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-shell": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-agent-loop": "workspace:*",
