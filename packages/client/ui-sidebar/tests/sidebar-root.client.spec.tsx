@@ -149,14 +149,14 @@ describe('SidebarRoot shell', () => {
     />)
 
     expect(screen.getByText('MIP Autolabeling')).toBeTruthy()
-    expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
+    expect(screen.queryByText('1.2.3-rc.4-0123456-dirty')).toBeNull()
     expect(container.querySelector('svg[data-brand="mip-autolabeling"]')).not.toBeNull()
   })
 
   it.each([
     [{ DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3'],
     [{ DSH_CLIENT_COMMIT_HASH: 'abcdef0', DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3-abcdef0'],
-  ])('omits unavailable build-version suffixes from %j', (environment, expected) => {
+  ])('keeps build metadata out of the brand row for %j', (environment, expected) => {
     for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value)
     render(<SidebarRoot
       collapsed={false} width={300}
@@ -169,7 +169,7 @@ describe('SidebarRoot shell', () => {
     />)
 
     expect(screen.getByText('MIP Autolabeling')).toBeTruthy()
-    expect(screen.getByText(expected)).toBeTruthy()
+    expect(screen.queryByText(expected)).toBeNull()
   })
 
   it('retains the local-build fallback without complete build metadata', () => {

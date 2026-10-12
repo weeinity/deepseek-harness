@@ -123,7 +123,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
               <svg
                 aria-hidden="true"
                 data-brand="mip-autolabeling"
-                data-content="597640db"
+                data-content="abc2f626"
                 fill="none"
                 focusable="false"
                 height="24"
@@ -140,18 +140,9 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
               style="display: contents;"
             >
               <span
-                class="localBuildBrand"
+                class="fallbackBrandName"
               >
-                <span
-                  class="localBuildTitle"
-                >
-                  MIP Autolabeling
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
+                MIP Autolabeling
               </span>
             </div>
           </span>
@@ -265,7 +256,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
             <svg
               aria-hidden="true"
               data-brand="mip-autolabeling"
-              data-content="597640db"
+              data-content="abc2f626"
               fill="none"
               focusable="false"
               height="24"
@@ -379,7 +370,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
               <svg
                 aria-hidden="true"
                 data-brand="mip-autolabeling"
-                data-content="597640db"
+                data-content="abc2f626"
                 fill="none"
                 focusable="false"
                 height="24"
@@ -396,18 +387,9 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
               style="display: contents;"
             >
               <span
-                class="localBuildBrand"
+                class="fallbackBrandName"
               >
-                <span
-                  class="localBuildTitle"
-                >
-                  MIP Autolabeling
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
+                MIP Autolabeling
               </span>
             </div>
           </span>
@@ -524,7 +506,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
               <svg
                 aria-hidden="true"
                 data-brand="mip-autolabeling"
-                data-content="597640db"
+                data-content="abc2f626"
                 fill="none"
                 focusable="false"
                 height="24"
@@ -541,18 +523,9 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
               style="display: contents;"
             >
               <span
-                class="localBuildBrand"
+                class="fallbackBrandName"
               >
-                <span
-                  class="localBuildTitle"
-                >
-                  MIP Autolabeling
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
+                MIP Autolabeling
               </span>
             </div>
           </span>
