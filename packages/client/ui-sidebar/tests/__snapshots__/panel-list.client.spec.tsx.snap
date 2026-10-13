@@ -1,0 +1,549 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`sidebar global panels > folds extension entries without changing the selected panel or hiding Taskboard > expanded Extensions 1`] = `
+<nav
+  aria-label="Global panels"
+  class="panelList"
+>
+  <button
+    aria-controls=":r0:"
+    aria-expanded="true"
+    class="panelRow wide"
+    type="button"
+  >
+    <span
+      aria-hidden="true"
+      class="panelGlyph"
+    >
+      <svg
+        data-content="672e8be0"
+        fill="none"
+        height="16"
+        stroke="currentColor"
+        stroke-linecap="square"
+        stroke-linejoin="miter"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="16"
+        xmlns="http://www.w3.org/2000/svg"
+      />
+    </span>
+    <span
+      class="panelTitle"
+    >
+      Extensions
+    </span>
+    <span
+      aria-hidden="true"
+      class="extensionsChevron"
+    >
+      <svg
+        aria-hidden="true"
+        data-content="2b5d7fd1"
+        fill="none"
+        height="14"
+        stroke-width="1"
+        viewBox="0 0 16 16"
+        width="14"
+        xmlns="http://www.w3.org/2000/svg"
+      />
+    </span>
+  </button>
+  <div
+    class="extensionPanels wide"
+    id=":r0:"
+  >
+    <button
+      aria-label="Plugins"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="plugins-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Plugins
+      </span>
+    </button>
+    <button
+      aria-label="Automation tasks"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="schedules-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Automation tasks
+      </span>
+    </button>
+    <button
+      aria-label="Skill Center"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="skill-explorer-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Skill Center
+      </span>
+    </button>
+    <button
+      aria-label="Dashboard"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="dashboard-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Dashboard
+      </span>
+    </button>
+    <button
+      aria-label="MoYu"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="stocks-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        MoYu
+      </span>
+    </button>
+  </div>
+  <button
+    aria-label="Taskboard"
+    class="panelRow"
+    type="button"
+  >
+    <span
+      aria-hidden="true"
+      class="panelGlyph"
+    >
+      <div
+        data-slot="sidebar.panellist"
+        style="display: contents;"
+      >
+        <span
+          data-active="false"
+          data-testid="taskboard-icon"
+        >
+          <svg
+            aria-hidden="true"
+            data-content="bb724783"
+            fill="none"
+            height="16"
+            stroke-width="1"
+            viewBox="0 0 16 16"
+            width="16"
+            xmlns="http://www.w3.org/2000/svg"
+          />
+        </span>
+      </div>
+    </span>
+    <span
+      class="panelTitle wide"
+    >
+      Taskboard
+    </span>
+  </button>
+</nav>
+`;
+
+exports[`sidebar global panels > folds extension entries without changing the selected panel or hiding Taskboard > folded Extensions 1`] = `
+<nav
+  aria-label="Global panels"
+  class="panelList"
+>
+  <button
+    aria-controls=":r0:"
+    aria-expanded="false"
+    class="panelRow wide"
+    type="button"
+  >
+    <span
+      aria-hidden="true"
+      class="panelGlyph"
+    >
+      <svg
+        data-content="672e8be0"
+        fill="none"
+        height="16"
+        stroke="currentColor"
+        stroke-linecap="square"
+        stroke-linejoin="miter"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        width="16"
+        xmlns="http://www.w3.org/2000/svg"
+      />
+    </span>
+    <span
+      class="panelTitle"
+    >
+      Extensions
+    </span>
+    <span
+      aria-hidden="true"
+      class="extensionsChevron"
+    >
+      <svg
+        aria-hidden="true"
+        data-content="199019d7"
+        fill="none"
+        height="14"
+        stroke-width="1"
+        viewBox="0 0 16 16"
+        width="14"
+        xmlns="http://www.w3.org/2000/svg"
+      />
+    </span>
+  </button>
+  <div
+    class="extensionPanels wide"
+    hidden=""
+    id=":r0:"
+  >
+    <button
+      aria-current="page"
+      aria-label="Plugins"
+      class="panelRow panelActive"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="true"
+            data-testid="plugins-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Plugins
+      </span>
+    </button>
+    <button
+      aria-label="Automation tasks"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="schedules-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Automation tasks
+      </span>
+    </button>
+    <button
+      aria-label="Skill Center"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="skill-explorer-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Skill Center
+      </span>
+    </button>
+    <button
+      aria-label="Dashboard"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="dashboard-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        Dashboard
+      </span>
+    </button>
+    <button
+      aria-label="MoYu"
+      class="panelRow"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="panelGlyph"
+      >
+        <div
+          data-slot="sidebar.panellist"
+          style="display: contents;"
+        >
+          <span
+            data-active="false"
+            data-testid="stocks-icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="bb724783"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+        </div>
+      </span>
+      <span
+        class="panelTitle wide"
+      >
+        MoYu
+      </span>
+    </button>
+  </div>
+  <button
+    aria-label="Taskboard"
+    class="panelRow"
+    type="button"
+  >
+    <span
+      aria-hidden="true"
+      class="panelGlyph"
+    >
+      <div
+        data-slot="sidebar.panellist"
+        style="display: contents;"
+      >
+        <span
+          data-active="false"
+          data-testid="taskboard-icon"
+        >
+          <svg
+            aria-hidden="true"
+            data-content="bb724783"
+            fill="none"
+            height="16"
+            stroke-width="1"
+            viewBox="0 0 16 16"
+            width="16"
+            xmlns="http://www.w3.org/2000/svg"
+          />
+        </span>
+      </div>
+    </span>
+    <span
+      class="panelTitle wide"
+    >
+      Taskboard
+    </span>
+  </button>
+</nav>
+`;

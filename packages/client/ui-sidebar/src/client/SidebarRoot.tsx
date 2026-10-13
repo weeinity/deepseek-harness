@@ -16,10 +16,11 @@
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   MipAutolabelingMark, IconNewChatOutlineMedium, IconNewChatOutlineRegular, IconPanelLeftOutlineRegular,
+  IconChevronDownOutlineRegular, IconChevronRightOutlineRegular,
   isDarwinDesktop, ShortcutKeys, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -30,6 +31,9 @@ import css from './SidebarRoot.module.css'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
+
+/** Panel ids grouped under Extensions; labels remain owned by their plugins. */
+const EXTENSION_PANEL_IDS = new Set(['plugins', 'schedules', 'skill-explorer', 'dashboard', 'stocks'])
 
 /**
  * How long the column's scrollbars stay drawn after the pointer leaves it.
@@ -89,6 +93,10 @@ export function SidebarRoot({
   renderSlot,
 }: SidebarRootComponentProps) {
   const panels = usePanels(snapshot => snapshot)
+  const extensionPanels = panels.filter(panel => EXTENSION_PANEL_IDS.has(panel.id))
+  const standalonePanels = panels.filter(panel => !EXTENSION_PANEL_IDS.has(panel.id))
+  const [extensionsExpanded, setExtensionsExpanded] = useState(true)
+  const extensionsId = useId()
   const shortcut = useShortcuts(rows => rows.find(row => row.id === 'sidebar.left.toggle'))
   const newShortcut = useShortcuts(rows => rows.find(row => row.id === 'session.new'))
   const toggleLabel = collapsed ? t('toggle.open') : t('toggle.collapse')
@@ -260,16 +268,40 @@ export function SidebarRoot({
 
       {panels.length > 0 && (
         <nav className={css.panelList} aria-label={t('panels.label')}>
-          {panels.map(({ id, label }) => (
-            <PanelRow
-              key={id}
-              id={id}
-              label={label}
-              wide={wide}
-              usePanelInfo={usePanelInfo}
-              selectPanel={selectPanel}
-              renderSlot={renderSlot}
-            />
+          {wide && extensionPanels.length > 0 && (
+            <>
+              <button
+                type="button"
+                className={clsx(css.panelRow, css.wide)}
+                aria-expanded={extensionsExpanded}
+                aria-controls={extensionsId}
+                onClick={() => { setExtensionsExpanded(expanded => !expanded) }}
+              >
+                <span className={css.panelGlyph} aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={16} height={16}
+                    fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="square" strokeLinejoin="miter">
+                    <rect x={13} y={3} width={8} height={8} />
+                    <rect x={3} y={8} width={8} height={8} />
+                    <rect x={3} y={16} width={8} height={8} />
+                    <rect x={11} y={16} width={8} height={8} />
+                  </svg>
+                </span>
+                <span className={css.panelTitle}>{t('extensions.label')}</span>
+                <span className={css.extensionsChevron} aria-hidden="true">
+                  {extensionsExpanded ? <IconChevronDownOutlineRegular size={14} /> : <IconChevronRightOutlineRegular size={14} />}
+                </span>
+              </button>
+              <div id={extensionsId} className={clsx(css.extensionPanels, css.wide)} hidden={!extensionsExpanded}>
+                {extensionPanels.map(({ id, label }) => (
+                  <PanelRow key={id} id={id} label={label} wide={wide}
+                    usePanelInfo={usePanelInfo} selectPanel={selectPanel} renderSlot={renderSlot} />
+                ))}
+              </div>
+            </>
+          )}
+          {(wide ? standalonePanels : panels).map(({ id, label }) => (
+            <PanelRow key={id} id={id} label={label} wide={wide}
+              usePanelInfo={usePanelInfo} selectPanel={selectPanel} renderSlot={renderSlot} />
           ))}
         </nav>
       )}

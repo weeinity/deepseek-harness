@@ -35,6 +35,8 @@ dsh Web 客户端的侧边栏让用户识别应用、启动新会话、将导航
 
 ### 全局面板入口
 
+展开的侧栏将 Plugins、Automation tasks、Skill Center、Dashboard 和 MoYu 归入“扩展”。点击“扩展”行可折叠或展开缩进的入口，不改变当前显示的面板。分组默认展开；Taskboard 和其他面板入口保留在分组之外。收起的侧栏轨道仍通过各面板图标提供直接入口。
+
 插件在 root 作用域的 `sidebar.panellist` list 中注册图标组件，提供 `id`、可选 `order`，以及字符串或 locale-aware 的 `label`。同一个 id 寻址布局中 root 作用域 `main` keyed slot 的组件；选择不存在的主面板条目会抛错，并保留当前选中态。标签提供普通可见文字、无障碍名称和折叠提示。每一行通过 `usePanelInfo` 读取自己的选中态；DOM 焦点移到搜索框或目录选择器时，显示的面板及其列表项选中态不变。没有注册项时，列表及其间距均不渲染。产品随附的组合不注册示例面板。
 
 ### 折叠行为

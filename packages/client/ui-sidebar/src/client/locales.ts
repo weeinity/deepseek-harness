@@ -8,6 +8,7 @@ export const zh = {
   'toggle.open': '打开侧边栏',
   'toggle.collapse': '收起侧边栏',
   'panels.label': '全局面板',
+  'extensions.label': '扩展',
 } satisfies Record<string, string>
 
 /** The sidebar namespace key union. */
@@ -21,4 +22,5 @@ export const en = {
   'toggle.open': 'Open sidebar',
   'toggle.collapse': 'Collapse sidebar',
   'panels.label': 'Global panels',
+  'extensions.label': 'Extensions',
 } satisfies Record<SidebarKey, string>

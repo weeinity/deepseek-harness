@@ -488,6 +488,21 @@
   outline-offset: -2px;
 }
 
+.extensionPanels:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 18px;
+  padding-left: 6px;
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.extensionsChevron {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+}
+
 .panelGlyph {
   flex: none;
   display: inline-flex;

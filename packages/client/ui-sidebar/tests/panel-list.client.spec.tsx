@@ -121,6 +121,43 @@ async function mountPanels(runtime: SlotTestRuntime, locale: LocaleRuntime, beta
 }
 
 describe('sidebar global panels', () => {
+  it('folds extension entries without changing the selected panel or hiding Taskboard', async () => {
+    const { runtime, locale, layout, view } = await bench()
+    for (const [id, label] of [
+      ['plugins', 'Plugins'], ['schedules', 'Automation tasks'], ['skill-explorer', 'Skill Center'],
+      ['dashboard', 'Dashboard'], ['stocks', 'MoYu'], ['taskboard', 'Taskboard'],
+    ] as const) await mountPanel(runtime, { id: id as MainPanelId, heading: label + ' content', label })
+    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
+    const toggle = within(navigation).getByRole('button', { name: 'Extensions' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(navigation).toMatchSnapshot('expanded Extensions')
+    const children = document.getElementById(toggle.getAttribute('aria-controls')!)!
+    expect(within(children).getAllByRole('button').map(row => row.textContent)).toEqual([
+      'Plugins', 'Automation tasks', 'Skill Center', 'Dashboard', 'MoYu',
+    ])
+    fireEvent.click(within(children).getByRole('button', { name: 'Plugins' }))
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(within(navigation).queryByRole('button', { name: 'Plugins' })).toBeNull()
+    expect(within(navigation).getByRole('button', { name: 'Taskboard' })).toBeTruthy()
+    expect(view.getByRole('heading', { name: 'Plugins content' })).toBeTruthy()
+    expect(layout.selectPanel).toHaveBeenCalledExactlyOnceWith('plugins')
+    expect(navigation).toMatchSnapshot('folded Extensions')
+    act(() => { locale.setLocale('zh') })
+    expect(within(navigation).getByRole('button', { name: '扩展' }).getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(within(navigation).getByRole('button', { name: '扩展' }))
+    expect(within(children).getByRole('button', { name: 'Plugins' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('keeps extension icons directly accessible in the collapsed sidebar rail', async () => {
+    const { runtime, view } = await bench(true)
+    await mountPanel(runtime, { id: 'plugins' as MainPanelId, heading: 'Plugins content', label: 'Plugins' })
+    const row = await view.findByRole('button', { name: 'Plugins' })
+    expect(view.queryByRole('button', { name: 'Extensions' })).toBeNull()
+    fireEvent.click(row)
+    expect(view.getByRole('heading', { name: 'Plugins content' })).toBeTruthy()
+  })
+
   it('adds late registrations, removes each plugin contribution, and leaves no empty panel-list DOM', async () => {
     const { runtime, locale, view } = await bench()
     expect(runtime.slots.entries('sidebar.panellist')).toEqual([])
