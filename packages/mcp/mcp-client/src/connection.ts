@@ -15,7 +15,7 @@
  * @module
  */
 
-import { Client, type Transport } from '@modelcontextprotocol/client'
+import { Client, ProtocolError, SdkHttpError, type Transport } from '@modelcontextprotocol/client'
 import type { Context } from '@deepseek-ai/cordis'
 import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ServerContext } from './server-context.ts'
@@ -131,6 +131,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     registrationFailure: 'contain',
     serverName: config.serverName,
     toolCallTimeoutMs: config.toolCallTimeoutMs,
+    prepareCall,
   }
   // The initial sync uses 'throw' when failOnStartupError is configured, so
   // a registration conflict propagates to the startup-await path. Re-syncs
@@ -155,6 +156,83 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   let connectedAt: number | undefined
   /** The real error from the first connection attempt, for startup-await diagnostics. */
   let firstAttemptError: unknown
+
+  /** One session replacement shared by callers; disposal joins it. */
+  let sessionRecovery: Promise<void> | undefined
+
+  async function recoverSession(generation: Client): Promise<void> {
+    if (!isCurrent(generation)) return
+    const close = closeClient
+    if (close === undefined) return
+    client = undefined
+    closeClient = undefined
+    ctx.logger.warn(`${label}: MCP session expired; reconnecting before tool dispatch`)
+    if (!await close()) {
+      connectedAt = undefined
+      ctx.logger.error(`${label}: expired-session transport closure could not be confirmed — no tool was submitted; reload the connector or restart the Host`)
+      return
+    }
+    if (disposed) return
+    if (connectedAt !== undefined && Date.now() - connectedAt >= policy.maxDelayMs) failedAttempts = 0
+    connectedAt = undefined
+    settling = connectGeneration(false)
+    await settling
+  }
+
+  function liveClient(): Client {
+    if (client === undefined || connectedAt === undefined) throw new Error(`${label}: server is disconnected`)
+    return client
+  }
+
+  async function prepareCall(signal: AbortSignal): Promise<Client> {
+    signal.throwIfAborted()
+    if (sessionRecovery !== undefined) await waitForRecovery(sessionRecovery, signal)
+    let generation = liveClient()
+    if (generation.getDiscoverResult() !== undefined) return generation
+    try {
+      await generation.ping({ signal, timeout: config.toolCallTimeoutMs })
+    } catch (error) {
+      signal.throwIfAborted()
+      // Some legacy servers omit ping; do not replace an otherwise live connection.
+      if (error instanceof ProtocolError && error.code === -32601) {
+        if (!isCurrent(generation)) throw error
+        return generation
+      }
+      const expired = error instanceof ProtocolError && error.code === -32001
+        || config.transport === 'streamable-http' && error instanceof SdkHttpError && error.status === 404
+      if (!expired || !policy.enabled) throw error
+      if (sessionRecovery === undefined) {
+        const recovery = recoverSession(generation)
+        sessionRecovery = recovery
+        void recovery.finally(() => {
+          if (sessionRecovery === recovery) sessionRecovery = undefined
+        }).catch((recoveryError: unknown) => {
+          ctx.logger.error(`${label}: session recovery failed: ${String(recoveryError)}`)
+        })
+      }
+      await waitForRecovery(sessionRecovery, signal)
+      generation = liveClient()
+      if (generation.getDiscoverResult() === undefined) await generation.ping({ signal, timeout: config.toolCallTimeoutMs })
+    }
+    signal.throwIfAborted()
+    if (!isCurrent(generation)) throw new Error(`${label}: server is disconnected`)
+    return generation
+  }
+
+  function waitForRecovery(recovery: Promise<void>, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const aborted = () => { reject(signal.reason instanceof Error ? signal.reason : new Error('MCP call cancelled')) }
+      signal.addEventListener('abort', aborted, { once: true })
+      void recovery.then(
+        () => { signal.removeEventListener('abort', aborted); resolve() },
+        (error: unknown) => {
+          signal.removeEventListener('abort', aborted)
+          reject(error instanceof Error ? error : new Error('MCP session recovery failed', { cause: error }))
+        },
+      )
+      if (signal.aborted) aborted()
+    })
+  }
 
   /** A generation may act only while it is the current one on a live plugin. */
   const isCurrent = (generation: Client): boolean => !disposed && client === generation
@@ -365,8 +443,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     instructions: () => serverInstructions,
     resources: {
       async request(request, exec): Promise<JsonValue> {
-        const generation = client
-        if (!generation || connectedAt === undefined) throw new Error(`${label}: server is disconnected`)
+        const generation = await prepareCall(exec.signal)
         const options = { signal: exec.signal, timeout: config.toolCallTimeoutMs }
         switch (request.method) {
           case 'resources/list':
@@ -400,6 +477,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       }
       // Quiesce, don't just request it: the in-flight attempt enqueues its
       // sync before settling, so awaiting both leaves `disposers` final.
+      await sessionRecovery
       await settling
       await syncChain
       for (const dispose of disposers.values()) dispose()

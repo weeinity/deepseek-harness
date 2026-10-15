@@ -30,6 +30,8 @@ export interface ToolBridgeOptions {
   registrationFailure: 'contain' | 'throw'
   serverName: string
   toolCallTimeoutMs: number
+  /** Validate a connection before dispatch; submitted tool calls are never replayed. */
+  prepareCall?: (signal: AbortSignal) => Promise<Client>
 }
 
 /** State for one sync generation: the current set of disposers keyed by public name. */
@@ -135,10 +137,14 @@ export async function syncTools(
       inputSchema: tool.inputSchema,
       outputSchema: tool.outputSchema,
       taskRequired: tool.execution?.taskSupport === 'required',
-      call: (args, execution) => client.callTool(
-        { name: tool.name, arguments: args },
-        { signal: execution.signal, timeout: opts.toolCallTimeoutMs, toolDefinition: tool },
-      ),
+      call: async (args, execution) => {
+        const live = opts.prepareCall === undefined ? client : await opts.prepareCall(execution.signal)
+        execution.signal.throwIfAborted()
+        return live.callTool(
+          { name: tool.name, arguments: args },
+          { signal: execution.signal, timeout: opts.toolCallTimeoutMs, toolDefinition: tool },
+        )
+      },
     }))
   }
 

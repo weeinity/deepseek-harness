@@ -27,11 +27,13 @@ const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotification
     connect = mockConnect
     close = mockClose
     listTools = mockListTools
+    ping = async () => ({})
     callTool = mockCallTool
     constructor(_info: unknown, options: { listChanged: { tools: { onChanged: () => void } } }) {
       mockSetNotificationHandler('notifications/tools/list_changed', options.listChanged.tools.onChanged)
     }
     getServerCapabilities = () => ({ tools: {} })
+    getDiscoverResult = () => undefined
     getInstructions(): string | undefined { return undefined }
   }
   return { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotificationHandler, MockClient }

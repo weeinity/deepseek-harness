@@ -1323,6 +1323,9 @@ describe('headless recorded-session snapshots', () => {
             if (scenario.name === 'session-query-spill') {
               await verifySessionQuerySpill(actualLogs[0]!.content, spillRoot, locatorRoot)
             }
+            if (scenario.name === 'mcp-resources') {
+              expect(await readFile(join(cwd, '.dsh/mcp-expired-once'), 'utf8')).toBe('')
+            }
             if (scenario.name === 'mcp-resources' || scenario.name === 'mcp-resources-ptc') {
               verifyMcpResources(actualLogs[0]!.content, scenario.name === 'mcp-resources-ptc')
             }

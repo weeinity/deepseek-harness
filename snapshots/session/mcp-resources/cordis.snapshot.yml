@@ -23,6 +23,8 @@
         serverName: catalog
         command: !!js process.execPath
         args: !!js '[process.env.DSH_MCP_RESOURCES_FIXTURE]'
+        env:
+          DSH_MCP_EXPIRE_ONCE: '1'
         failOnStartupError: true
         reconnect:
-          enabled: false
+          enabled: true

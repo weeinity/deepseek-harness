@@ -6,6 +6,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { ProtocolError } from '@modelcontextprotocol/client'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import McpResources from '@deepseek-ai/dsh-mcp-resources'
@@ -30,9 +31,11 @@ const { mockConnect, mockClose, mockListTools, mockCallTool, mockSetNotification
     connect = mockConnect
     close = mockClose
     getServerCapabilities = () => ({ tools: {} })
+    getDiscoverResult = () => undefined
     getInstructions(): string | undefined { return undefined }
     listResources = async () => ({ resources: [] })
     listTools = mockListTools
+    ping = vi.fn<() => Promise<object>>().mockResolvedValue({})
     callTool = mockCallTool
     constructor(_info: unknown, options: { listChanged: { tools: { onChanged: () => void } } }) {
       instances.push(this)
@@ -132,6 +135,153 @@ describe('reconnect supervisor', () => {
     mockListTools.mockResolvedValue(listing('remote'))
     mockCallTool.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
     ctx = await mountRegistry()
+  })
+
+  it('reinitializes an expired proxy session before submitting a tool', async () => {
+    const config = stdioConfig()
+    const handle = startConnection(ctx, config, resolveReconnectPolicy(config.reconnect, 'reconnect'))
+    try {
+      await handle.ready
+      instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
+      const result = await ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
+      })
+      expect(result.isError).toBe(false)
+      expect(instances).toHaveLength(2)
+      expect(mockClose).toHaveBeenCalledTimes(1)
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
+      expect(instances[1]!.ping).toHaveBeenCalledTimes(1)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('shares one reconnection across simultaneous expired-session checks', async () => {
+    const config = stdioConfig()
+    const handle = startConnection(ctx, config, resolveReconnectPolicy(config.reconnect, 'reconnect'))
+    const gate: PromiseWithResolvers<void> = Promise.withResolvers()
+    try {
+      await handle.ready
+      instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
+      mockConnect.mockImplementationOnce(() => gate.promise)
+      const calls = [1, 2].map(() => ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
+      }))
+      await vi.waitFor(() => { expect(instances).toHaveLength(2) })
+      expect(mockCallTool).not.toHaveBeenCalled()
+      gate.resolve()
+      expect((await Promise.all(calls)).every(result => !result.isError)).toBe(true)
+      expect(mockConnect).toHaveBeenCalledTimes(2)
+      expect(mockCallTool).toHaveBeenCalledTimes(2)
+    } finally {
+      gate.resolve()
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it.each([-32603])('does not reconnect for unrelated ping error %s', async (code) => {
+    const handle = startConnection(ctx, stdioConfig(), resolveReconnectPolicy(undefined, 'reconnect'))
+    try {
+      await handle.ready
+      instances[0]!.ping.mockRejectedValue(new ProtocolError(code, 'Not a session error'))
+      const result = await ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
+      })
+      expect(result.isError).toBe(true)
+      expect(mockCallTool).not.toHaveBeenCalled()
+      expect(mockConnect).toHaveBeenCalledTimes(1)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('honors disabled recovery when a session expires', async () => {
+    const handle = startConnection(ctx, stdioConfig(), resolveReconnectPolicy({ enabled: false }, 'reconnect'))
+    try {
+      await handle.ready
+      instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
+      const result = await ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
+      })
+      expect(result.isError).toBe(true)
+      expect(mockCallTool).not.toHaveBeenCalled()
+      expect(mockConnect).toHaveBeenCalledTimes(1)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('cancels one waiting call without cancelling shared session recovery', async () => {
+    const handle = startConnection(ctx, stdioConfig(), resolveReconnectPolicy(undefined, 'reconnect'))
+    const gate: PromiseWithResolvers<void> = Promise.withResolvers()
+    const cancelled = new AbortController()
+    try {
+      await handle.ready
+      instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
+      mockConnect.mockImplementationOnce(() => gate.promise)
+      const call = ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: cancelled.signal,
+      })
+      await vi.waitFor(() => { expect(instances).toHaveLength(2) })
+      cancelled.abort(new Error('cancelled by caller'))
+      expect((await call).isError).toBe(true)
+      expect(mockCallTool).not.toHaveBeenCalled()
+      gate.resolve()
+      const next = await ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
+      })
+      expect(next.isError).toBe(false)
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
+    } finally {
+      gate.resolve()
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('disposes during session recovery without submitting the waiting tool', async () => {
+    const handle = startConnection(ctx, stdioConfig(), resolveReconnectPolicy(undefined, 'reconnect'))
+    const gate: PromiseWithResolvers<void> = Promise.withResolvers()
+    try {
+      await handle.ready
+      instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
+      mockConnect.mockImplementationOnce(() => gate.promise)
+      const call = ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
+      })
+      await vi.waitFor(() => { expect(instances).toHaveLength(2) })
+      const disposing = handle.dispose()
+      gate.resolve()
+      await disposing
+      expect((await call).isError).toBe(true)
+      expect(mockCallTool).not.toHaveBeenCalled()
+      expect(ctx.tools.schemas()).toEqual([])
+    } finally {
+      gate.resolve()
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('does not replay a tool that fails after submission', async () => {
+    const handle = startConnection(ctx, stdioConfig(), resolveReconnectPolicy(undefined, 'reconnect'))
+    try {
+      await handle.ready
+      mockCallTool.mockRejectedValueOnce(new ProtocolError(-32001, 'Session not found'))
+      const result = await ctx.tools.execute({
+        name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
+      })
+      expect(result.isError).toBe(true)
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
+      expect(mockConnect).toHaveBeenCalledTimes(1)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
   })
 
   it('keeps instructions withdrawn when disposal interrupts initial discovery', async () => {

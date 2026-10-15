@@ -86,6 +86,8 @@ When the model calls an MCP tool, the call runs against the remote server with a
 
 Images are supported when the current model accepts image input and the harness attachment feature is enabled; they then appear in the conversation like other images. Otherwise — and for audio or embedded resources — the model sees a clear diagnostic message instead of nothing.
 
+Legacy session-based connections check `ping` before each tool or resource request. An expired-session response triggers one shared close/reinitialize/discovery operation before dispatch, when reconnection is enabled. Concurrent callers share recovery; cancelling a caller prevents its pending dispatch without cancelling recovery for others. Modern connections omit this legacy check. A failed preflight submits no tool, and a tool failure after dispatch is never automatically replayed because its effects may be unknown.
+
 ### Startup, updates, and reconnection
 
 The server's tools appear before the harness starts its first turn. When the server changes its tool list, the model's tool set updates automatically; if the update fails, the previous tool set keeps working.
