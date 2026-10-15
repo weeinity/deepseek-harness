@@ -9,6 +9,12 @@ export const zh = {
   'toggle.collapse': '收起侧边栏',
   'panels.label': '全局面板',
   'extensions.label': '扩展',
+  'cat.sleeping': '小猫休息中',
+  'cat.working': '小猫工作中',
+  'cat.active': '小猫提醒：会话已完成',
+  'cat.preview.start': '播放小猫动画',
+  'cat.preview.stop': '停止小猫动画预览',
+  'cat.previewing': '小猫招手中',
 } satisfies Record<string, string>
 
 /** The sidebar namespace key union. */
@@ -23,4 +29,10 @@ export const en = {
   'toggle.collapse': 'Collapse sidebar',
   'panels.label': 'Global panels',
   'extensions.label': 'Extensions',
+  'cat.sleeping': 'Cat sleeping',
+  'cat.working': 'Cat working',
+  'cat.active': 'Cat active: session completed',
+  'cat.preview.start': 'Play cat animation',
+  'cat.preview.stop': 'Stop cat animation preview',
+  'cat.previewing': 'Cat waving',
 } satisfies Record<SidebarKey, string>

@@ -28,6 +28,7 @@ import type {
   SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps,
 } from './contract/slots.ts'
 import css from './SidebarRoot.module.css'
+import { BrandCat } from './BrandCat.tsx'
 
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
@@ -89,6 +90,7 @@ export function SidebarRoot({
   usePanels,
   useShortcuts,
   usePanelInfo,
+  useSessionStatus,
   t,
   renderSlot,
 }: SidebarRootComponentProps) {
@@ -242,6 +244,7 @@ export function SidebarRoot({
               </button>
             )
         })()}
+        <BrandCat useSessionStatus={useSessionStatus} t={t} wide={wide} />
         {!darwinDesktop && toggle}
       </div>
 

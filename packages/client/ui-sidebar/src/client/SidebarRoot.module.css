@@ -244,7 +244,7 @@
    emphasis only). A button only in behavior (New Session shortcut): the
    pointer cursor is the sole affordance — no hover chrome on the mark. */
 .brand {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   display: inline-flex;
   align-items: center;
@@ -264,6 +264,30 @@
 
 /* Mark and name are independent slots; the shell owns their shared baseline,
    spacing, and height so either occupant can vary in width. */
+.brandCat {
+  flex: none;
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.brandCat:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 0;
+}
+
+.brandCat img {
+  display: block;
+  object-fit: contain;
+}
+
+.brandCat[hidden] {
+  display: none;
+}
+
 .brandIdentity {
   display: inline-flex;
   align-items: center;

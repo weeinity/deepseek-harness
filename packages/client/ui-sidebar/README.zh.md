@@ -31,7 +31,7 @@ dsh Web 客户端的侧边栏让用户识别应用、启动新会话、将导航
 
 ### 品牌与 New Session
 
-展开的品牌行把 `sidebar.brand.mark` 与 `sidebar.brand.name` 渲染为两个独立的 single slot；收起轨道则渲染同一个 mark slot。在 Web 和 Windows 桌面端，点击展开态的品牌会新建会话，悬停或聚焦时不显示 tooltip。没有占位者时，外壳使用 MIP Autolabeling 已应用标签标志和产品名称 MIP Autolabeling。品牌行只显示产品名称和标志，不显示版本徽标。New Session 优先使用作用域操作明确指定的 Workspace，否则使用当前 Session 所属 Workspace，再否则使用最近活跃 Workspace；一个 Workspace 都没有时则清空选择，进入空白 New Session 页面。 展开态的新建会话按钮在悬停或键盘聚焦时于右侧以灰色文字显示当前有效绑定。快捷键可见且空间较窄时，居中的图标与文字在快捷键之前渐隐；CSS 为快捷键保留宽度，无需测量按钮。纯图标控件保留使用平台键位样式的 tooltip，侧栏隐藏时常驻的 macOS 头部控件也保持一致。所有控件均提供 `aria-keyshortcuts`。
+展开的品牌行把 `sidebar.brand.mark` 与 `sidebar.brand.name` 渲染为两个独立的 single slot；收起轨道则渲染同一个 mark slot。在 Web 和 Windows 桌面端，点击展开态的品牌会新建会话，悬停或聚焦时不显示 tooltip。没有占位者时，外壳使用 MIP Autolabeling 已应用标签标志和产品名称 MIP Autolabeling。品牌行显示产品名称和标志，不显示版本徽标，右侧跟随一只小猫。任意已知 Session 运行时，小猫自动持续循环播放中央小猫打字的 GIF，无需点击，也没有播放超时；观察到运行转为空闲后，小猫循环播放 GIF 五分钟（减少动态效果时显示静态小猫），其他时间显示睡眠状态。再次完成会重新开始招手计时，运行状态优先。点击小猫可在任意 Session 状态下播放十秒招手预览，再次点击即可停止。即使启用减少动态效果，主动播放仍可运行动画，自动完成提醒则保持静态。侧栏轨道收起时隐藏小猫，刷新页面后完成计时从空状态开始。New Session 优先使用作用域操作明确指定的 Workspace，否则使用当前 Session 所属 Workspace，再否则使用最近活跃 Workspace；一个 Workspace 都没有时则清空选择，进入空白 New Session 页面。 展开态的新建会话按钮在悬停或键盘聚焦时于右侧以灰色文字显示当前有效绑定。快捷键可见且空间较窄时，居中的图标与文字在快捷键之前渐隐；CSS 为快捷键保留宽度，无需测量按钮。纯图标控件保留使用平台键位样式的 tooltip，侧栏隐藏时常驻的 macOS 头部控件也保持一致。所有控件均提供 `aria-keyshortcuts`。
 
 ### 全局面板入口
 
