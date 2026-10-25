@@ -84,7 +84,9 @@ it.skipIf(MODE === 'record')('Taskboard moves Todo through In Progress to Done o
   await withTaskboardWorld({
     name: 'taskboard-start-work',
     patches: ({ root }) => [
-      join(SCENARIO, 'cordis.yml'), join(SCENARIO, 'cordis.snapshot.yml'), join(root, 'replay-gates.patch.yml'),
+      join(SCENARIO, 'cordis.yml'), join(SCENARIO, 'cordis.snapshot.yml'),
+      fileURLToPath(new URL('./fixtures/text-only-sandbox.overlay.yml', import.meta.url)),
+      join(root, 'replay-gates.patch.yml'),
     ],
     prepare: async ({ root }) => {
       const override = join(root, 'repeat-replay.json')

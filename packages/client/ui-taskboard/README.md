@@ -96,6 +96,8 @@ Only the Host Run command submits work. Client callbacks keep association, termi
 
 No runtime invariant companion is published: this presentation plugin has no independent event stream or durable state to reconcile.
 
+Localized plugin titles are published at `./locale/*.json`.
+
 </details>
 
 <a id="model-experience"></a>

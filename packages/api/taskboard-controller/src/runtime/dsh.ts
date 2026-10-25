@@ -18,7 +18,6 @@ import type {} from '@deepseek-ai/dsh-permission-presets'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type { Session, SessionEvent, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceCorruptionError, SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
-import type {} from '@deepseek-ai/dsh-session-projection'
 import type { TaskConnection, TaskExecution, TaskExecutionReceipt } from '@deepseek-ai/dsh-taskboard/types'
 import type {} from '@deepseek-ai/dsh-user-approval/types'
 import type {} from '@deepseek-ai/dsh-user-questions/types'
@@ -513,7 +512,7 @@ export function createDshExecutionAdapter(ctx: Context): TaskExecutionAdapter {
         if (settings.permission !== undefined) ctx.permissionPresets.resolve(settings.permission)
         const agent = await resolve(execution, combined)
         if (settings.presetId !== undefined
-          && ctx.sessionProjections.stateOf(agent.session, 'agentPreset') !== settings.presetId) {
+          && ctx.agentPresets.presetForSession(agent.session) !== settings.presetId) {
           throw new DshExecutionError(
             'taskboard/dsh-preset-mismatch', 'Disconnect before changing the connected DSH Session preset.',
           )

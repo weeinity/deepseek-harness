@@ -73,6 +73,8 @@ The V2 domain accepts validated V1 records. A single legacy link becomes the cur
 
 No companion is published. Taskboard queries derive from authoritative rows without a separate execution projection. Provider conversations remain externally owned; Workspace membership is checked when connecting or admitting, not asserted as an ongoing relationship.
 
+Localized plugin titles are published at `./locale/*.json`.
+
 </details>
 
 -----

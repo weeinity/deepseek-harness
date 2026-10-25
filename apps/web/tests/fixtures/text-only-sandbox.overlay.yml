@@ -1,0 +1,10 @@
+# Text-only replays refuse commands and exclude platform-specific runner skills.
+- id: sandbox
+  config:
+    runnerCommand:
+      - !!js process.execPath
+      - --eval
+      - 'process.stderr.write("dsh-web-replay-sandbox: command execution is disabled\n"); process.exit(127)'
+      - --
+    runnerFailureSignatures:
+      - 'dsh-web-replay-sandbox: command execution is disabled'

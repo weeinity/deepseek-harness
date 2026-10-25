@@ -1,10 +1,14 @@
 - button "New session"
+- button "Play cat animation":
+  - img "Cat sleeping"
 - button "Collapse sidebar"
 - button "New session": New Session
 - navigation "Global panels":
+  - button "Extensions" [expanded]
   - button "Plugins"
   - button "Automation tasks"
   - button "Taskboard"
+  - button "More"
 - text: Workspaces
 - button "Search sessions"
 - textbox "Search session names"
@@ -13,13 +17,14 @@
 - tree "Sessions":
   - treeitem "workspace" [expanded]
   - treeitem "New Session" [selected]
-- button "Settings"
+- button "Account menu": More
 - banner:
   - button "Open right sidebar"
 - text: Label everything Preview
 - button "Choose workspace": workspace
 - button "Standard mode"
-- textbox "Describe what you want to build, / commands, @ files or sessions"
+- textbox "Describe what you want to build, / commands, @ files or sessions":
+  - paragraph
 - button "Add files or run commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write
 - button "Select model, current DeepSeek-V4-Flash": DeepSeek-V4-Flash

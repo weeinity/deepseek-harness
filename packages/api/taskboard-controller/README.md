@@ -79,6 +79,8 @@ The Host keeps its service dependencies as peers, like the Session and Workspace
 | [Host lifecycle](src/runtime/index.ts) | Settings, ownership, and idle-sleep demand. |
 | [Feed](src/feed.ts) | Reconnect baselines and ordered observations. |
 
+Localized plugin titles are published at `./locale/*.json`.
+
 </details>
 
 -----

@@ -96,6 +96,8 @@ kind: "package-reference"
 
 不发布运行时不变式伴生入口：本展示插件没有需要核对的独立事件流或持久状态。
 
+本地化插件标题通过 `./locale/*.json` 发布。
+
 </details>
 
 <a id="model-experience"></a>

@@ -51,6 +51,8 @@ Only allowlisted connector metadata reaches the page. It neither reads connectio
 
 No runtime invariant companion is published: this page owns only local presentation state; persistence, target authorization, and configuration application belong to the Host.
 
+Localized plugin titles are published at `./locale/*.json`.
+
 </details>
 
 -----

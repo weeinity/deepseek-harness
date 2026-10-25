@@ -40,6 +40,9 @@ export function props(operations: ConnectorsSectionInjected): ConnectorsSectionP
     useSessionStatus: unused,
     useSessionRetainInfo: unused,
     usePanelInfo: unused,
+    useRemoteAccess: unused,
+    useSessionAccess: unused,
+    useWorkspaceAccess: unused,
     useResource: unused,
   }
 }

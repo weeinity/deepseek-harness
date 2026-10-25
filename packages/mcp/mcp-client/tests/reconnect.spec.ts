@@ -4,6 +4,8 @@
  * cap, the stability-window budget reset, and disposal stopping reconnection.
  * Isolated file so vi.mock of the MCP SDK doesn't pollute other test suites.
  */
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ProtocolError } from '@modelcontextprotocol/client'
@@ -69,6 +71,7 @@ async function mountRegistry(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(NativeToolExecutor)
   return ctx
 }
 
@@ -143,7 +146,7 @@ describe('reconnect supervisor', () => {
     try {
       await handle.ready
       instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
       })
       expect(result.isError).toBe(false)
@@ -165,7 +168,7 @@ describe('reconnect supervisor', () => {
       await handle.ready
       instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
       mockConnect.mockImplementationOnce(() => gate.promise)
-      const calls = [1, 2].map(() => ctx.tools.execute({
+      const calls = [1, 2].map(() => executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
       }))
       await vi.waitFor(() => { expect(instances).toHaveLength(2) })
@@ -186,7 +189,7 @@ describe('reconnect supervisor', () => {
     try {
       await handle.ready
       instances[0]!.ping.mockRejectedValue(new ProtocolError(code, 'Not a session error'))
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
       })
       expect(result.isError).toBe(true)
@@ -203,7 +206,7 @@ describe('reconnect supervisor', () => {
     try {
       await handle.ready
       instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
       })
       expect(result.isError).toBe(true)
@@ -223,7 +226,7 @@ describe('reconnect supervisor', () => {
       await handle.ready
       instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
       mockConnect.mockImplementationOnce(() => gate.promise)
-      const call = ctx.tools.execute({
+      const call = executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: cancelled.signal,
       })
       await vi.waitFor(() => { expect(instances).toHaveLength(2) })
@@ -231,7 +234,7 @@ describe('reconnect supervisor', () => {
       expect((await call).isError).toBe(true)
       expect(mockCallTool).not.toHaveBeenCalled()
       gate.resolve()
-      const next = await ctx.tools.execute({
+      const next = await executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
       })
       expect(next.isError).toBe(false)
@@ -250,7 +253,7 @@ describe('reconnect supervisor', () => {
       await handle.ready
       instances[0]!.ping.mockRejectedValue(new ProtocolError(-32001, 'Session not found'))
       mockConnect.mockImplementationOnce(() => gate.promise)
-      const call = ctx.tools.execute({
+      const call = executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
       })
       await vi.waitFor(() => { expect(instances).toHaveLength(2) })
@@ -272,7 +275,7 @@ describe('reconnect supervisor', () => {
     try {
       await handle.ready
       mockCallTool.mockRejectedValueOnce(new ProtocolError(-32001, 'Session not found'))
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         name: 'mcp__srv__remote', arguments: {}, callId: nextCallId(), signal: testToolSignal,
       })
       expect(result.isError).toBe(true)
@@ -314,7 +317,7 @@ describe('reconnect supervisor', () => {
       mockConnect.mockImplementationOnce(() => reconnectGate.promise)
       instances[0]!.onclose?.()
       await vi.waitFor(() => { expect(instances).toHaveLength(2) })
-      const result = await ctx.tools.execute({
+      const result = await executeToolFixture(ctx, {
         name: 'list_mcp_resources', arguments: { server: 'srv' },
         callId: nextCallId(), signal: testToolSignal,
       })
@@ -344,7 +347,7 @@ describe('reconnect supervisor', () => {
     expect(mockConnect).toHaveBeenCalledTimes(2)
 
     // Post-recovery calls execute through the re-registered definition.
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       signal: testToolSignal,
       callId: nextCallId(), name: 'mcp__srv__revived', arguments: {},
     })

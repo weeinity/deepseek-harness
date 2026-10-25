@@ -54,9 +54,12 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
   const sessionEvents: SessionEvent[] = []
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold(MODE === 'record'
-      ? {}
-      : { replayFixture: FIXTURE, replayOverride: REPLAY_OVERRIDE, paceMs: REPLAY_PACE_MS })
+    scaffold = await launchWebScaffold({
+      extraOverlayPath: fileURLToPath(new URL('./fixtures/text-only-sandbox.overlay.yml', import.meta.url)),
+      ...MODE === 'record'
+        ? {}
+        : { replayFixture: FIXTURE, replayOverride: REPLAY_OVERRIDE, paceMs: REPLAY_PACE_MS },
+    })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
@@ -151,18 +154,22 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
       await writeComposerDraft(inputPage, input, '/')
       await inputPage.getByRole('listbox').getByRole('option', { name: row, exact: true }).click()
       await expect.poll(() => input.textContent()).toBe(`${token} `)
+      const inputHeight = () => input.evaluate(element => element.getBoundingClientRect().height)
+      const claimedHeight = await inputHeight()
       await input.press('End')
       await inputPage.keyboard.insertText('这是任务')
       await expect.poll(() => input.textContent()).toBe(`${token} 这是任务`)
       for (let i = 0; i < 5; i++) await input.press('Backspace')
-      const tokenText = () => input.locator('[data-lexical-text][style*="business-primary"]').textContent()
+      const tokenText = () => input.locator('[data-composer-command]').textContent()
       await expect.poll(() => input.textContent()).toBe(token)
       await expect.poll(() => input.getAttribute('data-phase')).toBe('claimed')
       await expect.poll(tokenText).toBe(token)
+      // The chip now ends its block, where Lexical appends a managed line break; it must not add a line.
+      expect(await inputHeight()).toBe(claimedHeight)
       await input.press('Space')
       await expect.poll(() => input.getAttribute('data-phase')).toBe('claimed')
       await expect.poll(() => input.textContent()).toBe(`${token} `)
-      await expect.poll(async () => (await tokenText())?.trimEnd()).toBe(token)
+      await expect.poll(tokenText).toBe(token)
       const shownHint = () => input.locator('p').last().evaluate(element => getComputedStyle(element, '::after').content)
       await expect.poll(shownHint).toBe(JSON.stringify(hint))
       const cdp = await inputPage.context().newCDPSession(inputPage)
@@ -179,9 +186,14 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
       await expect.poll(shownHint).toBe('none')
       await cdp.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 })
       await expect.poll(shownHint).toBe(JSON.stringify(hint))
+      // Backspace removes the separator, then selects the whole chip, then deletes it.
       await input.press('Backspace')
+      await input.press('Backspace')
+      await expect.poll(() => input.locator('[data-composer-command][data-selected]').count()).toBe(1)
+      await expect.poll(() => input.getAttribute('data-phase')).toBe('claimed')
       await input.press('Backspace')
       await expect.poll(() => input.getAttribute('data-phase')).toBe('plain')
+      await expect.poll(() => input.textContent()).toBe('')
       await writeComposerDraft(inputPage, input, '')
       const placeholder = inputPage.locator('[data-composer-placeholder]').first()
       await expect.poll(() => placeholder.isVisible()).toBe(true)

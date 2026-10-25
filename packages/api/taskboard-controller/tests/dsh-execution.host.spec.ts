@@ -11,6 +11,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import AgentDefaultModel from '@deepseek-ai/dsh-agent-default-model'
 import AgentPresets from '@deepseek-ai/dsh-agent-preset-registry'
 import SessionController from '@deepseek-ai/dsh-api-session-controller'
+import RemoteAccess from '@deepseek-ai/dsh-api-remote-access'
 import AttachmentLocal from '@deepseek-ai/dsh-attachment-local'
 import FileUploads from '@deepseek-ai/dsh-client-file-upload'
 import Commands from '@deepseek-ai/dsh-commands'
@@ -21,7 +22,7 @@ import PermissionPresets from '@deepseek-ai/dsh-permission-presets'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceCorruptionError } from '@deepseek-ai/dsh-session-persistence'
-import SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
+import * as SessionPersistenceJsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQuery from '@deepseek-ai/dsh-session-query'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
@@ -101,6 +102,7 @@ async function harness(root?: string) {
   await ctx.plugin(Loader)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(TypertRegistry)
+  await ctx.plugin(RemoteAccess)
   await ctx.plugin(AgentDefaultModel, { provider: 'script', model: 'host-default' })
   await ctx.plugin(SessionPersistenceJsonl, { root: join(directory, 'sessions'), compression: 'none' })
   await ctx.plugin(SessionReadFixture)
@@ -196,7 +198,7 @@ describe('Loader Taskboard execution', () => {
       expect(model.calls).toHaveLength(1)
       expect(model.calls[0]).toMatchObject({ provider: 'script', model: 'task-model' })
       const agent = agentFor(test, execution)
-      expect(ctx.sessionProjections.stateOf(agent.session, 'agentPreset')).toBe('fixture')
+      expect(ctx.agentPresets.presetForSession(agent.session)).toBe('fixture')
       expect(ownInsertions(agent.session.snapshotEvents(), execution)).toHaveLength(1)
     } finally {
       unwatch()
@@ -1056,7 +1058,7 @@ describe('DSH Taskboard execution', () => {
       expect(permission).toHaveBeenCalledTimes(pin === 'permission' ? 1 : 0)
       expect(test.ctx.permissionPresets.current(agent.session))
         .toBe(pin === 'permission' ? 'read-only' : 'session-choice')
-      expect(test.ctx.sessionProjections.stateOf(agent.session, 'agentPreset')).toBe('other')
+      expect(test.ctx.agentPresets.presetForSession(agent.session)).toBe('other')
       const done = await dispatch(test, { ...next, receipt })
       expect(test.model.calls[1]?.model).toBe(pin === 'model' ? 'pinned-model' : 'human-next-model')
       expect(agentFor(test)).toBe(agent)
@@ -1437,7 +1439,7 @@ describe('DSH Taskboard execution', () => {
       release.resolve()
       expect(await outcome).toMatchObject({ code: 'taskboard/dsh-settings-changed' })
       expect(test.model.calls).toHaveLength(0)
-      expect(test.ctx.sessionProjections.stateOf(agentFor(test).session, 'modelSelection')?.pending?.model)
+      expect(agentFor(test).model.current()?.model)
         .toBe('human-model')
     },
   )
@@ -1592,7 +1594,7 @@ describe('DSH Taskboard execution', () => {
     expect(ownInsertions(agent.session.snapshotEvents(), execution)).toHaveLength(phase === 'submit' ? 1 : 0)
     expect(test.ctx.agents.get(agent.id)).toBe(agent)
     if (choice === 'model') {
-      expect(test.ctx.sessionProjections.stateOf(agent.session, 'modelSelection')?.pending?.model).toBe('human-model')
+      expect(agent.model.current()?.model).toBe('human-model')
     } else {
       expect(test.ctx.permissionPresets.current(agent.session)).toBe('session-choice')
     }

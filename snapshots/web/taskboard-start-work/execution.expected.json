@@ -116,7 +116,7 @@
       "content": [
         {
           "type": "text",
-          "text": "Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\nCurrent working directory: \"{{cwd}}\".\n\nCurrent DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: \"{{cwd}}\". Some platform temporary areas may also be writable.\n\nApproval policy: ask. Operations that require approval may ask through the configured answerers; without an available answerer, the request fails closed."
+          "text": "Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\nCurrent working directory: \"{{cwd}}\".\n\nCurrent DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: \"{{cwd}}\". Some platform temporary areas may also be writable.\n\nApproval prompts are enabled in this session: operations that require approval may ask through the configured answerers; without an available answerer, the request fails closed.\n\nCurrent DeepSeek Harness implementation checkout: \"{{sourceRoot}}\".\n\nCurrent DeepSeek Harness Web GUI URL: \"{{webUrl}}\"."
         }
       ],
       "source": {
@@ -133,36 +133,20 @@
           },
           {
             "name": "approval:policy",
-            "text": "Approval policy: ask. Operations that require approval may ask through the configured answerers; without an available answerer, the request fails closed."
+            "text": "Approval prompts are enabled in this session: operations that require approval may ask through the configured answerers; without an available answerer, the request fails closed."
+          },
+          {
+            "name": "harness:source",
+            "text": "Current DeepSeek Harness implementation checkout: \"{{sourceRoot}}\"."
+          },
+          {
+            "name": "app:web-surface",
+            "text": "Current DeepSeek Harness Web GUI URL: \"{{webUrl}}\"."
           }
         ]
       },
       "role": "user",
       "id": "{{message:3}}"
-    },
-    "surfaceOp": "append"
-  },
-  {
-    "type": "user/message",
-    "data": {
-      "content": [
-        {
-          "type": "text",
-          "text": "<system-reminder>\nA skill is a reusable set of task-specific instructions. The following skills are available in this session:\n\n<available_skills>\n- `diagnose-windows-sandbox-acl`: Use on Windows for unexpected DSH sandbox access denials: workspace writes or listing fail, or an ordinarily readable path cannot be read. One bundled command inspects the path and every ancestor and repairs the ACL problems it proves in that same run. Expected confinement denials need no ACL repair.\n</available_skills>\n\nIf the user names a skill, or the task clearly matches a skill's description, call the `skill` tool with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded.\nA user may also invoke a skill directly; its <skill_content> block then appears in this conversation. Follow it, and do not call the `skill` tool again for that skill.\n</system-reminder>"
-        }
-      ],
-      "source": {
-        "kind": "skill-catalog",
-        "form": "catalog",
-        "entries": [
-          {
-            "name": "diagnose-windows-sandbox-acl",
-            "description": "Use on Windows for unexpected DSH sandbox access denials: workspace writes or listing fail, or an ordinarily readable path cannot be read. One bundled command inspects the path and every ancestor and repairs the ACL problems it proves in that same run. Expected confinement denials need no ACL repair."
-          }
-        ]
-      },
-      "role": "user",
-      "id": "{{message:4}}"
     },
     "surfaceOp": "append"
   },
@@ -186,7 +170,7 @@
         ]
       },
       "role": "user",
-      "id": "{{message:5}}"
+      "id": "{{message:4}}"
     },
     "surfaceOp": "append"
   },
@@ -227,7 +211,7 @@
     "data": {
       "sessionId": "{{session:1}}",
       "sessionFormatVersion": 4,
-      "throughSeq": 14
+      "throughSeq": 13
     }
   },
   {
@@ -252,7 +236,7 @@
           "provider": "deepseek-official",
           "model": "deepseek-flash"
         },
-        "id": "{{message:6}}"
+        "id": "{{message:5}}"
       },
       "usage": {
         "inputTokens": 50,
@@ -420,7 +404,7 @@
             "rpcId": "{{rpc:2}}"
           },
           "role": "user",
-          "id": "{{message:7}}"
+          "id": "{{message:6}}"
         }
       ]
     }
@@ -463,7 +447,7 @@
         "source": {
           "kind": "system-prompt"
         },
-        "id": "{{message:8}}"
+        "id": "{{message:7}}"
       }
     },
     "sourceEventSeqs": [
@@ -489,7 +473,7 @@
         "rpcId": "{{rpc:2}}"
       },
       "role": "user",
-      "id": "{{message:7}}"
+      "id": "{{message:6}}"
     },
     "surfaceOp": "append"
   },
@@ -511,7 +495,7 @@
     "data": {
       "sessionId": "{{session:1}}",
       "sessionFormatVersion": 4,
-      "throughSeq": 25
+      "throughSeq": 24
     }
   },
   {
@@ -536,7 +520,7 @@
           "provider": "deepseek-official",
           "model": "deepseek-flash"
         },
-        "id": "{{message:9}}"
+        "id": "{{message:8}}"
       },
       "usage": {
         "inputTokens": 50,

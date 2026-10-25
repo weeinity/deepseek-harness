@@ -11,6 +11,7 @@ import { createServer } from 'node:http'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
@@ -88,7 +89,7 @@ describe('expired Streamable HTTP sessions', () => {
     await ctx.loader.await()
     expect(ctx.tools.get('mcp__expiry__write')).toBeDefined()
     expired = true
-    const result = await ctx.tools.execute({
+    const result = await executeToolFixture(ctx, {
       name: 'mcp__expiry__write', arguments: {}, callId: ToolCallId('expired-http'), signal: new AbortController().signal,
     })
     expect(result).toMatchObject({ isError: false, value: { content: [{ type: 'text', text: 'written once' }] } })

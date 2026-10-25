@@ -14,6 +14,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { setTimeout as wait } from 'node:timers/promises'
 
 const WINDOWS_TRANSIENT_RENAME_ERRORS: ReadonlySet<string> = new Set(['EACCES', 'EBUSY', 'EPERM'])
 const WINDOWS_RENAME_RETRY_INITIAL_MS = 20
@@ -26,8 +27,16 @@ function isTransientWindowsRenameError(error: unknown): boolean {
   return WINDOWS_TRANSIENT_RENAME_ERRORS.has((error as NodeJS.ErrnoException | null)?.code ?? '')
 }
 
-/** Replace the target after bounded retries for transient Windows interference. */
-async function renameAtomicTemp(temp: string, filename: string): Promise<void> {
+/**
+ * Publish a complete, closed same-directory temporary file by replacing the target.
+ * Retries transient Windows interference for a bounded interval. The caller owns
+ * file and directory fsync, exclusive ownership of the source, and its cleanup
+ * after a failed publication.
+ * @param temp - Existing temporary file owned exclusively by the caller.
+ * @param filename - Destination to atomically replace.
+ * @returns Resolution after replacement; failure leaves the source for caller cleanup.
+ */
+export async function renameAtomicTemp(temp: string, filename: string): Promise<void> {
   let delay = WINDOWS_RENAME_RETRY_INITIAL_MS
   for (let retries = 0;; retries += 1) {
     try {
@@ -76,7 +85,7 @@ export interface WriteFileAtomicOptions {
  * @param content - complete next file content.
  * @param options - permission bits for the replacement inode.
  */
-export async function writeFileAtomic(filename: string, content: string, options: WriteFileAtomicOptions): Promise<void> {
+export async function writeFileAtomic(filename: string, content: string | Uint8Array, options: WriteFileAtomicOptions): Promise<void> {
   await mkdir(dirname(filename), {
     recursive: true,
     ...options.dirMode === undefined ? {} : { mode: options.dirMode },
@@ -197,6 +206,8 @@ const DEFAULT_LOCK_WAIT_MS = 2_000
 
 /** Options for one {@link withFileLock} acquisition. */
 export interface FileLockOptions {
+  /** Cancel acquisition and contention waits; the operation owns cancellation after it starts. */
+  signal?: AbortSignal
   /**
    * Maximum time to wait for the lock, in milliseconds. State one when the
    * holder's operation legitimately runs longer than file work — a credential
@@ -242,6 +253,7 @@ export async function withFileLock<T>(
   let delay = LOCK_RETRY_INITIAL_MS
   let retriedUnconfirmedPermissionError = false
   for (;;) {
+    options?.signal?.throwIfAborted()
     try {
       await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600, flag: 'wx' })
       break
@@ -257,10 +269,11 @@ export async function withFileLock<T>(
     if (Date.now() >= deadline) {
       throw new Error(`atomic-write: timed out waiting for the writer lock at ${lockPath}`)
     }
-    await new Promise(resolve => setTimeout(resolve, delay))
+    await wait(delay, undefined, { signal: options?.signal })
     delay = Math.min(delay * 2, LOCK_RETRY_MAX_MS)
   }
   try {
+    options?.signal?.throwIfAborted()
     return await operation()
   } finally {
     await rm(lockPath, { force: true })

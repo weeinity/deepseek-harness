@@ -21,6 +21,7 @@ function mountBoard(
   const props: TaskboardSurfaceProps = {
     useTaskboard: selector => selector(state), useJobs: selector => selector(jobs()),
     usePanelInfo: selector => selector({ activePanelId: null }),
+    useRemoteAccess: () => true, useSessionAccess: () => true, useWorkspaceAccess: () => true,
     useSessionStatus: selector => selector(new Map()), useSessionRetainInfo: () => undefined,
     useResource: () => ({ status: 'none', value: undefined, failure: undefined, reload: () => {} }),
     watchJobRows: vi.fn(() => () => {}), useSessions: selector => selector(sessionState),

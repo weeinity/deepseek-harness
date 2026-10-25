@@ -11,7 +11,7 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
   launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { REPO_ROOT, saveFailureShot } from './support.ts'
+import { openSettings, REPO_ROOT, saveFailureShot } from './support.ts'
 
 const EXPECTED = fileURLToPath(new URL('./expected/settings-connectors', import.meta.url))
 const MODE = webSnapshotMode()
@@ -76,7 +76,7 @@ describe('web e2e: MCP connector settings', () => {
   async function open(page: Page, locale: 'en' | 'zh') {
     if (scaffold === undefined) throw new Error('Connector scaffold is not ready')
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
-    await page.getByRole('button', { name: locale === 'en' ? 'Settings' : '设置', exact: true }).click()
+    await openSettings(page, locale)
     await page.getByRole('button', { name: locale === 'en' ? 'Connectors' : '连接器', exact: true }).click()
     await page.getByRole('switch', { name: locale === 'en' ? 'Enable WorkIQ' : '启用 WorkIQ' }).waitFor()
   }
@@ -249,10 +249,10 @@ describe('web e2e: MCP connector settings', () => {
     expect(await workiq.boundingBox()).toEqual(disabledPosition)
     expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-connector-id')))).toEqual(order)
     expect(await workiq.evaluate(element => document.activeElement === element)).toBe(true)
-    expect(loadOptionalPatches('connector browser test', profilePatch)).toEqual([
-      ...initialPatch,
-      { id: 'connector-workiq', disabled: false },
-    ])
+    expect(loadOptionalPatches('connector browser test', profilePatch)).toEqual(initialPatch)
+    await open(page, 'en')
+    expect(await workiq.getAttribute('aria-checked')).toBe('true')
+    expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-connector-id')))).toEqual(order)
     expect(await readFile(profilePatch, 'utf8')).not.toContain('command:')
     expect(tripwire.pageErrors).toEqual([])
   })

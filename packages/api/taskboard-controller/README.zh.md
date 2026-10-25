@@ -79,6 +79,8 @@ Run 提交已保存的运行提示词；提示词为空时使用标题和非空�
 | [宿主生命周期](src/runtime/index.ts) | 设置、所有权与空闲睡眠保护需求。 |
 | [Feed](src/feed.ts) | 重连 baseline 与有序观察结果。 |
 
+本地化插件标题通过 `./locale/*.json` 发布。
+
 </details>
 
 -----

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import AgentPresets from '@deepseek-ai/dsh-agent-preset-registry'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import PermissionPresets from '@deepseek-ai/dsh-permission-presets'
@@ -311,6 +312,7 @@ describe('Taskboard Host lifecycle and catalog', () => {
       ctx.provide('shell', { sandboxMode: 'workspace-write' } as never)
       ctx.provide('approval', { config: { policy: 'ask' } } as never)
       await ctx.plugin(SessionProjections)
+      await ctx.plugin(AgentRegistry)
       await ctx.plugin(Loader)
       await ctx.plugin(AgentPresets, { default: 'named' })
       await ctx.agentPresets.register({ id: 'default', plugins: [] })
