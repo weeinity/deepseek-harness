@@ -322,29 +322,12 @@
   white-space: nowrap;
 }
 
-.localBuildBrand {
-  flex: none;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 1px;
-  height: 24px;
-  white-space: nowrap;
-}
-
 /* Local-build fallbacks copy the version, also on macOS, where the
    surrounding brand is a window-drag surface. */
 .copyVersion {
   display: inline-flex;
   cursor: pointer;
   -webkit-app-region: no-drag;
-}
-
-.localBuildTitle {
-  font-size: 12px;
-  line-height: 13px;
-  letter-spacing: 0;
 }
 
 .iconButton {

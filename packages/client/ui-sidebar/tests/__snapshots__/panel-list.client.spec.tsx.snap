@@ -215,6 +215,35 @@ exports[`sidebar global panels > folds extension entries without changing the se
         MoYu
       </span>
     </button>
+    <span
+      class="root moreAnchor"
+    >
+      <button
+        aria-expanded="false"
+        aria-haspopup="menu"
+        aria-label="More"
+        class="panelRow"
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          class="panelGlyph"
+        >
+          <svg
+            aria-hidden="true"
+            data-content="fa2056fe"
+            data-icon="dsw-icon-apps-add-outline-regular"
+            height="16"
+            width="16"
+          />
+        </span>
+        <span
+          class="panelTitle wide"
+        >
+          More
+        </span>
+      </button>
+    </span>
   </div>
   <button
     aria-label="Taskboard"

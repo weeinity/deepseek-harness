@@ -174,6 +174,7 @@ export function SidebarRoot({
   }, [collapsed])
   const windowsTitlebar = document.documentElement.hasAttribute('data-windows-titlebar')
   const wide = windowsTitlebar ? !collapsed : !collapsed || !settled
+  const showExtensions = wide && (extensionPanels.length > 0 || hasEntryActions)
   // The Windows titlebar hosts the New Session controls while the sidebar is collapsed.
   const openNewSession = (): void => {
     trackEntryClick({ menu_name: 'new_session', position: windowsTitlebar && collapsed ? 'titlebar' : 'sidebar' })
@@ -238,7 +239,7 @@ export function SidebarRoot({
   }, [pointerInside])
 
   const buildVersion = localBuildVersion()
-  // The local-build fallbacks copy the badge text; the brand button below
+  // The local-build fallbacks copy the version; the brand button below
   // skips New Session for clicks inside them. The click still bubbles, so
   // document-level outside-click listeners see it.
   // Each successful copy bumps the key so a repeated copy replays the toast.
@@ -272,6 +273,24 @@ export function SidebarRoot({
         {!wide && renderSlot('sidebar.toggle.badge', {})}
       </button>
     </Tooltip>
+  )
+
+  const moreMenu = hasEntryActions && (
+    <PanelMoreMenu
+      wide={wide}
+      label={t('panels.more')}
+      entries={panels.filter(({ id }) => id !== FIXED_PANEL_ID)
+        .map(({ id, label }) => ({ id, label, pinned: !unpinned.includes(id), active: id === activePanelId }))}
+      onOpen={(id) => {
+        const entry = officialEntry(id)
+        if (entry !== undefined) trackEntryClick({ menu_name: entry, position: 'sidebar_more' })
+        const panel = panels.find(candidate => candidate.id === id)
+        if (panel !== undefined) selectPanel(panel.id)
+      }}
+      onPinnedChange={setPinned}
+      trackEntryClick={trackEntryClick}
+      renderSlot={renderSlot}
+    />
   )
 
   return (
@@ -317,9 +336,8 @@ export function SidebarRoot({
                   fallback: buildVersion === undefined
                     ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
                     : (
-                      <span className={clsx(css.localBuildBrand, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
-                        <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
-                        <span className={css.buildVersion}>{buildVersion}</span>
+                      <span className={clsx(css.fallbackBrandName, css.copyVersion)} data-copy-version onClick={copyVersion(buildVersion)}>
+                        {t('brand.localBuild')}
                       </span>
                     ),
                 })}
@@ -372,7 +390,7 @@ export function SidebarRoot({
 
       {panels.length > 0 && (
         <nav className={css.panelList} aria-label={t('panels.label')}>
-          {wide && extensionPanels.length > 0 && (
+          {showExtensions && (
             <>
               <button
                 type="button"
@@ -400,30 +418,15 @@ export function SidebarRoot({
                   <PanelRow key={id} id={id} label={label} wide={wide}
                     usePanelInfo={usePanelInfo} selectPanel={selectPanel} trackEntryClick={trackEntryClick} renderSlot={renderSlot} />
                 ))}
+                {extensionsExpanded && moreMenu}
               </div>
             </>
           )}
-          {(wide ? standalonePanels : visiblePanels).map(({ id, label }) => (
+          {(showExtensions ? standalonePanels : visiblePanels).map(({ id, label }) => (
             <PanelRow key={id} id={id} label={label} wide={wide}
               usePanelInfo={usePanelInfo} selectPanel={selectPanel} trackEntryClick={trackEntryClick} renderSlot={renderSlot} />
           ))}
-          {hasEntryActions && (
-            <PanelMoreMenu
-              wide={wide}
-              label={t('panels.more')}
-              entries={panels.filter(({ id }) => id !== FIXED_PANEL_ID)
-                .map(({ id, label }) => ({ id, label, pinned: !unpinned.includes(id), active: id === activePanelId }))}
-              onOpen={(id) => {
-                const entry = officialEntry(id)
-                if (entry !== undefined) trackEntryClick({ menu_name: entry, position: 'sidebar_more' })
-                const panel = panels.find(candidate => candidate.id === id)
-                if (panel !== undefined) selectPanel(panel.id)
-              }}
-              onPinnedChange={setPinned}
-              trackEntryClick={trackEntryClick}
-              renderSlot={renderSlot}
-            />
-          )}
+          {!showExtensions && moreMenu}
         </nav>
       )}
 

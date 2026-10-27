@@ -206,14 +206,14 @@ describe('SidebarRoot shell', () => {
     />)
 
     expect(screen.getByText('MIP Autolabeling')).toBeTruthy()
-    expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
+    expect(screen.queryByText('1.2.3-rc.4-0123456-dirty')).toBeNull()
     expect(container.querySelector('svg[data-brand="mip-autolabeling"]')).not.toBeNull()
   })
 
   it.each([
     [{ DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3'],
     [{ DSH_CLIENT_COMMIT_HASH: 'abcdef0', DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3-abcdef0'],
-  ])('shows build metadata beside the MIP brand for %j', (environment, expected) => {
+  ])('keeps build metadata out of the MIP brand for %j', (environment, expected) => {
     for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value)
     render(<SidebarRoot
       collapsed={false} width={300}
@@ -228,8 +228,9 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('MIP Autolabeling')).toBeTruthy()
-    expect(screen.getByText(expected)).toBeTruthy()
+    const brand = screen.getByText('MIP Autolabeling')
+    expect(brand.closest('[data-copy-version]')?.textContent).toBe('MIP Autolabeling')
+    expect(screen.queryByText(expected)).toBeNull()
   })
 
   it.each([false, true])('copies the local-build version from the fallback mark and name (darwin=%s)', async (darwin) => {
@@ -261,14 +262,13 @@ describe('SidebarRoot shell', () => {
     await act(async () => { fireEvent.click(screen.getByText('MIP Autolabeling')) })
     expect(writeText).toHaveBeenLastCalledWith('1.2.3-abcdef0')
     expect(copiedToasts()).toEqual(['Version copied'])
-    // The brand itself keeps its title and version.
     expect(screen.getByText('MIP Autolabeling')).toBeTruthy()
-    expect(screen.getByText('1.2.3-abcdef0')).toBeTruthy()
+    expect(screen.queryByText('1.2.3-abcdef0')).toBeNull()
     act(() => { vi.advanceTimersByTime(4000) })
     expect(copiedToasts()).toEqual([])
 
     // A refused write claims no success.
-    await act(async () => { fireEvent.click(screen.getByText('1.2.3-abcdef0')) })
+    await act(async () => { fireEvent.click(screen.getByText('MIP Autolabeling')) })
     expect(copiedToasts()).toEqual([])
 
     // The fallback mark copies too, and its click still reaches document.

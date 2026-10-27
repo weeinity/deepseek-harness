@@ -176,19 +176,28 @@ describe('sidebar global panels', () => {
       ['plugins', 'Plugins'], ['schedules', 'Automation tasks'], ['skill-explorer', 'Skill Center'],
       ['dashboard', 'Dashboard'], ['stocks', 'MoYu'], ['taskboard', 'Taskboard'],
     ] as const) await mountPanel(runtime, { id: id as MainPanelId, heading: label + ' content', label })
+    await mountProbeActions(runtime)
     const navigation = await view.findByRole('navigation', { name: 'Global panels' })
     const toggle = within(navigation).getByRole('button', { name: 'Extensions' })
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual([
+      'Extensions', 'Plugins', 'Automation tasks', 'Skill Center', 'Dashboard', 'MoYu', 'More', 'Taskboard',
+    ])
     expect(navigation).toMatchSnapshot('expanded Extensions')
     const children = document.getElementById(toggle.getAttribute('aria-controls')!)!
     expect(within(children).getAllByRole('button').map(row => row.textContent)).toEqual([
-      'Plugins', 'Automation tasks', 'Skill Center', 'Dashboard', 'MoYu',
+      'Plugins', 'Automation tasks', 'Skill Center', 'Dashboard', 'MoYu', 'More',
     ])
     fireEvent.click(within(children).getByRole('button', { name: 'Plugins' }))
+    fireEvent.click(within(children).getByRole('button', { name: 'More' }))
+    expect(view.getByRole('menu')).toBeTruthy()
     fireEvent.click(toggle)
+    expect(view.queryByRole('menu')).toBeNull()
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(within(navigation).queryByRole('button', { name: 'Plugins' })).toBeNull()
-    expect(within(navigation).getByRole('button', { name: 'Taskboard' })).toBeTruthy()
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual([
+      'Extensions', 'Taskboard',
+    ])
     expect(view.getByRole('heading', { name: 'Plugins content' })).toBeTruthy()
     expect(layout.selectPanel).toHaveBeenCalledExactlyOnceWith('plugins')
     expect(navigation).toMatchSnapshot('folded Extensions')
@@ -201,6 +210,12 @@ describe('sidebar global panels', () => {
   it('keeps extension icons directly accessible in the collapsed sidebar rail', async () => {
     const { runtime, view } = await bench(true)
     await mountPanel(runtime, { id: 'plugins' as MainPanelId, heading: 'Plugins content', label: 'Plugins' })
+    await mountPanel(runtime, { id: 'taskboard' as MainPanelId, heading: 'Taskboard content', label: 'Taskboard' })
+    await mountProbeActions(runtime)
+    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
+    expect(within(navigation).getAllByRole('button').map(row => row.getAttribute('aria-label'))).toEqual([
+      'Plugins', 'Taskboard', 'More',
+    ])
     const row = await view.findByRole('button', { name: 'Plugins' })
     expect(view.queryByRole('button', { name: 'Extensions' })).toBeNull()
     fireEvent.click(row)
@@ -406,12 +421,10 @@ describe('sidebar launcher pins', () => {
     const menu = within(view.getByRole('menu'))
     fireEvent.click(menu.getByRole('menuitem', { name: 'Unpin Automation' }))
     await waitFor(() => { expect(within(navigation).queryByRole('button', { name: 'Automation' })).toBeNull() })
-    if (plugins) {
-      expect(within(navigation).getByRole('button', { name: 'Extensions' })).toBeTruthy()
-      expect(within(navigation).getByRole('button', { name: 'Plugins' })).toBeTruthy()
-    } else {
-      expect(within(navigation).queryByRole('button', { name: 'Extensions' })).toBeNull()
-    }
+    const section = within(navigation).getByRole('button', { name: 'Extensions' })
+    const children = document.getElementById(section.getAttribute('aria-controls')!)!
+    expect(within(children).getByRole('button', { name: 'More' }).getAttribute('aria-expanded')).toBe('true')
+    if (plugins) expect(within(children).getByRole('button', { name: 'Plugins' })).toBeTruthy()
     fireEvent.click(menu.getByRole('menuitem', { name: 'Open Automation' }))
     expect(layout.selectPanel).toHaveBeenLastCalledWith(SCHEDULES)
     expect(view.getByRole('heading', { name: 'Automation content' })).toBeTruthy()
@@ -423,13 +436,13 @@ describe('sidebar launcher pins', () => {
     expect(document.getElementById(toggle.getAttribute('aria-controls')!)!.contains(launcher)).toBe(true)
   })
 
-  it('shows More after the rows only while the actions list has registrations', async () => {
+  it('groups More under Extensions only while the actions list has registrations', async () => {
     const { runtime, locale, view } = await bench()
     const probe = await mountProbeActions(runtime)
     expect(view.queryByRole('navigation')).toBeNull()
     await mountPanels(runtime, locale)
     const navigation = await view.findByRole('navigation', { name: 'Global panels' })
-    expect(within(navigation).getAllByRole('button').map(row => row.getAttribute('aria-label'))).toEqual(['Beta panel', 'Alpha panel', 'More'])
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual(['Extensions', 'More', 'Beta panel', 'Alpha panel'])
     await probe.dispose()
     await waitFor(() => { expect(within(navigation).queryByRole('button', { name: 'More' })).toBeNull() })
   })

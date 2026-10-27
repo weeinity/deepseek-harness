@@ -7,8 +7,8 @@
   - button "扩展" [expanded]
   - button "插件"
   - button "自动化任务"
-  - button "任务看板"
   - button "更多"
+  - button "任务看板"
 - text: 工作区
 - button "搜索会话"
 - textbox "搜索会话名称"

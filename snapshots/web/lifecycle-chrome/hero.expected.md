@@ -7,8 +7,8 @@
   - button "Extensions" [expanded]
   - button "Plugins"
   - button "Automation tasks"
-  - button "Taskboard"
   - button "More"
+  - button "Taskboard"
 - text: Workspaces
 - button "Search sessions"
 - textbox "Search session names"

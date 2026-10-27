@@ -322,6 +322,8 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     if (MODE !== 'record') {
+      const brandName = page.getByText('MIP Autolabeling', { exact: true })
+      expect(await brandName.locator('..').innerText()).toBe('MIP Autolabeling')
       await page.getByText('Label everything', { exact: false }).hover()
       await expect.poll(() => page.getByRole('tooltip').count()).toBe(0)
       // Golden of the hero's stable waiting state (captured before any send;

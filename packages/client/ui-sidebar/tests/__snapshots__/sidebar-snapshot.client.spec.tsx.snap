@@ -157,19 +157,10 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
               style="display: contents;"
             >
               <span
-                class="localBuildBrand copyVersion"
+                class="fallbackBrandName copyVersion"
                 data-copy-version="true"
               >
-                <span
-                  class="localBuildTitle"
-                >
-                  MIP Autolabeling
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
+                MIP Autolabeling
               </span>
             </div>
           </span>
@@ -441,19 +432,10 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
               style="display: contents;"
             >
               <span
-                class="localBuildBrand copyVersion"
+                class="fallbackBrandName copyVersion"
                 data-copy-version="true"
               >
-                <span
-                  class="localBuildTitle"
-                >
-                  MIP Autolabeling
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
+                MIP Autolabeling
               </span>
             </div>
           </span>
@@ -602,19 +584,10 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
               style="display: contents;"
             >
               <span
-                class="localBuildBrand copyVersion"
+                class="fallbackBrandName copyVersion"
                 data-copy-version="true"
               >
-                <span
-                  class="localBuildTitle"
-                >
-                  MIP Autolabeling
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
+                MIP Autolabeling
               </span>
             </div>
           </span>
