@@ -1,0 +1,64 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write plugins/dsh-dashboard/README.md
+/:
+  en: f022f36f4dbc847a
+  zh: f4bdff7857787051
+/dsh-dashboard:
+  en: 7fa4eea42947f271
+  zh: 9097c87b768a46b6
+/dsh-dashboard/summary:
+  en: a20dfe24b158f10f
+  zh: 1c5b895411af8e73
+/dsh-dashboard/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 07b8dfd7e63573bf
+/dsh-dashboard/use-this-package:
+  en: c34dfbe5127f7e0e
+  zh: 0c651d77038cd7a3
+/dsh-dashboard/use-this-package/setup-install-and-wire-the-profile:
+  en: 5e8692a15395f351
+  zh: 23020fcef1d8be62
+/dsh-dashboard/use-this-package/host-configuration-reference:
+  en: 4c7633fa7c4371ca
+  zh: 61247542d178eea5
+/dsh-dashboard/use-this-package/browse-and-ask:
+  en: d77b4651ebb0d815
+  zh: c0dbbdc8370a95d5
+/dsh-dashboard/use-this-package/adjust-personal-attention:
+  en: 173f78de925c9dbd
+  zh: d4c75e8cd3d65f14
+/dsh-dashboard/use-this-package/ado-delivery-analysis:
+  en: bed9246543b0413b
+  zh: bff0d095e041faf3
+/dsh-dashboard/use-this-package/snapshot-questions-and-selection:
+  en: 031bb4b5d6a5b5d2
+  zh: e0e46f80eba9cdd8
+/dsh-dashboard/understand-the-implementation:
+  en: 922352e4cf0656c1
+  zh: bb9edfd9554bb4ca
+/dsh-dashboard/further-exploration:
+  en: 0405f3e7903b898a
+  zh: 85d6b9355d98270b
+/dsh-dashboard/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/dsh-dashboard/model-experience/dashboard-analysis:
+  en: 4cf28c73cde51051
+  zh: a450253ef14cec42
+/dsh-dashboard/model-experience/dashboard-analysis/what-the-model-sees:
+  en: 0d7e070cc9136e25
+  zh: 286585a3380fc3d0
+/dsh-dashboard/model-experience/dashboard-analysis/token-effect:
+  en: 83026386c9542bbe
+  zh: c6ba25312f894088
+/dsh-dashboard/model-experience/dashboard-analysis/kv-cache-effect:
+  en: b4d69a9577522009
+  zh: 8b4332d61105a910
+/dsh-dashboard/known-limitations-and-deferred-work:
+  en: 3571125453faeeb7
+  zh: 94ae7ffc7667610a
+/dsh-dashboard/known-limitations-and-deferred-work/dev-note:
+  en: 1a2df6a2b8b2578e
+  zh: ad9eaa555b98fad0

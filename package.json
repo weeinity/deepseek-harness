@@ -19,6 +19,7 @@
   "scripts": {
     "prepare:primary-runtime": "tsx scripts/primary-runtime/prepare.ts",
     "build": "tsx scripts/build.ts",
+    "setup:web": "tsx scripts/setup-web.ts",
     "build:artifacts": "tsx scripts/build.ts --scope artifacts",
     "build:check": "tsx scripts/build.ts --scope check",
     "build:bench": "npm run build:native-system && npm run build:lib && tsdown --config-loader native --config benchmarks/tsdown.config.ts",

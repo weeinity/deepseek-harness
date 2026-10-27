@@ -93,6 +93,7 @@ pnpm run typecheck
 pnpm run lint
 pnpm run duplication    # cross-file TypeScript clone detection
 pnpm run build          # build:artifacts + build:check, concurrently
+pnpm run setup:web      # build and install this fork's portable Web features
 pnpm run build:artifacts # artifacts: tsc emits lib/types, tsdown bundles runtime, Web
 pnpm run build:check    # typecheck aggregate tests/scripts against current build:artifacts output
 pnpm run hygiene        # publint + workspace/package/dependency checks + NodeNext consumer check
@@ -105,6 +106,8 @@ pnpm run demo:ptc -- "task"  # headless PTC mode run (needs key)
 pnpm run dev:web | dev:desktop  # build:artifacts, then launch; Web also rebuilds client bundles on edits. start:web | start:desktop skip the build
 make web|dev-web|desktop|dev-desktop|build  # the same commands; ARGS='--no-open' forwards options
 ```
+
+In this fork, “sync and build” requires [portable Web setup](plugins/README.md): `pnpm run setup:web`. Preserve machine-local credentials and personal data.
 
 ### Host sandbox failures
 

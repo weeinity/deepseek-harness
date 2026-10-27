@@ -1,0 +1,40 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write plugins/dsh-stocks/README.md
+/:
+  en: 47414b0b1f9b4bde
+  zh: d6510131b3e50cc8
+/moyu-for-deepseek-harness:
+  en: 491052331fcc38ca
+  zh: 710d07cc4a947771
+/moyu-for-deepseek-harness/summary:
+  en: c5c45cb419a665d4
+  zh: 709db90cb25b91f2
+/moyu-for-deepseek-harness/table-of-contents:
+  en: b5b13420dbe9358e
+  zh: 9be7b8c025a93131
+/moyu-for-deepseek-harness/use-stocks:
+  en: 9ec6bbb5508c7e4c
+  zh: 45b8899447647401
+/moyu-for-deepseek-harness/install-and-build:
+  en: c7981c185604ad7b
+  zh: 6af65705cbc64f53
+/moyu-for-deepseek-harness/configuration-and-privacy:
+  en: 7ebd37b73f6e5192
+  zh: 2b029bee252907fa
+/moyu-for-deepseek-harness/model-experience:
+  en: 1b9b762774f516eb
+  zh: 8a13f7ec12ca5f92
+/moyu-for-deepseek-harness/model-experience/kv-cache-effect:
+  en: 8c7e24f39f76dc96
+  zh: eb071a12128adfec
+/moyu-for-deepseek-harness/known-limitations-and-deferred-work:
+  en: 1fd9a9545ba78d80
+  zh: 92fb560b49438004
+/moyu-for-deepseek-harness/license-and-source:
+  en: d045964239f23479
+  zh: 1c645367abebae16
+/moyu-for-deepseek-harness/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

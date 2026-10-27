@@ -1,0 +1,49 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write plugins/dsh-llm-oauth/README.md
+/:
+  en: 37abdf6d765b825e
+  zh: dcb8434db3fc5b58
+/dsh-llm-oauth:
+  en: ae5cde50cdcca6eb
+  zh: f046d94ebe2b8666
+/dsh-llm-oauth/summary:
+  en: 88bfbbb91b243a2d
+  zh: bb3b5ec8c42fc617
+/dsh-llm-oauth/table-of-contents:
+  en: 1224b28f7ea232ea
+  zh: 45820f8c95f82ecf
+/dsh-llm-oauth/providers:
+  en: 6a9cfe0c3e2661bb
+  zh: ccf8ccb68f681975
+/dsh-llm-oauth/enable-vs-sign-in:
+  en: 53f93822d09c46fd
+  zh: 092b8c47b64cbb30
+/dsh-llm-oauth/install:
+  en: fc1ed1ee81331e53
+  zh: a946186fb2030a4d
+/dsh-llm-oauth/settings-oauth-subscriptions:
+  en: 52410b4e49961410
+  zh: 676abeb9bee7eb82
+/dsh-llm-oauth/chatgpt-codex-enable-device-code-auth-first:
+  en: d3740ab8ea695de8
+  zh: 49fc5589387f25dd
+/dsh-llm-oauth/login-commands:
+  en: 58539f60699fd06a
+  zh: 79e0d9f229b472bf
+/dsh-llm-oauth/do-not-collide-with-llm-pi-ai:
+  en: a2aa95cd790bf470
+  zh: d7fe740bc83b6da4
+/dsh-llm-oauth/develop:
+  en: 81c43ff223738d8f
+  zh: a472302f1d7e4823
+/dsh-llm-oauth/limits:
+  en: ec309cf56fca97be
+  zh: 70ac857afdfba2c6
+/dsh-llm-oauth/license:
+  en: 85678c86290b8f6d
+  zh: 85678c86290b8f6d
+/dsh-llm-oauth/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

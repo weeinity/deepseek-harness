@@ -1,0 +1,3 @@
+Stocks is adapted from OpenStock (https://github.com/Open-Dev-Society/OpenStock), copyright its contributors, under GNU AGPL version 3.
+Modified for DeepSeek Harness on 2026-10-12: independent plugin registration, authenticated local storage, isolated TradingView frames, localized UI, and host data provider.
+No warranty. Source and build inputs are available through About Stocks → Download source and shipped with this package.

@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src/host", "src/shared", "src/export", "tests/mcp*.test.ts", "tests/ado*.test.ts", "tests/personal*.test.ts", "tests/reference*.test.ts", "tests/export*.test.ts", "tests/snapshot-context*.test.ts", "tests/host-chat*.test.ts", "tests/dashboard-*.test.ts", "tests/attention-identity.test.ts", "tests/attention-store.test.ts", "tests/attention-projection.test.ts"]
+}

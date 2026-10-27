@@ -17,6 +17,9 @@
 /deepseek-harness/run/run-from-source:
   en: 819e3f7c144d0d64
   zh: de815f040975dba7
+/deepseek-harness/run/this-fork-s-full-web-setup:
+  en: c8a6472cb0ab4701
+  zh: 6a239783c7ce1ab5
 /deepseek-harness/community-and-support:
   en: 20acf6451fdc869b
   zh: d06246dd019ecef7
@@ -30,5 +33,5 @@
   en: 6704e9e5a8d49a91
   zh: 85c9cdd8d56f8e9d
 /deepseek-harness/license:
-  en: 926995344fc1c72b
-  zh: c92fab5abf85932f
+  en: 29354f18c97e674d
+  zh: 30a20d395bf881c6

@@ -40,6 +40,10 @@ pnpm dsh web
 
 `pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
 
+### This fork's full Web setup
+
+Use the `integration/official-update` branch of [this fork](https://github.com/weeinity/deepseek-harness) for Dashboard, MoYu, OAuth settings, and the additional extensions. In its checkout, run `pnpm install`, `pnpm run setup:web`, then `pnpm dsh web`. Repeat setup after syncing; the core build alone does not install these plugins. [Portable Web setup](plugins/README.md) includes the other-machine commands and required local sign-ins.
+
 ## Community and support
 
 - Submit feedback or bug reports through [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions).
@@ -72,6 +76,6 @@ For agents, follow [AGENTS.md](AGENTS.md).
 
 ## License
 
-[MIT](LICENSE)
+Core: [MIT](LICENSE). The [fork's Web plugins](plugins/README.md#maintain-the-plugins) retain their individual licenses; MoYu is AGPL-3.0-only.
 
 Third-party dependencies and their licenses are disclosed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

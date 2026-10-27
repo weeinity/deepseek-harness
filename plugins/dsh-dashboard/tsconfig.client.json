@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "types": ["node", "react", "react-dom"] },
+  "include": ["src/client", "src/shared", "src/export", "tests/client*.test.ts", "tests/client*.test.tsx", "tests/chat-owner.test.ts", "tests/attention-client.test.ts"]
+}

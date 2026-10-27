@@ -1,0 +1,5 @@
+- insert:
+    - id: dsh-stocks
+      name: dsh-stocks
+      config:
+        statePath: !!js dshHomePath("stocks", "state.json")

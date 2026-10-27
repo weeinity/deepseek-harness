@@ -1,0 +1,76 @@
+{
+  "name": "dsh-stocks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "OpenStock markets, watchlists and stock detail tabs inside DSH.",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "tests",
+    "build.mjs",
+    "tsconfig.json",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "README.zh.md",
+    "THIRD-PARTY-NOTICES.txt",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    ".prettierrc.json"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "link:../../vendor/cordis",
+    "@deepseek-ai/cordis-plugin-timer": "link:../../vendor/timer",
+    "@deepseek-ai/dsh-client-connection": "link:../../packages/client/connection",
+    "@deepseek-ai/dsh-client-locale": "link:../../packages/client/locale",
+    "@deepseek-ai/dsh-client-store": "link:../../packages/client/store",
+    "@deepseek-ai/dsh-client-ui-layout": "link:../../packages/client/ui-layout",
+    "@deepseek-ai/dsh-client-ui-primitives": "link:../../packages/client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-renderer": "link:../../packages/client/ui-renderer",
+    "@deepseek-ai/dsh-client-ui-sidebar": "link:../../packages/client/ui-sidebar",
+    "@deepseek-ai/dsh-client-ui-slots": "link:../../packages/client/ui-slots",
+    "@deepseek-ai/dsh-client-ui-theme": "link:../../packages/client/ui-theme",
+    "@types/node": "^22.20.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "^0.25.0",
+    "prettier": "3.6.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "pnpm@11.28.5"
+}

@@ -44,6 +44,10 @@ pnpm dsh web
 
 `pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。
 
+### 此分支的完整 Web 设置
+
+需要 Dashboard、MoYu、OAuth 设置及其他扩展时，请使用[此分支仓库](https://github.com/weeinity/deepseek-harness)的 `integration/official-update` 分支。在检出目录运行 `pnpm install`、`pnpm run setup:web`，然后运行 `pnpm dsh web`。同步后重新执行设置；核心构建本身不会安装这些插件。[可跨机器使用的 Web 功能](plugins/README.zh.md)提供另一台机器的命令及所需的本地登录说明。
+
 ## 社区与支持
 
 - 通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
@@ -91,6 +95,6 @@ pnpm dsh web
 
 ## 许可证
 
-[MIT](LICENSE)
+核心：[MIT](LICENSE)。[此分支的 Web 插件](plugins/README.zh.md#maintain-the-plugins)保留各自的许可；MoYu 使用 AGPL-3.0-only。
 
 第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

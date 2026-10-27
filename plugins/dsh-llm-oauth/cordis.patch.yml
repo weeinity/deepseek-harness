@@ -1,0 +1,26 @@
+# Bundle layer applied when this package is listed in a profile's
+# `dsh.profile.bundles`. Install:
+#   dsh plugin --profile web add github:ziyou979/dsh-llm-oauth
+#
+# The row `name` must match package.json. `inject` waits for the first-party
+# LLM service; slash-command registration is optional (see apply()).
+#
+# Default is DORMANT: `catalog` lists what you may enable; `providers: {}`
+# means no OAuth routes (and no huge model dump) until Settings → OAuth / 订阅
+# or `/oauth enable|login <id>`.
+- insert:
+    - id: llm-oauth
+      name: dsh-llm-oauth
+      inject: [llm]
+      config:
+        # pi-ai catalog ids that declare OAuth / subscription login.
+        # openai (API key) is NOT OAuth — use openai-codex for ChatGPT/Codex.
+        catalog:
+          - xai
+          - github-copilot
+          - openai-codex
+          - anthropic
+          - openrouter
+          - kimi-coding
+        # Enabled routes (key present ⇒ models listed). Start empty.
+        providers: {}

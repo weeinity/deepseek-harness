@@ -1,0 +1,106 @@
+{
+  "name": "dsh-dashboard",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal Work and Azure DevOps dashboards with source-specific analysis chats.",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --project tsconfig.host.json && tsc --project tsconfig.client.json",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-agent": "link:../../packages/core/agent",
+    "@deepseek-ai/dsh-agent-default-model": "link:../../packages/core/agent-default-model",
+    "@deepseek-ai/dsh-home-paths": "link:../../packages/util/home-paths",
+    "@deepseek-ai/dsh-llm": "link:../../packages/llm/llm",
+    "@deepseek-ai/dsh-session": "link:../../packages/core/session",
+    "@deepseek-ai/dsh-session-persistence": "link:../../packages/session/session-persistence",
+    "@deepseek-ai/dsh-storage-domain": "link:../../packages/storage/storage-domain",
+    "@deepseek-ai/dsh-system-prompt": "link:../../packages/core/system-prompt",
+    "@deepseek-ai/dsh-tool-executor-native": "link:../../packages/core/tool-executor-native",
+    "@deepseek-ai/dsh-tools": "link:../../packages/core/tools",
+    "@deepseek-ai/dsh-win32-process": "link:../../packages/subprocess/win32-process",
+    "@deepseek-ai/node-addon-system": "link:../../native/system/packages/entry",
+    "@deepseek-ai/schemastery": "link:../../vendor/schemastery",
+    "@fontsource-variable/inter": "5.3.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "cheerio": "^1.1.2",
+    "d3-shape": "3.2.0",
+    "luxon": "^3.7.2",
+    "react-markdown": "10.1.0",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "link:../../vendor/cordis",
+    "@deepseek-ai/cordis-plugin-include": "link:../../vendor/include",
+    "@deepseek-ai/cordis-plugin-loader": "link:../../vendor/loader",
+    "@deepseek-ai/dsh-agent-loop": "link:../../packages/core/agent-loop",
+    "@deepseek-ai/dsh-agent-preset-registry": "link:../../packages/preset/agent-preset-registry",
+    "@deepseek-ai/dsh-api-session-controller": "link:../../packages/api/session-controller",
+    "@deepseek-ai/dsh-brand": "link:../../packages/util/brand",
+    "@deepseek-ai/dsh-client-connection": "link:../../packages/client/connection",
+    "@deepseek-ai/dsh-client-locale": "link:../../packages/client/locale",
+    "@deepseek-ai/dsh-client-store": "link:../../packages/client/store",
+    "@deepseek-ai/dsh-client-ui-chat": "link:../../packages/client/ui-chat",
+    "@deepseek-ai/dsh-client-ui-conversation": "link:../../packages/client/ui-conversation",
+    "@deepseek-ai/dsh-client-ui-layout": "link:../../packages/client/ui-layout",
+    "@deepseek-ai/dsh-client-ui-primitives": "link:../../packages/client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-renderer": "link:../../packages/client/ui-renderer",
+    "@deepseek-ai/dsh-client-ui-session": "link:../../packages/client/ui-session",
+    "@deepseek-ai/dsh-client-ui-settings": "link:../../packages/client/ui-settings",
+    "@deepseek-ai/dsh-client-ui-sidebar": "link:../../packages/client/ui-sidebar",
+    "@deepseek-ai/dsh-client-ui-slots": "link:../../packages/client/ui-slots",
+    "@deepseek-ai/dsh-session-checkpoint-policy": "link:../../packages/session/session-checkpoint-policy",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "link:../../packages/session/session-persistence-jsonl",
+    "@deepseek-ai/dsh-session-projection": "link:../../packages/session/session-projection",
+    "@deepseek-ai/dsh-settings": "link:../../packages/settings/settings",
+    "@deepseek-ai/dsh-storage": "link:../../packages/storage/storage",
+    "@deepseek-ai/dsh-storage-json": "link:../../packages/storage/storage-json",
+    "@deepseek-ai/dsh-tool-testkit": "link:../../packages/test-support/tool-testkit",
+    "@deepseek-ai/dsh-workspace": "link:../../packages/workspace/workspace",
+    "@types/d3-shape": "3.2.0",
+    "@types/luxon": "^3.7.1",
+    "@types/node": "^22.20.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "^0.25.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "pnpm@11.28.5"
+}
